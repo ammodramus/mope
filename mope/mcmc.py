@@ -95,8 +95,8 @@ def logp(x):
     return inf_data.logprior(x)
 
 
-if __name__ == '__main__':
-
+def main():
+    global inf_data
     np.set_printoptions(precision = 10)
 
     '''
@@ -310,3 +310,7 @@ if __name__ == '__main__':
                 evidence = sampler.thermodynamic_integration_log_evidence(
                         fburnin=fburnin)
                 print '* evidence (fburnin = {}):'.format(fburnin), evidence
+
+if __name__ == '__main__':
+    main()
+
