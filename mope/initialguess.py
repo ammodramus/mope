@@ -7,12 +7,12 @@ import numpy.linalg as npl
 import data as da
 from util import *
 from data import *
-import likelihoods_somatic as lis
+import likelihoods as lis
 from functools import partial
 from collections import Counter
 
 import newick
-import ascertainment_somatic as asc
+import ascertainment as asc
 
 def estimate_initial_parameters(inf):
     init_branch_params = get_initial_params_fst_newick(inf)

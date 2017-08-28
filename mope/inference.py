@@ -4,11 +4,11 @@ import sys
 import numpy as np
 import scipy.optimize as opt
 import pandas as pd
-import likelihoods_somatic as lis
+import likelihoods as lis
 import transition_data_mut as tdm
 import transition_data_bottleneck as tdb
-import params_somatic as par
-import initialguess_somatic as igs
+import params as par
+import initialguess as igs
 from functools import partial
 import multiprocessing as mp
 
@@ -19,7 +19,7 @@ import _binom
 import _util
 from pso import pso
 from simulate import get_parameters
-import ascertainment_somatic as asc
+import ascertainment as asc
 
 '''
 To include in this class:
@@ -530,7 +530,7 @@ class Inference(object):
         stat_dist = lis.get_stationary_distribution_double_beta(self.freqs,
                 self.breaks, self.transition_N, alphabeta, polyprob)
 
-        lls = lis.get_locus_log_likelihoods_somatic_newick(
+        lls = lis.get_locus_log_likelihoods_newick(
             branch_lengths,
             mutation_rates,
             stat_dist,

@@ -8,10 +8,10 @@ import sys
 import numpy as np
 import scipy.optimize as opt
 import pandas as pd
-import likelihoods_somatic as lis
+import likelihoods as lis
 import transition_data_mut as tdm
-import params_somatic as par
-import initialguess_somatic as igs
+import params as par
+import initialguess as igs
 from functools import partial
 import multiprocessing as mp
 import numpy.random as npr
@@ -23,7 +23,7 @@ import data as da
 import _binom
 from pso import pso
 from _util import print_csv_line, print_csv_lines, print_parallel_csv_lines
-import ascertainment_somatic as asc
+import ascertainment as asc
 
 def target(x):
     global inf_data
@@ -105,7 +105,8 @@ def main():
     =========================
     '''
     parser = argparse.ArgumentParser(
-            description = 'test optimization of somatic mtDNA data')
+            description = 'MCMC inference of drift and mutation on '
+                          'ontogenetic phylogenies')
     parser.add_argument('data', type = str, help = "data file")
     parser.add_argument('tree', type = str, help = "file containing newick \
             tree")

@@ -13,7 +13,7 @@ import scipy.stats as st
 from numpy.linalg import matrix_power
 
 import _likes
-import ascertainment_somatic as asc
+import ascertainment as asc
 from _binom import get_binom_likelihoods_cython
 
 def discretize_beta_distn(a, b, N):
@@ -403,7 +403,7 @@ def get_log_likelihood_somatic_newick(
 
 
 # adding function for debugging individual likelihoods
-def get_locus_log_likelihoods_somatic_newick(
+def get_locus_log_likelihoods_newick(
         branch_lengths,
         mutation_rates,
         stationary_distribution,
@@ -584,7 +584,7 @@ def get_log_likelihood_somatic_newick_log_space(
 
 if __name__ == '__main__':
     import transition_data_mut as tdm
-    import params_somatic as par
+    import params as par
     import sys
     import time
     import numpy.random as npr

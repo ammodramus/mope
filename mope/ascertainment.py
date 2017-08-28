@@ -1,6 +1,6 @@
 import numpy as np
 
-import likelihoods_somatic as lis
+import likelihoods as lis
 import _likes
 
 def get_ascertainment_prob_for_binom(x, inf):
@@ -302,7 +302,7 @@ if __name__ == '__main__':
     import numpy as np
     import newick
     import transition_data_mut as tdm
-    import params_somatic as par
+    import params as par
     import sys
     import time
     import numpy.random as npr
@@ -312,7 +312,7 @@ if __name__ == '__main__':
 
     import _binom
     from simulate import get_parameters
-    import likelihoods_somatic as lis
+    import likelihoods as lis
     import inference
 
     import argparse
