@@ -27,6 +27,7 @@ import ascertainment as asc
 
 from mcmc import run_mcmc
 from simulate import run_simulate
+from make_transition_matrices import run_make_transition_matrices
 
 def main():
     np.set_printoptions(precision = 10)
@@ -128,6 +129,38 @@ def main():
     parser_sim.add_argument('--heteroplasmic-only', action = 'store_true',
             help = 'only output heteroplasmic sites')
     parser_sim.set_defaults(func = run_simulate)
+
+
+    parser_trans = subparsers.add_parser('makedrift')
+    parser_trans.add_argument('N', help='haploid population size',
+            type = ut.positive_int)
+    parser_trans.add_argument('s', help='selection coefficient',
+            type = ut.probability)
+    parser_trans.add_argument('u', help='mutation probability away from the '
+            'focal allele', type = ut.probability)
+    parser_trans.add_argument('v', help='mutation probability towards from '
+            'the focal allele', type = ut.probability)
+    parser_trans.add_argument('start', help='first generation to record '
+            '(generation 1 is first generation after the present '
+            'generation)', type = ut.nonneg_int)
+    parser_trans.add_argument('every', help='how often to record a generation',
+            type = ut.positive_int)
+    parser_trans.add_argument('end', help='final generation to record '
+            '(generation 1 is first generation after the present generation)',
+            type = ut.nonneg_int)
+    parser_trans.add_argument('output', help='filename for output hdf5 file. '
+            'overwrites if exists.')
+    parser_trans.add_argument('--breaks', help = 'uniform weight and '
+            'minimum bin size for binning of larger matrix into smaller '
+            'matrix', nargs = 2, metavar = ('uniform_weight', 'min_bin_size'),
+            type = float)
+    parser_trans.add_argument('--gens-file', '-g', type = str,
+            help = 'file containing generations to produce, one per line. '
+            'overrides start, every, and end.')
+    parser_trans.add_argument('--asymmetric', action = 'store_true',
+            help = 'bin the frequencies asymmetrically around the middle '
+                    'frequency')
+    parser_trans.set_defaults(func = run_make_transition_matrices)
 
     args = parser.parse_args()
     args.func(args)

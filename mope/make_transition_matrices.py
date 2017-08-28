@@ -1,48 +1,55 @@
 from __future__ import division
-import sys
+import numpy as np
+import numpy.linalg as npl
+from scipy.misc import comb
 import argparse
 import h5py
-import os
-os.environ['OPENBLAS_NUM_THREADS'] = "1"
-os.environ['MKL_NUM_THREADS'] = "1"
-import numpy as np
 
-import _transition as trans
-import util as ut
+def positive_int(val):
+    val = int(val)
+    if val <= 0:
+        raise argparse.ArgumentTypeError("invalid positive integer: {}".format(
+            val))
+    return val
 
 
-def get_bottleneck_transition_matrix(N, Nb, mu):
-    '''
-    get transition matrix under a model of instantaneous bottleneck
-    followed by doubling to the initial population size, N
+def nonneg_int(val):
+    val = int(val)
+    if val < 0:
+        raise argparse.ArgumentTypeError(
+                "invalid non-negative integer: {}".format(val))
+    return val
 
-    N     original haploid population size
-    Nb    haploid bottleneck size
-    mu     symmetric per-generation mutation probability
-    '''
-    assert 3/2 == 1.5  # check for __future__ division
-    if Nb >= N:
-        raise ValueError('Nb must be < N')
 
-    num_doublings = np.floor(np.log2(N/Nb)).astype(int)
-    num_gens = np.ceil(np.log2(N/Nb)).astype(int)
+def nonneg_float(val):
+    val = float(val)
+    if val < 0:
+        raise argparse.ArgumentTypeError( "invalid positive float: {}".format(
+            val))
+    return val
 
-    Ns = [N, Nb] 
-    for d in range(1,num_doublings+1):
-        Ns.append(Nb*2**d)
-    if num_gens > num_doublings:
-        Ns.append(N)
-    P = trans.get_transition_matrix_var_N(Ns[0], Ns[1], N, mu)
-    for N1, N2 in zip(Ns[1:-1], Ns[2:]):
-        Pp = trans.get_transition_matrix_var_N(N1, N2, N, mu)
-        P = np.dot(P, Pp)
-    return P
+def probability(val):
+    val = float(val)
+    if val < 0 or val > 1:
+        raise argparse.ArgumentTypeError( "invalid probability: {}".format(
+            val))
+    return val
 
 def check_start_end(start, end):
     if end < start:
         raise argparse.ArgumentTypeError(
                 "end generation must be >= start generation")
 
+def get_wright_fisher_transition_matrix(N, s, u, v):
+    assert 3/2 == 1.5  # check for __future__ division
+    P = np.matrix(np.zeros((N+1, N+1), dtype = np.float64))
+    js = np.arange(0,N+1)
+    for i in xrange(N+1):
+        p = i/N
+        pmut = (1-u)*p + v*(1-p) # first mutation, then selection
+        pstar = pmut*(1+s) / (pmut*(1+s) + 1-pmut)
+        P[i,:] = comb(N, js)*(pstar**js)*((1-pstar)**(N-js))
+    return P
 
 def get_breaks(N, uniform_weight, min_bin_size):
     '''
@@ -172,8 +179,6 @@ def bin_matrix(P, breaks):
     P_binned[break_is_even,:] = (P_colsummed[breaks+left_middles,:][break_is_even,:] +
                            P_colsummed[breaks+right_middles,:][break_is_even,:]) / 2
     return P_binned
-
-
 def get_binned_frequencies(N, breaks):
     assert 3/2 == 1.5
     full_val = np.arange(N+1) / N
@@ -181,8 +186,25 @@ def get_binned_frequencies(N, breaks):
     vals = np.add.reduceat(full_val, breaks) / bin_lengths
     return vals
 
+def get_next_matrix_with_prev(cur_matrix, cur_power, next_power, P):
+    step_power = next_power - cur_power
+    P_step = npl.matrix_power(P, step_power)
+    next_P = np.matmul(cur_matrix, P_step)
+    return next_P
 
-def add_matrix(h5file, P, N, Nb, u, idx, breaks = None):
+def get_identity_matrix(N, u, breaks):
+    # N+1 x N+1 identity matrix, plus 
+    diag = np.diag(np.repeat(1.0-2*u, N+1))
+    above_diag = np.diag(np.repeat(u, N), 1)
+    below_diag = np.diag(np.repeat(u, N), -1)
+    P = diag + above_diag + below_diag
+    P[0,0] += u
+    P[-1,-1] += u
+    if breaks is not None:
+        P = bin_matrix(P, breaks)
+    return P
+
+def add_matrix(h5file, P, N, s, u, v, gen, idx, breaks = None):
     '''
     add a transition matrix to an HDF5 file
 
@@ -190,7 +212,9 @@ def add_matrix(h5file, P, N, Nb, u, idx, breaks = None):
     P        transition matrix
     N        population size
     s        selection coefficient
-    u        symmetric per-generation mutation probability
+    u        mutation probability away from focal allele
+    v        mutation probability towards the focal allele
+    gen      generation
     idx      index of the dataset in the hdf5 file
     breaks   tuple of uniform_weight and min_bin_size (see get_breaks())
     '''
@@ -200,48 +224,30 @@ def add_matrix(h5file, P, N, Nb, u, idx, breaks = None):
     dset = h5file.create_dataset(group_name,
             data = np.array(P, dtype = np.float64))
     dset.attrs['N'] = N
-    dset.attrs['Nb'] = Nb
+    dset.attrs['s'] = s
     dset.attrs['u'] = u
+    dset.attrs['v'] = v
+    dset.attrs['gen'] = gen
     return
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description = "Calculate Wright-Fisher \
-            transition matrices by iterative multiplication")
-    parser.add_argument('N', help='haploid population size',
-            type = ut.positive_int)
-    parser.add_argument('mu', type = ut.probability,
-            help='symmetric per-generation mutation probability')
-    parser.add_argument('start', help='first bottleneck size to record',
-            type = ut.positive_int)
-    parser.add_argument('step', help='step size of bottleneck sizes',
-            type = ut.positive_int)
-    parser.add_argument('end', help='final bottleneck size to record',
-            type = ut.positive_int)
-    parser.add_argument('output', help='filename for output hdf5 file. \
-            overwrites if exists.')
-    parser.add_argument('--breaks', help = 'uniform weight and minimum bin \
-            size for binning of larger matrix into smaller matrix',
-            nargs = 2, metavar = ('uniform_weight', 'min_bin_size'),
-            type = float)
-    parser.add_argument('--sizes-file', type = str,
-            help = 'file containing bottleneck sizes to produce, overriding \
-                    start, every, and end')
-
-    args = parser.parse_args()
+def run_make_transition_matrices(args):
     check_start_end(args.start, args.end)
 
-    cmd = ' '.join(sys.argv)
 
     with h5py.File(args.output, 'w') as h5file:
-        h5file.attrs['cmd'] = cmd
+
         h5file.attrs['N'] = args.N
         if args.breaks is not None:
             uniform_weight = args.breaks[0]
             min_bin_size = args.breaks[1]
-            breaks = get_breaks_symmetric(args.N, uniform_weight,
-                    min_bin_size)
+            if args.asymmetric:
+                breaks = get_breaks(args.N, uniform_weight, min_bin_size)
+            else: # symmetric
+                breaks = get_breaks_symmetric(args.N, uniform_weight,
+                        min_bin_size)
             h5file.attrs['breaks'] = breaks
+            h5file.attrs['min_bin_size'] = min_bin_size
+            h5file.attrs['uniform_weight'] = uniform_weight
             frequencies = get_binned_frequencies(args.N, breaks)
         else:
             breaks = None
@@ -249,20 +255,50 @@ if __name__ == "__main__":
             h5file.attrs['breaks'] = 0
         h5file.attrs['frequencies'] = frequencies
 
+        P = get_wright_fisher_transition_matrix(args.N, args.s, args.u, args.v)
         dataset_idx = 0
-        if args.sizes_file is None:
-            Nbs = range(args.start, args.end+1, args.step)
-        else:
-            Nbs = []
-            with open(args.sizes_file) as nb_in:
-                for line in nb_in:
-                    try:
-                        Nb = int(line.strip())
-                    except ValueError:
-                        raise ValueError("invalid integer in bottleneck sizes \
-                                file")
-                    Nbs.append(Nb)
-        for Nb in Nbs:
-            P = get_bottleneck_transition_matrix(args.N, Nb, args.mu)
-            add_matrix(h5file, P, args.N, Nb, args.mu, dataset_idx, breaks)
+        if args.gens_file is None:
+            step_matrix = npl.matrix_power(P, args.every)
+
+            gen = args.start
+            if gen > 0:
+                P_prime = npl.matrix_power(P, args.start)
+                add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
+                        gen, dataset_idx, breaks)
+            elif gen == 0:
+                # for now, not taking into account mutation in the zero-gen
+                # matrix
+                #P_prime = get_identity_matrix(args.N, args.u, breaks)
+                P_prime = np.diag(np.repeat(1.0, args.N+1))
+                add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
+                        gen, dataset_idx, breaks)
+                P_prime = np.diag(np.repeat(1.0, args.N+1))
             dataset_idx += 1
+            step_matrix = npl.matrix_power(P, args.every)
+            for gen in xrange(args.start+args.every, args.end+1, args.every):
+                P_prime = np.dot(P_prime, step_matrix)
+                add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v, gen,
+                        dataset_idx, breaks)
+                dataset_idx += 1
+        else:
+            gens = []
+            with open(args.gens_file) as gen_in:
+                for line in gen_in:
+                    try:
+                        gen = int(line.strip())
+                    except ValueError:
+                        raise ValueError("invalid integer in generations file")
+                    gens.append(gen)
+            P_prime = npl.matrix_power(P, gens[0])
+            add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
+                    gens[0], dataset_idx, breaks)
+            dataset_idx += 1
+            prev_gen = gens[0]
+            for gen in gens[1:]:
+                P_prime = get_next_matrix_with_prev(
+                        P_prime, prev_gen, gen, P)
+                add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
+                        gen, dataset_idx, breaks)
+                print gen
+                dataset_idx += 1
+                prev_gen = gen

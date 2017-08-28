@@ -36,6 +36,13 @@ def probability(val):
         raise argparse.ArgumentError("invalid probability")
     return val
 
+def nonneg_int(val):
+    val = int(val)
+    if val < 0:
+        raise argparse.ArgumentTypeError(
+                "invalid non-negative integer: {}".format(val))
+    return val
+
 '''
 def mp_approx_fprime(x, f, pool, eps = 1e-8, chunksize = 1):
     num_params = x.shape[0]
