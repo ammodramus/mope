@@ -29,6 +29,7 @@ from mcmc import run_mcmc
 from simulate import run_simulate
 from make_transition_matrices import run_make_transition_matrices
 from make_bottleneck_matrices import run_make_bot
+from get_ages_from_sims import run_ages
 
 def main():
     np.set_printoptions(precision = 10)
@@ -195,6 +196,10 @@ def main():
             help = 'file containing bottleneck sizes to produce, overriding '
             'start, every, and end')
     parser_bot.set_defaults(func = run_make_bot)
+
+    parser_ages = subparsers.add_parser('getages')
+    parser_ages.add_argument('input', help = 'input filename', type = str)
+    parser_ages.set_defaults(func = run_ages)
 
     ############################################
     # parse and run
