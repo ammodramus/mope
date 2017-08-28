@@ -28,6 +28,7 @@ import ascertainment as asc
 from mcmc import run_mcmc
 from simulate import run_simulate
 from make_transition_matrices import run_make_transition_matrices
+from make_bottleneck_matrices import run_make_bot
 
 def main():
     np.set_printoptions(precision = 10)
@@ -41,8 +42,11 @@ def main():
     parser = argparse.ArgumentParser(
             description = 'mope: mitochondrial ontogenetic '
                           'phylogenetic inference')
-
     subparsers = parser.add_subparsers()
+
+    #############################
+    # run MCMC
+    #############################
     parser_run = subparsers.add_parser('run')
 
     parser_run.add_argument('data', type = str, help = "data file")
@@ -97,7 +101,9 @@ def main():
     parser_run.set_defaults(func = run_mcmc)
 
 
-    # parser for simulations
+    #############################
+    # simulate data
+    #############################
     parser_sim = subparsers.add_parser('simulate')
 
     parser_sim.add_argument('tree',
@@ -131,6 +137,9 @@ def main():
     parser_sim.set_defaults(func = run_simulate)
 
 
+    #############################
+    # make transition matrices
+    #############################
     parser_trans = subparsers.add_parser('makedrift')
     parser_trans.add_argument('N', help='haploid population size',
             type = ut.positive_int)
@@ -162,5 +171,32 @@ def main():
                     'frequency')
     parser_trans.set_defaults(func = run_make_transition_matrices)
 
+    #############################
+    # make bottleneck matrices
+    #############################
+    parser_bot = subparsers.add_parser('makebot')
+    parser_bot.add_argument('N', help='haploid population size',
+            type = ut.positive_int)
+    parser_bot.add_argument('mu', type = ut.probability,
+            help='symmetric per-generation mutation probability')
+    parser_bot.add_argument('start', help='first bottleneck size to record',
+            type = ut.positive_int)
+    parser_bot.add_argument('step', help='step size of bottleneck sizes',
+            type = ut.positive_int)
+    parser_bot.add_argument('end', help='final bottleneck size to record',
+            type = ut.positive_int)
+    parser_bot.add_argument('output', help='filename for output hdf5 file. '
+            'overwrites if exists.')
+    parser_bot.add_argument('--breaks', help = 'uniform weight and minimum '
+            'bin size for binning of larger matrix into smaller matrix',
+            nargs = 2, metavar = ('uniform_weight', 'min_bin_size'),
+            type = float)
+    parser_bot.add_argument('--sizes-file', type = str,
+            help = 'file containing bottleneck sizes to produce, overriding '
+            'start, every, and end')
+    parser_bot.set_defaults(func = run_make_bot)
+
+    ############################################
+    # parse and run
     args = parser.parse_args()
     args.func(args)
