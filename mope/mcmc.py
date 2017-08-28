@@ -95,69 +95,9 @@ def logp(x):
     return inf_data.logprior(x)
 
 
-def main():
+def run_mcmc(args):
     global inf_data
     np.set_printoptions(precision = 10)
-
-    '''
-    =========================
-    Argument parsing
-    =========================
-    '''
-    parser = argparse.ArgumentParser(
-            description = 'MCMC inference of drift and mutation on '
-                          'ontogenetic phylogenies')
-    parser.add_argument('data', type = str, help = "data file")
-    parser.add_argument('tree', type = str, help = "file containing newick \
-            tree")
-    parser.add_argument('transitions', type = str, help = "HDF5 file for \
-            pre-calculated transition matrices")
-    parser.add_argument('bottlenecks', type = str,
-            help = 'HDF5 file for pre-calculated bottleneck transition \
-                    distributions')
-    parser.add_argument('agesdata', type = str,
-            help = 'tap-separated dataset containing the ages for each family')
-    parser.add_argument('numiter', metavar='n',
-            help = 'number of mcmc iterations to perform',
-            type = ut.positive_int)
-    parser.add_argument('--num-optimizations', type = ut.positive_int,
-            default = 1, metavar = 'n',
-            help = 'perform n optimizations')
-    parser.add_argument('--true-parameters',
-            help = 'file containing true parameters', metavar = "FILE")
-    parser.add_argument('--start-from-true', action = 'store_true')
-    parser.add_argument('--start-from-map', action = 'store_true')
-    parser.add_argument('--study-frequencies', action = 'store_true',
-            help = 'use heteroplasmy frequencies from Li et al supplement')
-    parser.add_argument('--fst-filter', type = ut.probability, metavar = 'X',
-            help = 'remove the top X quantile of FST')
-    parser.add_argument('--genome-size', type = ut.positive_int,
-            default = 20000)
-    parser.add_argument('--num-walkers', type = ut.positive_int, default = 100,
-            help = 'number of walkers (chains) to use')
-    parser.add_argument('--num-threads', type = ut.positive_int, default = 1)
-    parser.add_argument('--init-norm-sd', type = float, default = 0.2,
-            help = 'initial parameters are multiplied by 1+a*X, \
-                    where X~norm(0,1) and a is the specified parameter')
-    parser.add_argument('--processes', type = ut.positive_int, default = 1)
-    parser.add_argument('--ascertainment', action = 'store_true')
-    parser.add_argument('--asc-prob-penalty', type = float, default = 1.0,
-            help = 'multiplicative factor penalty for Poisson count of \
-                    part of likelihood function')
-    parser.add_argument('--min-het-freq', type = ut.probability,
-            help = 'minimum heteroplasmy frequency considered',
-            default = 0.001)
-    parser.add_argument('--parallel-temper', action = 'store_true')
-    parser.add_argument('--evidence-integral', action = 'store_true')
-    parser.add_argument('--prev-chain',
-            help = 'tab-separated table of previous chain positions, with \
-                    the first column giving the logposterior values')
-    parser.add_argument('--chain-alpha', '-a', type = float, default = 2.0,
-            help = 'scale value for emcee ensemble chain proposals')
-    parser.add_argument('--mpi', action = 'store_true', 
-            help = 'use MPI for distribution of chain posterior calculations')
-    args = parser.parse_args()
-
     '''
     =========================
     Initialization / setup
@@ -313,5 +253,5 @@ def main():
                 print '* evidence (fburnin = {}):'.format(fburnin), evidence
 
 if __name__ == '__main__':
-    main()
+    run_mcmc()
 
