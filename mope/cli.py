@@ -2,28 +2,10 @@ from __future__ import division
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = "1"
 os.environ['MKL_NUM_THREADS'] = "1"
-import emcee
-import argparse
-import sys
-import numpy as np
-import scipy.optimize as opt
-import pandas as pd
-import likelihoods as lis
-import transition_data_mut as tdm
-import params as par
-import initialguess as igs
-from functools import partial
-import multiprocessing as mp
-import numpy.random as npr
 
-import newick
-import inference as inf
+import argparse
 import util as ut
-import data as da
-import _binom
-from pso import pso
-from _util import print_csv_line, print_csv_lines, print_parallel_csv_lines
-import ascertainment as asc
+
 
 from mcmc import run_mcmc
 from simulate import run_simulate
@@ -31,9 +13,10 @@ from make_transition_matrices import run_make_transition_matrices
 from make_bottleneck_matrices import run_make_bot
 from get_ages_from_sims import run_ages
 from count_heteroplasmies import count_hets
+from simulate_msprime import run_sim_ms
+
 
 def main():
-    np.set_printoptions(precision = 10)
 
     '''
     =========================
@@ -198,7 +181,7 @@ def main():
             'start, every, and end')
     parser_bot.set_defaults(func = run_make_bot)
 
-    parser_ages = subparsers.add_parser('getages')
+    parser_ages = subparsers.add_parser('get-ages')
     parser_ages.add_argument('input', help = 'input filename', type = str)
     parser_ages.set_defaults(func = run_ages)
 
@@ -207,6 +190,65 @@ def main():
     parser_count.add_argument('data', help = 'data filename', type = str)
     parser_count.add_argument('--frequencies', action = 'store_true')
     parser_count.set_defaults(func = count_hets)
+
+    parser_ms = subparsers.add_parser('simulate-msprime',
+            description = 'simulate heteroplasmies using msprime')
+    parser_ms.add_argument('tree',
+            help = 'newick-formatted tree for simulation')
+    parser_ms.add_argument('parameters',
+            help = 'tab-delimited file giving length, rate, mut. parameters')
+    parser_ms.add_argument('--num-families', type = int,
+            help = 'number of families to simulate', metavar = 'R',
+            default = 100)
+    parser_ms.add_argument('-N', help = 'population size',
+            type = ut.positive_int, default = 10000)
+    parser_ms.add_argument('--ages',
+            help = 'tab-delimited file containing ages to sample from')
+    parser_ms.add_argument('--mean-coverage', type = int,
+            help = 'mean coverage for variant read count samples. if '
+                   'specified, results are reported as read counts rather than'
+                   ' frequencies.')
+    parser_ms.add_argument('--genome-size', '-g', type = ut.positive_int,
+            default = 16571)
+    parser_ms.add_argument('--free-recombination', action='store_true',
+            help = 'instead of no recombination, simulate free recombination')
+    parser_ms.set_defaults(func = run_sim_ms)
+
+    parser_fig = subparsers.add_parser('make-figures',
+            description='make plots for MCMC results')
+    parser_fig.add_argument('results', type = str, help = 'file containing results '
+            'table from mcmc_somatic.py (can be gzipped)')
+    parser_fig.add_argument('tree', help = 'tree file', type = str)
+    parser_fig.add_argument('--traces', action = 'store_true',
+            help = 'also make traces plot')
+    parser_fig.add_argument('--num-walkers', type = ut.positive_int,
+            default = 500, help = 'number of chains in MCMC ensemble')
+    parser_fig.add_argument('--trace-burnin-steps', type = int, default = 500,
+            help = 'number of burnin stems for trace plot')
+    parser_fig.add_argument('--posterior-burnin-steps', type = ut.positive_int,
+            default = 2500,
+            help = 'number of burnin stems for posterior histograms')
+    parser_fig.add_argument('--prefix', type = str,
+            help = 'prefix for image names, if not provided then taken from '
+                   'input file name (defaults to current directory)')
+    parser_fig.add_argument('--format', type = str, default = 'png',
+            help = 'image format')
+    parser_fig.add_argument('--true-parameters', type = str,
+            help = 'params file for true (simulated) parameters')
+    parser_fig.add_argument('--colorsandtypes', '-c',
+            help = 'filename for file specifying colors and parameter types '
+                   ' for each variable. columns are variable name, color, '
+                   'type, whitespace separated. valid types are "fixed", '
+                   '"rate", and "bottleneck".')
+    parser_fig.add_argument('--mutation-prior-limits', nargs = 2,
+            help = 'lower and upper log10 limits for mutation rate parameters, '
+                   'two parameters, in log10 space')
+    parser_fig.add_argument('--length-prior-limits', nargs = 3,
+            help = 'three arguments: lower and upper length-parameter prior '
+                   'limits, followed by the family-ages file for the data. '
+                   'prior limits are in log10 space')
+    parser_fig.add_argument('--add-title', action = 'store_true')
+    parser_fig.add_argument('--dpi', type = ut.positive_int, default = 300)
 
     ############################################
     # parse and run

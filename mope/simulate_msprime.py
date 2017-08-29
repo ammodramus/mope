@@ -364,7 +364,6 @@ def run_simulations(reps, tree, bls, mrs, N, mean_coverage,
                 samps_obtained = True
 
             for mut in muts:
-                print >> sys.stderr, 'found a mutation in family', fam
                 freq_mom_blood = mut.genotypes[mbsamps].sum() / n
                 freq_mom_cheek = mut.genotypes[mcsamps].sum() / n
                 freq_child_blood = mut.genotypes[cbsamps].sum() / n
@@ -418,32 +417,8 @@ def run_simulations(reps, tree, bls, mrs, N, mean_coverage,
 
     return pd.DataFrame(results)
 
-def main():
 
-    np.seterr(all = 'raise')
-    parser = argparse.ArgumentParser(description = "simulate Wright-Fisher \
-            genetic drift on a tree with lengths that scale with inputs",
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('tree', help = 'newick-formatted tree for simulation')
-    parser.add_argument('parameters',
-            help = 'tab-delimited file giving length, rate, mut. parameters')
-    parser.add_argument('--num-families', type = int,
-            help = 'number of families to simulate', metavar = 'R',
-            default = 100)
-    parser.add_argument('-N', help = 'population size', type = positive_int,
-            default = 10000)
-    parser.add_argument('--ages',
-            help = 'tab-delimited file containing ages to sample from')
-    parser.add_argument('--mean-coverage', type = int,
-            help = 'mean coverage for variant read count samples. if '
-                   'specified, results are reported as read counts rather than'
-                   ' frequencies.')
-    parser.add_argument('--genome-size', '-g', type = positive_int,
-            default = 16571)
-    parser.add_argument('--free-recombination', action='store_true',
-            help = 'instead of no recombination, simulate free recombination')
-    args = parser.parse_args()
-
+def run_sim_ms(args):
     with open(args.tree) as fin:
         tree_str = fin.read().strip()
     tree = newick.loads(tree_str, length_parser = length_parser_str,
@@ -480,6 +455,3 @@ def main():
     
     results.to_csv(sys.stdout, sep = '\t', index = False,
             float_format = '%.4f')
-
-if __name__ == '__main__':
-    main()
