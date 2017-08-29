@@ -11,7 +11,7 @@ import pandas as pd
 from scipy.misc import comb
 from collections import OrderedDict
 
-import likelihoods_somatic as lis
+import likelihoods as lik
 
 import _wf
 import _util
@@ -156,9 +156,9 @@ def get_stationary_distn(N, a, b, double_beta = False, ppoly = None):
     assert 3/2 == 1.5
     if double_beta:
         assert ppoly is not None, "ppoly must not be None for double beta"
-        p = lis.discretize_double_beta_distn(a, b, N, ppoly)
+        p = lik.discretize_double_beta_distn(a, b, N, ppoly)
     else:
-        p = lis.discretize_beta_distn(a, b, N)
+        p = lik.discretize_beta_distn(a, b, N)
         p /= p.sum()
     return p
 
