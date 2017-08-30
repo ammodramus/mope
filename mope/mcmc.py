@@ -112,15 +112,13 @@ def run_mcmc(args):
             true_parameters = args.true_parameters,
             start_from_true = args.start_from_true,
             data_are_freqs = args.study_frequencies,
-            fst_filter_frac = args.fst_filter,
             genome_size = args.genome_size,
             num_processes = args.processes,
-            ascertainment = args.ascertainment,
-            print_res = False,
             bottleneck_file = args.bottlenecks,
             min_freq = args.min_het_freq,
             ages_data_fn = args.agesdata,
-            poisson_like_penalty = args.asc_prob_penalty)
+            poisson_like_penalty = args.asc_prob_penalty,
+            print_debug = args.debug)
 
     def post_clone(x):
         global inf_data
@@ -137,15 +135,14 @@ def run_mcmc(args):
                 true_parameters = args.true_parameters,
                 start_from_true = args.start_from_true,
                 data_are_freqs = args.study_frequencies,
-                fst_filter_frac = args.fst_filter,
                 genome_size = args.genome_size,
                 num_processes = args.processes,
                 ascertainment = args.ascertainment,
-                print_res = False,
                 bottleneck_file = args.bottlenecks,
                 min_freq = args.min_het_freq,
                 ages_data_fn = args.agesdata,
-                poisson_like_penalty = args.asc_prob_penalty)
+                poisson_like_penalty = args.asc_prob_penalty,
+                print_debug = args.debug)
 
     if args.processes > 1:
         pool = mp.Pool(args.processes, initializer = initializer,
@@ -166,14 +163,14 @@ def run_mcmc(args):
     =========================
     '''
 
-    print "% " + " ".join(sys.argv)
+    # print calling command
+    print "# " + " ".join(sys.argv)
 
     ndim = 2*len(inf_data.varnames) + 2
 
 
     if args.prev_chain is not None:
         prev_chains = pd.read_csv(args.prev_chain, sep = '\t', header = None)
-        #prev_chains = prev_chains.iloc[-args.num_walkers:,1:].values
         prev_chains = prev_chains.iloc[-args.num_walkers:,1:]
         vnames = inf_data.varnames
         prev_chains.columns = ([el+'_l' for el in vnames] +
@@ -213,14 +210,17 @@ def run_mcmc(args):
                 arr = proposed_init_pos)
         init_pos = proposed_init_pos
 
+    # running normal MCMC   
     if not args.parallel_temper and (not args.evidence_integral):
+        print inf_data.header
         sampler = emcee.EnsembleSampler(args.num_walkers, ndim, post_clone,
                 pool = pool, a = args.chain_alpha)
         for ps, lnprobs, cur_seed in sampler.sample(init_pos,
                 iterations = args.numiter, storechain = False):
             print_csv_lines(ps, lnprobs)
             inf_data.transition_data.clear_cache()
-    else:
+
+    else:  # requires parallel-tempering MC
         if args.evidence_integral:
             ntemps = 25
         else:  # regular parallel tempering MCMC
@@ -248,7 +248,3 @@ def run_mcmc(args):
                 evidence = sampler.thermodynamic_integration_log_evidence(
                         fburnin=fburnin)
                 print '* evidence (fburnin = {}):'.format(fburnin), evidence
-
-if __name__ == '__main__':
-    run_mcmc()
-
