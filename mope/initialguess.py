@@ -19,7 +19,7 @@ def estimate_initial_parameters(inf):
     ess = 100
     heterozygosities = {}
     if inf.data_are_counts:
-        coverage = inf.data.loc[:, inf.count_names]
+        coverage = inf.data.loc[:, inf.coverage_names]
     else:
         coverage = None
     heterozygosity = get_heterozygosity(inf.data,
@@ -180,7 +180,7 @@ def get_initial_params_fst_newick(inf):
     leaf_data = inf.data.loc[:,inf.leaf_names]
 
     if inf.data_are_counts:
-        count_data = inf.data.loc[:, inf.count_names]
+        count_data = inf.data.loc[:, inf.coverage_names]
     else:
         count_data = None
     dist_matrix = get_dist_matrix(leaf_data, num_leaves, count_data)
@@ -300,7 +300,7 @@ def get_thetas(inf_data, heterozygosity_theta):
 
     freq_dat = inf_data.data.loc[:,inf_data.leaf_names].values
     if inf_data.data_are_counts:
-        count_dat = inf_data.data.loc[:,inf_data.count_names].values
+        count_dat = inf_data.data.loc[:,inf_data.coverage_names].values
         freq_dat = freq_dat / count_dat.astype(np.float64)
     is_het = (freq_dat == 0.0) | (freq_dat == 1.0)
     leaf_names_arr = np.array(inf_data.leaf_names)
@@ -492,11 +492,8 @@ if __name__ == '__main__':
             true_parameters = 'm1.params',
             start_from_true = False,
             data_are_freqs = True,
-            fst_filter_frac = None,
             genome_size = 10000,
-            num_processes = 1,
-            ascertainment = True,
-            print_res = True)
+            num_processes = 1)
 
     params = inf_data.init_params
     #print params
