@@ -11,6 +11,8 @@ import params as par
 import initialguess as igs
 from functools import partial
 import multiprocessing as mp
+import numpy.random as npr
+import emcee
 
 import newick
 import util as ut
@@ -20,6 +22,7 @@ import _util
 from pso import pso
 from simulate import get_parameters
 import ascertainment as asc
+import mcmc
 
 
 class Inference(object):
@@ -599,17 +602,154 @@ class Inference(object):
 
         return good_params, penalty
 
+    def run_mcmc(self, mpi, prev_chain, num_walkers, start_from_map,
+            init_norm_sd, parallel_temper, evidence_integral, chain_alpha,
+            numiter):
+        # reorder these
+        global inf_data
 
-if __name__ == '__main__':
-    inf = Inference(
-            data_file = 'no_large_change_rounded.tsv',
-            transitions_file = 'transition_matrices_mutation_gens3_symmetric.h5',
-            tree_file = 'm1_study_bottleneck.newick',
-            true_parameters = None,
-            start_from_true = False,
-            data_are_freqs = True,
-            genome_size = 20000,
-            num_processes = 1,
-            bottleneck_file = 'bottleneck_matrices.h5')
+        def post_clone(x):
+            global inf_data
+            return inf_data.log_posterior(x)
 
-    inf.penalty_bound_like_obj(inf.lower-0.01)
+
+        def initializer(
+            data_file, transitions_file, tree_file, true_parameters,
+            start_from_true, data_are_freqs, genome_size, num_processes,
+            ascertainment, bottleneck_file, min_freq, ages_data_fn,
+            poisson_like_penalty, print_debug):
+
+            global inf_data
+            inf_data = inf.Inference(
+                    data_file = data_file,
+                    transitions_file = transitions_file,
+                    tree_file = tree_file,
+                    true_parameters = true_parameters,
+                    start_from_true = start_from_true,
+                    data_are_freqs = data_are_freqs,
+                    genome_size = genome_size,
+                    num_processes = num_processes,
+                    bottleneck_file = bottleneck_file,
+                    min_freq = min_freq,
+                    ages_data_fn = ages_data_fn,
+                    poisson_like_penalty = poisson_like_penalty,
+                    print_debug = print_debug)
+
+        if self.num_processes > 1:
+            pool = mp.Pool(self.num_processes, initializer = initializer,
+                    initargs = [
+                        self.data_file, self.transitions_file,
+                        self.tree_file, self.true_params,
+                        self.start_from_true, not self.data_are_counts,
+                        self.genome_size, self.num_processes,
+                        self.bottleneck_file, self.min_freq,
+                        self.ages_data_fn, self.poisson_like_penalty,
+                        self.print_debug
+                        ])
+        elif mpi:
+            from emcee.utils import MPIPool
+            pool = MPIPool()
+            if not pool.is_master():
+                pool.wait()
+                sys.exit(0)
+        else:
+            pool = None
+
+
+        '''
+        =========================
+        MCMC
+        =========================
+        '''
+
+        # print calling command
+        print "# " + " ".join(sys.argv)
+
+        ndim = 2*len(self.varnames) + 2
+
+        ##########################################################################
+        # get initial position: previous chains, MAP, or heuristic guess
+        ##########################################################################
+        if prev_chain is not None:
+            # start from previous state
+            prev_chains = pd.read_csv(prev_chain, sep = '\t', header = None)
+            prev_chains = prev_chains.iloc[-num_walkers:,1:]
+            vnames = self.varnames
+            prev_chains.columns = ([el+'_l' for el in vnames] +
+                    [el+'_m' for el in vnames] + ['root', 'ppoly'])
+            prev_chains.loc[:,prev_chains.columns.str.endswith('_l')] = (
+                    prev_chains.loc[:,prev_chains.columns.str.endswith('_l')].abs())        
+            init_pos = prev_chains.values
+        elif start_from_map:
+            # start from MAP
+            init_params = mcmc.optimize_posterior(self, pool)
+            rx = (1+init_norm_sd*npr.randn(ndim*num_walkers))
+            rx = rx.reshape((num_walkers, ndim))
+            proposed_init_pos = rx*init_params
+            proposed_init_pos = np.apply_along_axis(
+                    func1d = lambda x: np.maximum(self.lower, x),
+                    axis = 1, 
+                    arr = proposed_init_pos)
+            proposed_init_pos = np.apply_along_axis(
+                    func1d = lambda x: np.minimum(self.upper, x),
+                    axis = 1, 
+                    arr = proposed_init_pos)
+            init_pos = proposed_init_pos
+        else:
+            # use initial guess
+            rx = (1+init_norm_sd*npr.randn(ndim*num_walkers))
+            rx = rx.reshape((num_walkers, ndim))
+            proposed_init_pos = rx*self.init_params
+            proposed_init_pos = np.apply_along_axis(
+                    func1d = lambda x: np.maximum(self.lower, x),
+                    axis = 1, 
+                    arr = proposed_init_pos)
+            proposed_init_pos = np.apply_along_axis(
+                    func1d = lambda x: np.minimum(self.upper, x),
+                    axis = 1, 
+                    arr = proposed_init_pos)
+            init_pos = proposed_init_pos
+
+        if not parallel_temper and (not evidence_integral):
+            ##############################################################
+            # running normal MCMC   
+            ##############################################################
+            print self.header
+            sampler = emcee.EnsembleSampler(num_walkers, ndim, post_clone,
+                    pool = pool, a = chain_alpha)
+            for ps, lnprobs, cur_seed in sampler.sample(init_pos,
+                    iterations = numiter, storechain = False):
+                print_csv_lines(ps, lnprobs)
+                self.transition_data.clear_cache()
+
+        else:
+            ##############################################################
+            # use parallel-tempering
+            ##############################################################
+            if evidence_integral:
+                ntemps = 25
+            else:  # regular parallel tempering MCMC
+                ntemps = 5
+
+            ndim = 2*len(self.varnames)+2
+            sampler = emcee.PTSampler(ntemps, nwalkers = num_walkers,
+                    dim = ndim, logl = logl, logp = logp,
+                    threads = self.num_processes, pool = pool)
+            print '! betas:'
+            for beta in sampler.betas:
+                print '!', beta
+            import cPickle
+            newshape = [ntemps] + list(init_pos.shape)
+            init_pos_new = np.zeros(newshape)
+            for i in range(ntemps):
+                init_pos_new[i,:,:] = init_pos.copy()
+
+            for p, lnprob, lnlike in sampler.sample(init_pos_new,
+                    iterations=numiter, storechain = True):
+                print_parallel_csv_lines(p, lnprob)
+
+            if evidence_integral:
+                for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
+                    evidence = sampler.thermodynamic_integration_log_evidence(
+                            fburnin=fburnin)
+                    print '* evidence (fburnin = {}):'.format(fburnin), evidence
