@@ -97,14 +97,11 @@ def logp(x):
 
 def run_mcmc(args):
     global inf_data
-    np.set_printoptions(precision = 10)
     '''
     =========================
     Initialization / setup
     =========================
     '''
-
-
     inf_data = inf.Inference(
             data_file = args.data,
             transitions_file = args.transitions,
@@ -168,8 +165,11 @@ def run_mcmc(args):
 
     ndim = 2*len(inf_data.varnames) + 2
 
-
+    ##########################################################################
+    # get initial position: previous chains, MAP, or heuristic guess
+    ##########################################################################
     if args.prev_chain is not None:
+        # start from previous state
         prev_chains = pd.read_csv(args.prev_chain, sep = '\t', header = None)
         prev_chains = prev_chains.iloc[-args.num_walkers:,1:]
         vnames = inf_data.varnames
@@ -177,11 +177,9 @@ def run_mcmc(args):
                 [el+'_m' for el in vnames] + ['root', 'ppoly'])
         prev_chains.loc[:,prev_chains.columns.str.endswith('_l')] = (
                 prev_chains.loc[:,prev_chains.columns.str.endswith('_l')].abs())        
-        prev_chains.loc[:,prev_chains.columns.str.endswith('_m')] = (
-                prev_chains.loc[:,prev_chains.columns.str.endswith('_m')].abs()) 
         init_pos = prev_chains.values
-
     elif args.start_from_map:
+        # start from MAP
         init_params = optimize_posterior(inf_data, pool)
         rx = (1+args.init_norm_sd*npr.randn(ndim*args.num_walkers))
         rx = rx.reshape((args.num_walkers, ndim))
@@ -195,8 +193,8 @@ def run_mcmc(args):
                 axis = 1, 
                 arr = proposed_init_pos)
         init_pos = proposed_init_pos
-
-    else:  # use initial guess
+    else:
+        # use initial guess
         rx = (1+args.init_norm_sd*npr.randn(ndim*args.num_walkers))
         rx = rx.reshape((args.num_walkers, ndim))
         proposed_init_pos = rx*inf_data.init_params
@@ -210,8 +208,10 @@ def run_mcmc(args):
                 arr = proposed_init_pos)
         init_pos = proposed_init_pos
 
-    # running normal MCMC   
     if not args.parallel_temper and (not args.evidence_integral):
+        ##############################################################
+        # running normal MCMC   
+        ##############################################################
         print inf_data.header
         sampler = emcee.EnsembleSampler(args.num_walkers, ndim, post_clone,
                 pool = pool, a = args.chain_alpha)
@@ -220,7 +220,10 @@ def run_mcmc(args):
             print_csv_lines(ps, lnprobs)
             inf_data.transition_data.clear_cache()
 
-    else:  # requires parallel-tempering MC
+    else:
+        ##############################################################
+        # use parallel-tempering
+        ##############################################################
         if args.evidence_integral:
             ntemps = 25
         else:  # regular parallel tempering MCMC
