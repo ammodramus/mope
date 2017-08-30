@@ -82,19 +82,3 @@ def mp_approx_fprime(x, inq, outq, eps = 1e-8):
         fprime = (fxps[i]-fx) / eps
         fprimes.append(fprime)
     return np.array(fprimes)
-
-
-'''
-use these functions to transform and untransform variables from bounded to
-unbounded space
-'''
-
-def unbound(x, lower, upper):
-    if np.any(x >= upper) or np.any(x <= lower):
-        raise ValueError('out of bounds in unbound')
-    normx = (x-lower)/(upper-lower)
-    return logit(normx)
-
-def bound(x, lower, upper):
-    normx = expit(x)
-    return normx*(upper-lower)+lower

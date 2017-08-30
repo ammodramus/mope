@@ -358,19 +358,6 @@ class Inference(object):
         self.lower = lower
         self.upper = upper
 
-        # bound and unbound are (logit and expit) functions for transforming
-        # numbers on the real line to numbers within a finite range
-        self.bound_lower = np.concatenate((0.5*lower_len, 2*lower_mut,
-            (2*min_ab,2*min_polyprob)))  # be careful: 2x for neg, 0.5x for pos
-        self.bound_upper = np.concatenate((2*upper_len, upper_mut+2, (max_ab+2,
-            max_polyprob+2)))
-        bound = partial(ut.bound, lower = self.bound_lower,
-                upper = self.bound_upper)
-        unbound = partial(ut.unbound, lower = self.bound_lower,
-                upper = self.bound_upper)
-        self.bound = bound
-        self.unbound = unbound
-
         #####################################################
         # true parameters, if specified (for sim. data)
         #####################################################
@@ -399,7 +386,6 @@ class Inference(object):
             self.init_params = self.true_params
         else:
             self.init_params = igs.estimate_initial_parameters(self)
-        self.unbound_init_params = self.unbound(self.init_params)
 
 
     def like_obj(self, varparams):
@@ -472,11 +458,6 @@ class Inference(object):
         lls += logpoissonlike * self.poisson_like_penalty
 
         return lls
-
-
-    def logit_bound_like_obj(self, ubx):
-        bx = self.bound(ubx)
-        return self.like_obj(bx)
 
 
     def inf_bound_like_obj(self, x):
@@ -589,22 +570,16 @@ class Inference(object):
 
     def penalty_bound_log_posterior(self, x):
         good_x, penalty = self._get_bounds_penalty(x)
-        # penalty is negative here, since the log_posterior needs to be
-        # *maximized*
+        # _get_bounds_penalty() returns a positive penalty, so we subtract it
+        # from the log-posterior
         return self.log_posterior(good_x) - penalty
-
-    def logit_bound_posterior(self, ubx):
-        '''
-        ubx    varparams in unbound (probit-transformed) space
-        '''
-        x = self.bound(ubx)
-        return self.log_posterior(x)
 
 
     def _get_bounds_penalty(self, x):
         '''
         takes in branch and mutation length parameters, bounds from
-        transitions, and returns parameters that can be evaluated and a penalty
+        transitions, and returns parameters that can be evaluated and a
+        *positive* penalty
 
         x     parameters in branch name space
         '''
