@@ -225,7 +225,6 @@ class Inference(object):
         # MLE is less than 0.005? Could round down to zero, essentially
         # discarding those. That is a good first thing to try.
 
-        # otherwise, ... round down to zero?
         else:   # self.data_are_counts == True
             for ln, nn in zip(self.leaf_names, self.coverage_names):
                 freqs = self.data[ln].astype(np.float64)/self.data[nn]
@@ -235,10 +234,9 @@ class Inference(object):
                 self.data.loc[needs_rounding1, ln] = (
                         self.data.loc[needs_rounding1, nn])
 
-        #####################################################
-        # ascertainment
-        #####################################################
+        ##################################################### 
         # remove any fixed loci
+        ##################################################### 
         fixed = da.is_fixed(self.data, self.leaf_names,
                 self.data_are_counts)
         self.data = self.data.loc[~fixed,:]
@@ -257,6 +255,9 @@ class Inference(object):
         self.asc_ages['count'] = counts
         self.num_asc_combs = self.asc_ages.shape[0]
 
+        #####################################################
+        # ascertainment
+        #####################################################
         asc_tree = newick.loads(
                 self.tree_str,
                 num_freqs = self.num_freqs,
@@ -311,9 +312,8 @@ class Inference(object):
 
 
         #####################################################
-        # print header
+        # header
         #####################################################
-
         length_names = [el+'_l' for el in self.varnames]
         mut_names = [el+'_m' for el in self.varnames]
         header_list = (['ll'] + length_names + mut_names +
@@ -324,13 +324,11 @@ class Inference(object):
         #####################################################
         # making bounds for likelihood functions
         #####################################################
-
         num_varnames = len(self.varnames)
         self.num_varnames = num_varnames
         ndim = 2*num_varnames + 2
 
-        # hard-coded bounds
-        # ---------------------------------
+        # (hard-coded bounds)
         min_allowed_len = max(self.transition_data.get_min_coal_time(), 1e-6)
         max_allowed_len = 3
         min_allowed_bottleneck = 2
@@ -344,9 +342,9 @@ class Inference(object):
 
         lower_len = min_allowed_len / self.min_mults
         upper_len = max_allowed_len / self.max_mults
+
         is_bottleneck_arr = np.array(
                 [self.is_bottleneck[vn] for vn in self.varnames], dtype = bool)
-        # boolean array indexed by varname indices
         self.is_bottleneck_arr = is_bottleneck_arr
         lower_len[is_bottleneck_arr] = min_allowed_bottleneck
         upper_len[is_bottleneck_arr] = max_allowed_bottleneck
@@ -355,24 +353,26 @@ class Inference(object):
         upper_mut = np.repeat(max_mut, num_varnames)
         lower = np.concatenate((lower_len, lower_mut, (min_ab,min_polyprob)))
         upper = np.concatenate((upper_len, upper_mut, (max_ab,max_polyprob)))
+
+        # self.lower and .upper give the bounds for prior distributions
         self.lower = lower
         self.upper = upper
 
+        # bound and unbound are (logit and expit) functions for transforming
+        # numbers on the real line to numbers within a finite range
         self.bound_lower = np.concatenate((0.5*lower_len, 2*lower_mut,
-            (2*min_ab,2*min_polyprob)))
+            (2*min_ab,2*min_polyprob)))  # be careful: 2x for neg, 0.5x for pos
         self.bound_upper = np.concatenate((2*upper_len, upper_mut+2, (max_ab+2,
             max_polyprob+2)))
-
         bound = partial(ut.bound, lower = self.bound_lower,
                 upper = self.bound_upper)
         unbound = partial(ut.unbound, lower = self.bound_lower,
                 upper = self.bound_upper)
-
         self.bound = bound
         self.unbound = unbound
 
         #####################################################
-        # true parameters, if specified
+        # true parameters, if specified (for sim. data)
         #####################################################
         if true_parameters:
             true_bls, true_mrs, true_ab, true_ppoly = (
@@ -399,11 +399,12 @@ class Inference(object):
             self.init_params = self.true_params
         else:
             self.init_params = igs.estimate_initial_parameters(self)
-        self.unbound_init_params = unbound(self.init_params)
+        self.unbound_init_params = self.unbound(self.init_params)
 
 
     def like_obj(self, varparams):
         return -self.loglike(varparams)
+
 
     def loglike(self, varparams):
 
