@@ -94,7 +94,12 @@ def logp(x):
     global inf_data
     return inf_data.logprior(x)
 
+def post_clone(x):
+    global inf_data
+    return inf_data.log_posterior(x)
 
+
+inf_data = None
 def run_mcmc(args):
     global inf_data
     '''
@@ -117,9 +122,6 @@ def run_mcmc(args):
             poisson_like_penalty = args.asc_prob_penalty,
             print_debug = args.debug)
 
-    def post_clone(x):
-        global inf_data
-        return inf_data.log_posterior(x)
 
 
     def initializer(args):
@@ -134,7 +136,6 @@ def run_mcmc(args):
                 data_are_freqs = args.study_frequencies,
                 genome_size = args.genome_size,
                 num_processes = args.processes,
-                ascertainment = args.ascertainment,
                 bottleneck_file = args.bottlenecks,
                 min_freq = args.min_het_freq,
                 ages_data_fn = args.agesdata,
