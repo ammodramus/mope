@@ -49,7 +49,7 @@ def main():
             type = ut.positive_int)
     parser_run.add_argument('--num-optimizations', type = ut.positive_int,
             default = 1, metavar = 'n',
-            help = 'perform n optimizations')
+            help = 'perform n optimizations [%(default)s]')
     parser_run.add_argument('--true-parameters',
             help = 'file containing true parameters', metavar = "FILE")
     parser_run.add_argument('--start-from-true', action = 'store_true')
@@ -59,7 +59,8 @@ def main():
     parser_run.add_argument('--fst-filter', type = ut.probability, metavar = 'X',
             help = 'remove the top X quantile of FST')
     parser_run.add_argument('--genome-size', type = ut.positive_int,
-            default = 20000)
+            default = 16569, help = 'genome size is G bp [%(default)s]', metavar =
+            'G')
     parser_run.add_argument('--num-walkers', type = ut.positive_int, default = 100,
             help = 'number of walkers (chains) to use')
     parser_run.add_argument('--num-threads', type = ut.positive_int, default = 1)
@@ -83,6 +84,8 @@ def main():
             help = 'scale value for emcee ensemble chain proposals')
     parser_run.add_argument('--mpi', action = 'store_true', 
             help = 'use MPI for distribution of chain posterior calculations')
+    parser_run.add_argument('--debug', action = 'store_true',
+            help = 'print debug output')
     parser_run.set_defaults(func = run_mcmc)
 
 
