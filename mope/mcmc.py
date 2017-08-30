@@ -110,14 +110,14 @@ def run_mcmc(args):
             start_from_true = args.start_from_true,
             data_are_freqs = args.study_frequencies,
             genome_size = args.genome_size,
-            num_processes = args.processes,
             bottleneck_file = args.bottlenecks,
             min_freq = args.min_het_freq,
             ages_data_fn = args.agesdata,
             poisson_like_penalty = args.asc_prob_penalty,
             print_debug = args.debug)
 
-    inf_data.run_mcmc(args.mpi, args.prev_chain, args.num_walkers,
-            args.start_from_map, args.init_norm_sd, args.parallel_temper,
-            args.evidence_integral, args.chain_alpha, args.numiter)
+    inf_data.run_mcmc(
+            args.numiter, args.num_walkers, args.processes, args.mpi,
+            args.prev_chain, args.start_from_map, args.init_norm_sd,
+            args.parallel_temper, args.evidence_integral, args.chain_alpha)
 

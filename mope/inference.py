@@ -24,11 +24,17 @@ from simulate import get_parameters
 import ascertainment as asc
 import mcmc
 
+inf_data = None
+
+def post_clone(x):
+    global inf_data
+    return inf_data.log_posterior(x)
+
 
 class Inference(object):
     def __init__(self,
             data_file, transitions_file, tree_file, true_parameters,
-            start_from_true, data_are_freqs, genome_size, num_processes,
+            start_from_true, data_are_freqs, genome_size, 
             ages_data_fn, bottleneck_file = None, poisson_like_penalty = 1.0,
             min_freq = 0.001, transition_copy = None, transition_buf = None,
             transition_shape = None, print_debug = False):
@@ -46,14 +52,12 @@ class Inference(object):
         self.transition_data = None
         self.bottleneck_data = None
 
-        self.num_processes = num_processes
         self.data_are_counts = (not data_are_freqs)
         self.genome_size = genome_size
         self.tree_file = tree_file
         self.transitions_file = transitions_file
         self.data_file = data_file
         self.start_from_true = start_from_true
-        self.num_processes = num_processes
         self.bottleneck_file = bottleneck_file
         self.poisson_like_penalty = poisson_like_penalty
         self.min_freq = min_freq
@@ -602,25 +606,22 @@ class Inference(object):
 
         return good_params, penalty
 
-    def run_mcmc(self, mpi, prev_chain, num_walkers, start_from_map,
-            init_norm_sd, parallel_temper, evidence_integral, chain_alpha,
-            numiter):
-        # reorder these
+    def run_mcmc(
+            self, num_iter, num_walkers, num_processes = 1, mpi = False,
+            prev_chain = None, start_from_map = False, init_norm_sd = 0.2,
+            parallel_temper = False, evidence_integral = False,
+            chain_alpha = 2.0):
         global inf_data
-
-        def post_clone(x):
-            global inf_data
-            return inf_data.log_posterior(x)
-
+        inf_data = self
 
         def initializer(
             data_file, transitions_file, tree_file, true_parameters,
-            start_from_true, data_are_freqs, genome_size, num_processes,
-            ascertainment, bottleneck_file, min_freq, ages_data_fn,
+            start_from_true, data_are_freqs, genome_size,
+            bottleneck_file, min_freq, ages_data_fn,
             poisson_like_penalty, print_debug):
 
             global inf_data
-            inf_data = inf.Inference(
+            inf_data = Inference(
                     data_file = data_file,
                     transitions_file = transitions_file,
                     tree_file = tree_file,
@@ -628,20 +629,19 @@ class Inference(object):
                     start_from_true = start_from_true,
                     data_are_freqs = data_are_freqs,
                     genome_size = genome_size,
-                    num_processes = num_processes,
                     bottleneck_file = bottleneck_file,
                     min_freq = min_freq,
                     ages_data_fn = ages_data_fn,
                     poisson_like_penalty = poisson_like_penalty,
                     print_debug = print_debug)
 
-        if self.num_processes > 1:
-            pool = mp.Pool(self.num_processes, initializer = initializer,
+        if num_processes > 1:
+            pool = mp.Pool(num_processes, initializer = initializer,
                     initargs = [
                         self.data_file, self.transitions_file,
                         self.tree_file, self.true_params,
                         self.start_from_true, not self.data_are_counts,
-                        self.genome_size, self.num_processes,
+                        self.genome_size,
                         self.bottleneck_file, self.min_freq,
                         self.ages_data_fn, self.poisson_like_penalty,
                         self.print_debug
@@ -718,8 +718,8 @@ class Inference(object):
             sampler = emcee.EnsembleSampler(num_walkers, ndim, post_clone,
                     pool = pool, a = chain_alpha)
             for ps, lnprobs, cur_seed in sampler.sample(init_pos,
-                    iterations = numiter, storechain = False):
-                print_csv_lines(ps, lnprobs)
+                    iterations = num_iter, storechain = False):
+                _util.print_csv_lines(ps, lnprobs)
                 self.transition_data.clear_cache()
 
         else:
@@ -745,8 +745,8 @@ class Inference(object):
                 init_pos_new[i,:,:] = init_pos.copy()
 
             for p, lnprob, lnlike in sampler.sample(init_pos_new,
-                    iterations=numiter, storechain = True):
-                print_parallel_csv_lines(p, lnprob)
+                    iterations=num_iter, storechain = True):
+                _util.print_parallel_csv_lines(p, lnprob)
 
             if evidence_integral:
                 for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
