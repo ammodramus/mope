@@ -236,14 +236,6 @@ class Inference(object):
                         self.data.loc[needs_rounding1, nn])
 
         #####################################################
-        # randomizing alleles
-        # (flip the major and minor allele, randomly)
-        #####################################################
-        #self.data = da.randomize_alleles(self.data, self.leaf_names,
-        #        self.data_are_counts)
-        #self.data = self.data.reset_index(drop = True)
-
-        #####################################################
         # ascertainment
         #####################################################
         # remove any fixed loci
