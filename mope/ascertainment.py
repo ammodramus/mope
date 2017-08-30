@@ -334,11 +334,8 @@ if __name__ == '__main__':
             true_parameters = args.params,
             start_from_true = True,
             data_are_freqs = True,
-            fst_filter_frac = 0.0,
             genome_size = 10000,
-            num_processes = 1,
-            ascertainment = True,
-            print_res = False)
+            num_processes = 1)
 
     avg_multipliers = []
     for bn in inf.branch_names:

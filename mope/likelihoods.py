@@ -284,15 +284,14 @@ def get_log_likelihood_somatic(
                 leaf_mutation_rates)
             prev_age = cur_age
         locus_leaf_likes = leaf_likelihoods[locus_idx]
-        if ascertainment:
-            ascertainment_probs = get_ascertainment_probs_somatic(P_branches,
-                    P_leaves, stationary_distribution)
 
         locusloglike = get_locus_log_like(P_branches, P_leaves,
                 locus_leaf_likes, stationary_distribution)
 
-        if ascertainment:
-            locusloglike -= np.log(ascertainment_probs[locus_idx])
+        # conditioning on ascertainment
+        ascertainment_probs = get_ascertainment_probs_somatic(P_branches,
+                P_leaves, stationary_distribution)
+        locusloglike -= np.log(ascertainment_probs[locus_idx])
 
         loglike += locusloglike
 
@@ -337,7 +336,6 @@ def get_log_likelihood_somatic_newick(
     num_loci = inf.num_loci
     transitions = inf.transition_data
     bottlenecks = inf.bottleneck_data
-    ascertainment = inf.ascertainment
 
     for node in mrca.walk(mode = 'postorder'):
         _likes.reset_likes_ones(node.cond_probs)
@@ -443,7 +441,6 @@ def get_locus_log_likelihoods_newick(
     num_loci = inf.num_loci
     transitions = inf.transition_data
     bottlenecks = inf.bottleneck_data
-    ascertainment = inf.ascertainment
 
     for node in mrca.walk(mode = 'postorder'):
         _likes.reset_likes_ones(node.cond_probs)

@@ -21,61 +21,19 @@ from pso import pso
 from simulate import get_parameters
 import ascertainment as asc
 
-'''
-To include in this class:
-
-- data
-- original data size
-- ascertainment (true/false)
-- ascertainment data size
-- ascertainment tree, if needed
-- asc_ages, if needed
-- asc_counts
-- true parameters, if any
-- data_are_counts
-- fst filter
-- start_from_true
-- num processes
-- genome size
-- transitions
-- freqs
-- nfreqs
-- breaks
-- transitions_N
-- tree
-- tree str
-- data columns
-- branch_names 
-- branch_indices
-- num_branches
-- leaf_names
-- leaf_indices
-- num_leaves
-- coverage (int), if needed
-- leaf likes dict
-- likelihood objective
-- initial parameters
-    (either estimated or true)
-- optimization parameters:
-    - num threads 
-    - num particles
-
-'''
 
 class Inference(object):
     def __init__(self,
             data_file, transitions_file, tree_file, true_parameters,
-            start_from_true, data_are_freqs, fst_filter_frac,
-            genome_size, num_processes, ascertainment, print_res, ages_data_fn,
-            bottleneck_file = None, poisson_like_penalty = 1.0,
+            start_from_true, data_are_freqs, genome_size, num_processes,
+            ages_data_fn, bottleneck_file = None, poisson_like_penalty = 1.0,
             min_freq = 0.001, transition_copy = None, transition_buf = None,
-            transition_shape = None):
+            transition_shape = None, print_debug = False):
 
         self.asc_tree = None
         self.asc_num_loci = None
         self.asc_ages = None
         self.asc_counts = None
-        self.fst_filter = None
         self.coverage = None
         self.init_params = None
         self.true_params = None
@@ -91,14 +49,13 @@ class Inference(object):
         self.tree_file = tree_file
         self.transitions_file = transitions_file
         self.data_file = data_file
-        self.ascertainment = ascertainment
         self.start_from_true = start_from_true
         self.num_processes = num_processes
         self.bottleneck_file = bottleneck_file
         self.poisson_like_penalty = poisson_like_penalty
         self.min_freq = min_freq
         self.ages_data_fn = ages_data_fn
-        self.print_res = print_res
+        self.print_debug = print_debug
 
         ############################################################
         # read in data
@@ -192,9 +149,9 @@ class Inference(object):
         self.varnames = sorted(list(varnames_set))
 
         if self.data_are_counts:
-            self.count_names = [el + '_n' for el in self.leaf_names]
+            self.coverage_names = [el + '_n' for el in self.leaf_names]
         else:
-            self.count_names = None
+            self.coverage_names = None
 
         # number of branches having a length
         self.num_branches = len(self.branch_names)
@@ -251,19 +208,6 @@ class Inference(object):
         self.data.sort_values('family', inplace = True)
 
         #####################################################
-        # fst filtering
-        #####################################################
-        self.fst_filter = fst_filter_frac
-        if fst_filter_frac:
-            # remove high-fst loci
-            self.fst_filter = fst_filter_frac
-            is_high_fst = da.find_high_fst_indices(self.data, self.leaf_names,
-                                                   fst_filter_frac,
-                                                   self.data_are_counts)
-            self.data = self.data.loc[~is_high_fst,:]
-            self.data = self.data.reset_index(drop = True)
-
-        #####################################################
         # rounding down frequencies below min_freq
         #####################################################
 
@@ -283,7 +227,7 @@ class Inference(object):
 
         # otherwise, ... round down to zero?
         else:   # self.data_are_counts == True
-            for ln, nn in zip(self.leaf_names, self.count_names):
+            for ln, nn in zip(self.leaf_names, self.coverage_names):
                 freqs = self.data[ln].astype(np.float64)/self.data[nn]
                 needs_rounding0 = (freqs < self.min_freq)
                 needs_rounding1 = (freqs > 1-self.min_freq)
@@ -302,33 +246,32 @@ class Inference(object):
         #####################################################
         # ascertainment
         #####################################################
-        if ascertainment:
-            # remove fixed loci
-            fixed = da.is_fixed(self.data, self.leaf_names,
-                    self.data_are_counts)
-            self.data = self.data.loc[~fixed,:]
-            self.data = self.data.reset_index(drop = True)
+        # remove any fixed loci
+        fixed = da.is_fixed(self.data, self.leaf_names,
+                self.data_are_counts)
+        self.data = self.data.loc[~fixed,:]
+        self.data = self.data.reset_index(drop = True)
 
-            #####################################################
-            # ages data
-            #####################################################
-            self.asc_ages = pd.read_csv(ages_data_fn, sep = '\t',
-                    comment = '#')
-            counts = []
-            for fam in self.asc_ages['family']:
-                count = (
-                    self.data.loc[self.data['family'] == fam,:].shape[0])
-                counts.append(count)
-            self.asc_ages['count'] = counts
-            self.num_asc_combs = self.asc_ages.shape[0]
+        #####################################################
+        # ages data
+        #####################################################
+        self.asc_ages = pd.read_csv(ages_data_fn, sep = '\t',
+                comment = '#')
+        counts = []
+        for fam in self.asc_ages['family']:
+            count = (
+                self.data.loc[self.data['family'] == fam,:].shape[0])
+            counts.append(count)
+        self.asc_ages['count'] = counts
+        self.num_asc_combs = self.asc_ages.shape[0]
 
-            asc_tree = newick.loads(
-                    self.tree_str,
-                    num_freqs = self.num_freqs,
-                    num_loci = 2*self.num_asc_combs,
-                    length_parser = ut.length_parser_str,
-                    look_for_multiplier = True)[0]
-            self.asc_tree = asc_tree
+        asc_tree = newick.loads(
+                self.tree_str,
+                num_freqs = self.num_freqs,
+                num_loci = 2*self.num_asc_combs,
+                length_parser = ut.length_parser_str,
+                look_for_multiplier = True)[0]
+        self.asc_tree = asc_tree
 
         self.num_loci = self.data.shape[0]
         self.tree = newick.loads(self.tree_str,
@@ -347,7 +290,7 @@ class Inference(object):
         # leaf allele frequency likelihoods
         #####################################################
         if self.data_are_counts:
-            n_names = self.count_names
+            n_names = self.coverage_names
             count_dat = self.data.loc[:,self.leaf_names].values.astype(
                     np.float64)
             ns_dat = self.data.loc[:,n_names].values.astype(
@@ -379,27 +322,23 @@ class Inference(object):
         # print header
         #####################################################
 
-        if print_res:
-            length_names = [el+'_l' for el in self.varnames]
-            mut_names = [el+'_m' for el in self.varnames]
-            header_list = (['ll'] + length_names + mut_names +
-                    ['log10ab', 'log10polyprob'])
-            print '\t'.join(header_list)
+        length_names = [el+'_l' for el in self.varnames]
+        mut_names = [el+'_m' for el in self.varnames]
+        header_list = (['ll'] + length_names + mut_names +
+                ['log10ab', 'log10polyprob'])
+        self.header = '\t'.join(header_list)
 
 
         #####################################################
-        # making various bounded like_obj functions
+        # making bounds for likelihood functions
         #####################################################
 
-        #----------------------------------------------------
-        # set bounds
-        #----------------------------------------------------
         num_varnames = len(self.varnames)
         self.num_varnames = num_varnames
         ndim = 2*num_varnames + 2
 
         # hard-coded bounds
-        #min_allowed_len = 1e-6
+        # ---------------------------------
         min_allowed_len = max(self.transition_data.get_min_coal_time(), 1e-6)
         max_allowed_len = 3
         min_allowed_bottleneck = 2
@@ -415,11 +354,10 @@ class Inference(object):
         upper_len = max_allowed_len / self.max_mults
         is_bottleneck_arr = np.array(
                 [self.is_bottleneck[vn] for vn in self.varnames], dtype = bool)
-        lower_len[is_bottleneck_arr] = min_allowed_bottleneck
-        upper_len[is_bottleneck_arr] = max_allowed_bottleneck
-
         # boolean array indexed by varname indices
         self.is_bottleneck_arr = is_bottleneck_arr
+        lower_len[is_bottleneck_arr] = min_allowed_bottleneck
+        upper_len[is_bottleneck_arr] = max_allowed_bottleneck
 
         lower_mut = np.repeat(min_mut, num_varnames)
         upper_mut = np.repeat(max_mut, num_varnames)
@@ -442,7 +380,7 @@ class Inference(object):
         self.unbound = unbound
 
         #####################################################
-        # true parameters
+        # true parameters, if specified
         #####################################################
         if true_parameters:
             true_bls, true_mrs, true_ab, true_ppoly = (
@@ -460,9 +398,7 @@ class Inference(object):
 
             self.true_params = np.array(true_params)
 
-            self.true_loglike = -1.0*self.like_obj(self.true_params)
-
-        
+            self.true_loglike = self.loglike(self.true_params)
 
         #####################################################
         # setting initial parameters
@@ -496,23 +432,21 @@ class Inference(object):
             stat_dist,
             self)
 
-        if self.ascertainment:
-            log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
-                    mutation_rates, stat_dist, self, self.min_freq)
-            log_asc_prob = (log_asc_probs *
-                    self.asc_ages['count'].values).sum()
-            ll -= log_asc_prob
+        log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
+                mutation_rates, stat_dist, self, self.min_freq)
+        log_asc_prob = (log_asc_probs *
+                self.asc_ages['count'].values).sum()
+        ll -= log_asc_prob
 
-            logmeanascprob, logpoissonlike = self.poisson_log_like(
-                    log_asc_probs)
-            ll += logpoissonlike * self.poisson_like_penalty
+        logmeanascprob, logpoissonlike = self.poisson_log_like(
+                log_asc_probs)
+        ll += logpoissonlike * self.poisson_like_penalty
+        if self.print_debug:
             print '@@ {:15}'.format(str(ll)), logmeanascprob, ' ',
-        else:
-            print '@@ {:15}'.format(str(ll)), ' ',
-        _util.print_csv_line(varparams)
-
+            _util.print_csv_line(varparams)
 
         return ll
+
 
     def locusloglikes(self, varparams, use_counts = False):
 
@@ -535,21 +469,22 @@ class Inference(object):
             use_counts)
         lls = np.array(lls)
 
-        if self.ascertainment:
-            log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
-                    mutation_rates, stat_dist, self, self.min_freq)
-            for i in xrange(lls.shape[0]):
-                lls[i] -= log_asc_probs[int(self.data['family'].iloc[i])]
+        log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
+                mutation_rates, stat_dist, self, self.min_freq)
+        for i in xrange(lls.shape[0]):
+            lls[i] -= log_asc_probs[int(self.data['family'].iloc[i])]
 
-            logmeanascprob, logpoissonlike = self.poisson_log_like(
-                    log_asc_probs)
-            lls += logpoissonlike * self.poisson_like_penalty
+        logmeanascprob, logpoissonlike = self.poisson_log_like(
+                log_asc_probs)
+        lls += logpoissonlike * self.poisson_like_penalty
 
         return lls
+
 
     def logit_bound_like_obj(self, ubx):
         bx = self.bound(ubx)
         return self.like_obj(bx)
+
 
     def inf_bound_like_obj(self, x):
         if np.any(x < self.lower):
@@ -560,9 +495,11 @@ class Inference(object):
             return np.inf
         return self.like_obj(x)
 
+
     def penalty_bound_like_obj(self, x):
         good_x, penalty = self._get_bounds_penalty(x)
         return self.like_obj(good_x) + penalty
+
 
     def get_min_max_mults(self):
         '''
@@ -652,11 +589,8 @@ class Inference(object):
         if np.isnan(v):
             v = -np.inf
 
-        print '@@', v, pr
-
-        #print '@@', v, like, pr, logpoissonlike, logmeanascprob, ' ',
-        #print '@@', v, like, pr, ' ',
-        #_util.print_csv_line(x)
+        if self.print_debug:
+            print '@@', v, pr
 
         return v
 
@@ -706,11 +640,8 @@ if __name__ == '__main__':
             true_parameters = None,
             start_from_true = False,
             data_are_freqs = True,
-            fst_filter_frac = None,
             genome_size = 20000,
             num_processes = 1,
-            ascertainment = True,
-            print_res = True,
             bottleneck_file = 'bottleneck_matrices.h5')
 
     inf.penalty_bound_like_obj(inf.lower-0.01)
