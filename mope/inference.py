@@ -32,7 +32,6 @@ To include in this class:
 - asc_ages, if needed
 - asc_counts
 - true parameters, if any
-- optimization method
 - data_are_counts
 - fst filter
 - start_from_true
@@ -57,7 +56,6 @@ To include in this class:
 - likelihood objective
 - initial parameters
     (either estimated or true)
-- optimization method
 - optimization parameters:
     - num threads 
     - num particles
@@ -66,7 +64,7 @@ To include in this class:
 
 class Inference(object):
     def __init__(self,
-            data_file, transitions_file, tree_file, method, true_parameters,
+            data_file, transitions_file, tree_file, true_parameters,
             start_from_true, data_are_freqs, fst_filter_frac,
             genome_size, num_processes, ascertainment, print_res, ages_data_fn,
             bottleneck_file = None, poisson_like_penalty = 1.0,
@@ -90,7 +88,6 @@ class Inference(object):
         self.num_processes = num_processes
         self.data_are_counts = (not data_are_freqs)
         self.genome_size = genome_size
-        self.method = method
         self.tree_file = tree_file
         self.transitions_file = transitions_file
         self.data_file = data_file
@@ -706,7 +703,6 @@ if __name__ == '__main__':
             data_file = 'no_large_change_rounded.tsv',
             transitions_file = 'transition_matrices_mutation_gens3_symmetric.h5',
             tree_file = 'm1_study_bottleneck.newick',
-            method = 'mcmc',
             true_parameters = None,
             start_from_true = False,
             data_are_freqs = True,

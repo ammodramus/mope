@@ -104,13 +104,11 @@ def run_mcmc(args):
     =========================
     '''
 
-    method = 'mcmc'
 
     inf_data = inf.Inference(
             data_file = args.data,
             transitions_file = args.transitions,
             tree_file = args.tree,
-            method = 'mcmc',
             true_parameters = args.true_parameters,
             start_from_true = args.start_from_true,
             data_are_freqs = args.study_frequencies,
@@ -136,7 +134,6 @@ def run_mcmc(args):
                 data_file = args.data,
                 transitions_file = args.transitions,
                 tree_file = args.tree,
-                method = 'mcmc',
                 true_parameters = args.true_parameters,
                 start_from_true = args.start_from_true,
                 data_are_freqs = args.study_frequencies,

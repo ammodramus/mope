@@ -331,7 +331,6 @@ if __name__ == '__main__':
             data_file = args.data,
             transitions_file = transitions,
             tree_file = args.tree,
-            method = 'mcmc',
             true_parameters = args.params,
             start_from_true = True,
             data_are_freqs = True,
