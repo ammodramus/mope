@@ -89,8 +89,12 @@ def get_len_limits(tree, ages_file, lower_drift, upper_drift,
 
     return limits
 
-
-def run_make_figures(args):
+def make_figures(
+        results, tree, num_walkers, ages_file, prefix = None,
+        img_format = 'png', dpi = 300, colors_and_types = None,
+        length_prior_limits = (-6,0.477), mutation_prior_limits = (-8,-1),
+        true_parameters = None, do_traces = False, trace_burnin_steps = 500,
+        posterior_burnin_steps = 2500, add_title = True):
 
     validparamtypes = ('fixed', 'rate', 'bottleneck')
 
@@ -98,24 +102,22 @@ def run_make_figures(args):
     # output filenames
     ###################
 
-    if args.prefix is None:
-        path, filename = osp.split(args.results)
+    if prefix is None:
+        path, filename = osp.split(results)
         prefix = filename.split('.')[0]
 
-    else:
-        prefix = args.prefix
-    trace_file = 'traces_' + prefix + '.' + args.format
+    trace_file = 'traces_' + prefix + '.' + img_format
     posterior_histograms_file = ('posterior_histograms_' + prefix + '.' +
-            args.format)
+            img_format)
 
     # loading colors and (drift) parameter types
-    if args.colorsandtypes is not None:
+    if colors_and_types is not None:
         colors = OrderedDict()
         types = OrderedDict()
         priortypes = OrderedDict()
         priormins = OrderedDict()
         priormaxes = OrderedDict()
-        with open(args.colorsandtypes) as inp:
+        with open(colors_and_types) as inp:
             for line in inp:
                 spline = line.split()
                 param, color, paramtype = spline[:3]
@@ -142,7 +144,7 @@ def run_make_figures(args):
     ###################
     # loading the data
     ###################
-    tree_file = args.tree
+    tree_file = tree
     with open(tree_file) as fin:
         tree_str = fin.read().strip()
     tree = newick.loads(tree_str,
@@ -151,7 +153,7 @@ def run_make_figures(args):
 
     cols = get_parameter_names(tree_file)
     varnames = [col[:-2] for col in cols if col.endswith('_l')]
-    dat_m1 = pd.read_csv(args.results,
+    dat_m1 = pd.read_csv(results,
             sep = '\t', header = None, names = cols, dtype = np.float64)
     dat_m1.loc[:,dat_m1.columns.str.contains('_l')] = np.log10(np.abs(
             dat_m1.loc[:,dat_m1.columns.str.contains('_l')]))
@@ -159,14 +161,14 @@ def run_make_figures(args):
             dat_m1.loc[:,dat_m1.columns.str.contains('_m')])
     dat_m1.loc[:,'root'] = -np.abs(dat_m1.loc[:,'root'])
     dat_m1.loc[:,'ppoly'] = -np.abs(dat_m1.loc[:,'ppoly'])
-    num_walkers = args.num_walkers
-    burnin_steps = args.trace_burnin_steps
+    num_walkers = num_walkers
+    burnin_steps = trace_burnin_steps
     chains = get_chains(dat_m1.iloc[burnin_steps*num_walkers:,:].copy(),
             num_walkers)
 
     # getting (optional) length prior limits
-    if args.length_prior_limits is not None:
-        lower_l, upper_l, ages_file = args.length_prior_limits
+    if length_prior_limits is not None:
+        lower_l, upper_l = length_prior_limits
         lower_l = 10**float(lower_l)
         upper_l = 10**float(upper_l)
         length_limits = get_len_limits(tree, ages_file, lower_l, upper_l)
@@ -174,15 +176,15 @@ def run_make_figures(args):
 
 
     # getting true parameters
-    if args.true_parameters is not None:
+    if true_parameters is not None:
         true_bls, true_mrs, true_ab, true_ppoly = get_parameters(
-                args.true_parameters, tree)
+                true_parameters, tree)
         true_params = [true_bls[v] for v in varnames]
         true_params += [true_mrs[v] for v in varnames]
         true_params += [true_ab, true_ppoly]
 
-    # traces
-    if args.traces:
+    # do_traces
+    if do_traces:
         f, axes = plt.subplots(
                 dat_m1.shape[1], 1, figsize = (10, 2.5*dat_m1.shape[1]))
         for i in range(dat_m1.shape[1]):
@@ -197,7 +199,7 @@ def run_make_figures(args):
                 for chain in chains:
                     ax.plot(np.arange(chain.shape[0]),(chain.iloc[:,i]), lw = 0.02)
                 plot_log = False
-            if args.true_parameters is not None and i > 0:
+            if true_parameters is not None and i > 0:
                 true_p = true_params[i-1]
                 if plot_log:
                     ax.axhline(np.log10(true_p))
@@ -209,7 +211,7 @@ def run_make_figures(args):
         plt.savefig(trace_file)
 
     # posterior histograms
-    if args.colorsandtypes is None:
+    if colors_and_types is None:
         final = False  # not a 'final', publication plot
         num_plots = dat_m1.shape[1]
         nrows = 4
@@ -225,7 +227,7 @@ def run_make_figures(args):
         mpl.rcParams.update({'font.size': 5})
         mpl.rcParams.update({'axes.labelsize': 'small'})
 
-    burnin_steps = args.posterior_burnin_steps
+    burnin_steps = posterior_burnin_steps
     burnin = num_walkers * burnin_steps
     if burnin > dat_m1.shape[0]:
         burnin = 0
@@ -237,16 +239,16 @@ def run_make_figures(args):
 
 
     if final:
-        if not args.add_title:
+        if not add_title:
             mpl.rc('text', usetex = False)
         #mpl.rcParams.update({'font.family': 'Arial'})
         colornames = colors.keys()
         for counter, var in enumerate(colornames):
-            if args.true_parameters is not None:
+            if true_parameters is not None:
                 true_l = np.log10(true_bls[var])
                 true_m = np.log10(true_mrs[var])
             # length
-            if args.colorsandtypes is not None:
+            if colors_and_types is not None:
                 try:
                     c = colors[var]
                     t = types[var]
@@ -260,7 +262,7 @@ def run_make_figures(args):
 
             ax = axes[0][counter]
             col = var + '_l'
-            if args.length_prior_limits is not None:
+            if length_prior_limits is not None:
                 minv, maxv = length_limits[var]
             else:
                 minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
@@ -272,7 +274,7 @@ def run_make_figures(args):
             if ticks.shape[0] > 5:
                 ticks = np.arange(lower, upper+1, 2).astype(np.int)
 
-            if args.length_prior_limits is not None:
+            if length_prior_limits is not None:
                 x = np.linspace(minv, maxv, 1000)
                 y = 10**x * np.log(10) / (10**maxv - 10**minv)
                 ax.fill_between(x, 0, y, alpha = 0.3, color = 'gray')
@@ -282,17 +284,17 @@ def run_make_figures(args):
             ax.set_xticks(ticks)
             #ax.set_xscale('log')
             ax.get_yaxis().set_visible(False)
-            if args.true_parameters is not None:
+            if true_parameters is not None:
                 ax.axvline(true_l, ls = '--', c = 'black', lw = 2)
-            if args.add_title:
+            if add_title:
                 ax.set_title(col)
 
             ax = axes[1][counter]
             col = var + '_m'
-            if args.mutation_prior_limits is None:
+            if mutation_prior_limits is None:
                 minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
             else:
-                minv, maxv = args.mutation_prior_limits
+                minv, maxv = mutation_prior_limits
                 minv = float(minv)
                 maxv = float(maxv)
             lower = np.floor(minv)
@@ -302,7 +304,7 @@ def run_make_figures(args):
                 ticks = np.arange(lower, upper+1, 2).astype(np.int)
             bins = np.linspace(lower, upper, 50)
 
-            if args.mutation_prior_limits is not None:
+            if mutation_prior_limits is not None:
                 x = np.linspace(minv, maxv, 1000)
                 y = 1.0/(maxv-minv)
                 ax.fill_between(x, 0, y, alpha = 0.3, color = 'gray')
@@ -311,9 +313,9 @@ def run_make_figures(args):
                     normed = True)
             ax.set_xticks(ticks)
             ax.get_yaxis().set_visible(False)
-            if args.true_parameters is not None:
+            if true_parameters is not None:
                 ax.axvline(true_m, ls = '--', c = 'black', lw = 2)
-            if args.add_title:
+            if add_title:
                 ax.set_title(col)
 
 
@@ -326,10 +328,10 @@ def run_make_figures(args):
                     col = cols[counter]
                 except IndexError:
                     break
-                if args.true_parameters is not None and counter > 0:
+                if true_parameters is not None and counter > 0:
                     true_p = true_params[counter-1]
                 minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
-                if args.colorsandtypes is not None:
+                if colors_and_types is not None:
                     var = col[:-2]
                     try:
                         c = colors[var]
@@ -360,7 +362,7 @@ def run_make_figures(args):
                         upper = np.ceil(maxv)
                         bins = np.linspace(lower, upper, 50)
                         ax.hist(dat_m1[col][burnin:], bins, color = 'gray')
-                if args.true_parameters is not None and counter > 0:
+                if true_parameters is not None and counter > 0:
                     ax.axvline(true_p)
                 ax.set_title(col)
                 ax.get_yaxis().set_visible(False)
@@ -374,4 +376,25 @@ def run_make_figures(args):
                     f.delaxes(ax)
             
     f.tight_layout()
-    plt.savefig(posterior_histograms_file, dpi = args.dpi)
+    plt.savefig(posterior_histograms_file, dpi = dpi)
+
+
+def _run_make_figures(args):
+
+    make_figures(
+            results = args.results,
+            tree = args.tree,
+            num_walkers = args.num_walkers,
+            ages_file = args.ages_file,
+            prefix = args.prefix,
+            img_format = args.format,
+            dpi = args.dpi,
+            colors_and_types = args.colors_and_types,
+            length_prior_limits = args.length_prior_limits,
+            mutation_prior_limits = args.mutation_prior_limits,
+            true_parameters = args.true_parameters,
+            do_traces = args.plot_traces,
+            trace_burnin_steps = args.trace_burnin_steps,
+            posterior_burnin_steps = args.posterior_burnin_steps,
+            add_title = args.add_title)
+
