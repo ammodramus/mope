@@ -347,7 +347,7 @@ def get_log_likelihood_somatic_newick(
     for node in mrca.walk(mode = 'postorder'):
         if node == mrca:
             break
-        name = node.name.encode('ascii')
+        name = node.name
         branch_index = branch_indices[name]
         multipliername = node.multipliername
 
