@@ -16,6 +16,9 @@ specific language governing permissions and limitations under the License.
 
 """
 from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import absolute_import
+from builtins import object
 import io
 import re
 import numpy as np
@@ -432,11 +435,11 @@ def parse_node(s, strip_comments=False, **kw):
     return Node.create(name=name, length=length, descendants=descendants, **kw)
 
 if __name__ == '__main__':
-    import util as ut
+    from . import util as ut
 
     with open('m1_study_bottleneck.newick') as fin:
         tree_str = fin.read().strip()
     tree = loads(tree_str, length_parser = ut.length_parser_str,
             look_for_multiplier = True)[0]
     for node in tree.walk('postorder'):
-        print node.name, node.bottleneck
+        print(node.name, node.bottleneck)

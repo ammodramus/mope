@@ -1,4 +1,9 @@
 from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+from builtins import zip
+from builtins import str
+from builtins import range
 import numpy as np
 import numpy.linalg as npl
 from scipy.misc import comb
@@ -44,7 +49,7 @@ def get_wright_fisher_transition_matrix(N, s, u, v):
     assert 3/2 == 1.5  # check for __future__ division
     P = np.matrix(np.zeros((N+1, N+1), dtype = np.float64))
     js = np.arange(0,N+1)
-    for i in xrange(N+1):
+    for i in range(N+1):
         p = i/N
         pmut = (1-u)*p + v*(1-p) # first mutation, then selection
         pstar = pmut*(1+s) / (pmut*(1+s) + 1-pmut)
@@ -94,7 +99,7 @@ def get_breaks(N, uniform_weight, min_bin_size):
 
     breaks = [0,1]
     cur_prob = 0.0
-    for i, prob in zip(xrange(1, N), interior_probs):
+    for i, prob in zip(list(range(1, N)), interior_probs):
         cur_prob += prob
         if cur_prob >= min_bin_size:
             breaks.append(i+1)
@@ -148,7 +153,7 @@ def get_breaks_symmetric(N, uniform_weight, min_bin_size):
 
     breaks = [0,1]
     cur_prob = 0.0
-    for i, prob in zip(xrange(1, N), interior_probs):
+    for i, prob in zip(list(range(1, N)), interior_probs):
         cur_prob += prob
         if cur_prob >= min_bin_size:
             breaks.append(i+1)
@@ -275,7 +280,7 @@ def run_make_transition_matrices(args):
                 P_prime = np.diag(np.repeat(1.0, args.N+1))
             dataset_idx += 1
             step_matrix = npl.matrix_power(P, args.every)
-            for gen in xrange(args.start+args.every, args.end+1, args.every):
+            for gen in range(args.start+args.every, args.end+1, args.every):
                 P_prime = np.dot(P_prime, step_matrix)
                 add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v, gen,
                         dataset_idx, breaks)
@@ -299,6 +304,6 @@ def run_make_transition_matrices(args):
                         P_prime, prev_gen, gen, P)
                 add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
                         gen, dataset_idx, breaks)
-                print gen
+                print(gen)
                 dataset_idx += 1
                 prev_gen = gen

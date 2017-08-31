@@ -1,20 +1,22 @@
 from __future__ import division
+from __future__ import absolute_import
+from __future__ import unicode_literals
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = "1"
 os.environ['MKL_NUM_THREADS'] = "1"
 
 import argparse
-import util as ut
+from . import util as ut
 
 
-from mcmc import run_mcmc
-from simulate import run_simulate
-from make_transition_matrices import run_make_transition_matrices
-from make_bottleneck_matrices import run_make_bot
-from get_ages_from_sims import run_ages
-from count_heteroplasmies import count_hets
-from simulate_msprime import run_sim_ms
-from make_figures import _run_make_figures
+from .mcmc import run_mcmc
+from .simulate import run_simulate
+from .make_transition_matrices import run_make_transition_matrices
+from .make_bottleneck_matrices import run_make_bot
+from .get_ages_from_sims import run_ages
+from .count_heteroplasmies import count_hets
+from .simulate_msprime import run_sim_ms
+from .make_figures import _run_make_figures
 
 
 def main():
@@ -79,8 +81,8 @@ def main():
     parser_run.add_argument('--min-het-freq', type = ut.probability,
             help = 'minimum heteroplasmy frequency considered [%(default)s]',
             default = 0.001)
-    parser_run.add_argument('--num-temperatures', default = ut.positive_int,
-            type = int,
+    parser_run.add_argument('--num-temperatures', default = 1,
+            type = ut.positive_int,
             help = 'number of temperatures for parallel-tempering MCMC. '
                    'specifying > 1 will enable paralle-tempering MCMC.')
     parser_run.add_argument('--evidence-integral', action = 'store_true')

@@ -50,7 +50,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ===============================================================================
 """
+from __future__ import print_function
+from __future__ import unicode_literals
 
+from builtins import map
+from builtins import range
+from builtins import object
 class _function_wrapper(object):
     """
     This is a hack to make the likelihood function pickleable when `args` are
@@ -63,14 +68,14 @@ class _function_wrapper(object):
         self.kwargs = kwargs
     def __call__(self, x):
         try:
-            print 'hi there!'
+            print('hi there!')
             return self.f(x, *self.args, **self.kwargs)
         except:
             import traceback
-            print '  params:', x
-            print '  args:', self.args
-            print '  kwargs:', self.kwargs
-            print '  exception:'
+            print('  params:', x)
+            print('  args:', self.args)
+            print('  kwargs:', self.kwargs)
+            print('  exception:')
             traceback.print_exc()
             raise
 
@@ -231,7 +236,7 @@ def pso(func, lb, ub, ieqcons=[], f_ieqcons=None, args=(), kwargs={},
     # Calculate objective and constraints for each particle
     if processes > 1:
         fx = np.array(mp_pool.map(obj, x, S//processes))
-        fs = np.array(map(is_feasible, x))
+        fs = np.array(list(map(is_feasible, x)))
     else:
         for i in range(S):
             fx[i] = obj(x[i, :])
@@ -274,7 +279,7 @@ def pso(func, lb, ub, ieqcons=[], f_ieqcons=None, args=(), kwargs={},
         # Update objectives and constraints
         if processes > 1:
             fx = np.array(mp_pool.map(obj, x, S//processes))
-            fs = np.array(map(is_feasible, x))
+            fs = np.array(list(map(is_feasible, x)))
         else:
             for i in range(S):
                 fx[i] = obj(x[i, :])

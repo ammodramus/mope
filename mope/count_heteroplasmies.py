@@ -1,3 +1,5 @@
+from __future__ import print_function
+from __future__ import unicode_literals
 import argparse
 import pandas as pd
 import numpy as np
@@ -53,16 +55,16 @@ def count_hets(args):
     #  ... number of sites that are heteroplasmic in 1, 2, and 3+ tissues
 
     template = '{:42}{:5}'
-    print template.format('number of sites', num_heteroplasmic.shape[0])
-    print template.format('number of samples',
-            heteroplasmic.shape[0]*heteroplasmic.shape[1])
-    print template.format('number of heteroplasmic samples',
-            heteroplasmic.sum())
-    print template.format('number of heterplasmic sites',
-            (num_heteroplasmic != 0).sum())
-    print template.format('number of sites heterplasmic in 1 tissue',
-            (num_heteroplasmic == 1).sum())
-    print template.format('number of sites heterplasmic in 2 tissues',
-            (num_heteroplasmic == 2).sum())
-    print template.format('number of sites heterplasmic in 3+ tissues',
-            (num_heteroplasmic >= 3).sum())
+    print(template.format('number of sites', num_heteroplasmic.shape[0]))
+    print(template.format('number of samples',
+            heteroplasmic.shape[0]*heteroplasmic.shape[1]))
+    print(template.format('number of heteroplasmic samples',
+            heteroplasmic.sum()))
+    print(template.format('number of heterplasmic sites',
+            (num_heteroplasmic != 0).sum()))
+    print(template.format('number of sites heterplasmic in 1 tissue',
+            (num_heteroplasmic == 1).sum()))
+    print(template.format('number of sites heterplasmic in 2 tissues',
+            (num_heteroplasmic == 2).sum()))
+    print(template.format('number of sites heterplasmic in 3+ tissues',
+            (num_heteroplasmic >= 3).sum()))

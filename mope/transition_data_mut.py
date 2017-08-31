@@ -1,11 +1,15 @@
 from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import unicode_literals
+from builtins import object
 import h5py
 import numpy as np
 import numpy.random as npr
 #import lru_cache as lru
-import _interp
+from . import _interp
 from lru import LRU
-from make_transition_matrices import bin_matrix
+from .make_transition_matrices import bin_matrix
 
 def isclose(a,b, rtol = 1e-5):
     return np.abs(a-b) / np.abs(a) <= rtol
@@ -54,7 +58,7 @@ class TransitionData(object):
                 raise Exception('Found multiple distinct shapes of matrices \
                         in file')
             if key in self._links:
-                print key
+                print(key)
                 err_msg = 'Found duplicate generation / mutation rate \
                         combination in matrices'
                 raise Exception(err_msg)
@@ -90,7 +94,7 @@ class TransitionData(object):
         if len(missings) != 0:
             import sys
             for m in missings:
-                print >> sys.stderr, 'missing:', m
+                print('missing:', m, file=sys.stderr)
             raise ValueError('incomplete transition probability grid')
 
         self._min_coal_time = self._sorted_gens.min() / self._N
@@ -123,7 +127,7 @@ class TransitionData(object):
     def get_transition_probabilities_time_mutation(self, scaled_time,
             scaled_mut):
         key = (scaled_time, scaled_mut)
-        if self._cache.has_key(key):
+        if key in self._cache:
             return self._cache[key]
         else:
             val = self.get_transition_probabilities_time_mutation_not_cached(

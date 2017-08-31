@@ -1,9 +1,14 @@
 from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import unicode_literals
+from builtins import zip
+from builtins import range
 import numpy as np
 from scipy.stats import binom
 from scipy.stats import beta as betarv
 from scipy.misc import logsumexp
-import transition_data_mut as tdm
+from . import transition_data_mut as tdm
 import argparse
 import pandas as pd
 import sys
@@ -12,9 +17,8 @@ import scipy.linalg as scl
 import scipy.stats as st
 from numpy.linalg import matrix_power
 
-import _likes
-import ascertainment as asc
-from _binom import get_binom_likelihoods_cython
+from . import _likes
+from ._binom import get_binom_likelihoods_cython
 
 def discretize_beta_distn(a, b, N):
     '''
@@ -276,7 +280,7 @@ def get_log_likelihood_somatic(
     ages = data['age'].values
 
     loglike = 0.0
-    for locus_idx in xrange(data.shape[0]):
+    for locus_idx in range(data.shape[0]):
         cur_age = ages[locus_idx]
         if cur_age != prev_age:
             # this takes about 60% of execution time
@@ -506,88 +510,15 @@ def get_locus_log_likelihoods_newick(
     return loglikes
 
 
-def get_log_likelihood_somatic_newick_log_space(
-        mrca,
-        branch_lengths,
-        branch_mutation_rates,
-        leaf_rates,
-        leaf_mutation_rates,
-        branch_indices,
-        leaf_indices,
-        ages,
-        transitions,
-        ascertainment_mrca,
-        leaf_likelihoods,
-        stationary_distribution):
-
-    for node in mrca.walk(mode = 'postorder'):
-        _likes.reset_likes_zeros(node.cond_probs)
-
-    for node in mrca.walk(mode = 'postorder'):
-        if node == mrca:
-            break
-        name = node.name.encode('ascii')
-        if node.is_leaf:
-            leaf_likes = leaf_likelihoods[name]
-            if np.isnan(leaf_likes[0,0]):
-                # just skip the leaf and
-                # any calculations if it is missing
-                continue
-            leaf_idx = leaf_indices[name]
-            leaf_rate = leaf_rates[leaf_idx]
-            leaf_lengths = ages * leaf_rate
-            mut_rate = leaf_mutation_rates[leaf_idx]
-            ancestor = node.ancestor
-            ancestor_likes = ancestor.cond_probs
-            _likes.compute_log_leaf_transition_likelihood(
-                    leaf_likes,
-                    ancestor_likes,
-                    leaf_lengths,
-                    mut_rate,
-                    transitions)
-        else:
-            node_likes = node.cond_probs
-            node_idx = branch_indices[name]
-            node_length = branch_lengths[node_idx]
-            mut_rate = branch_mutation_rates[node_idx]
-            ancestor_likes = node.ancestor.cond_probs
-            _likes.compute_log_branch_transition_likelihood(
-                    node_likes,
-                    ancestor_likes,
-                    node_length,
-                    mut_rate,
-                    transitions)
-
-    loglike = _likes.compute_root_log_like_log_space(
-            mrca.cond_probs,
-            stationary_distribution)
-
-    if ascertainment_mrca:
-        log_asc_prob = asc.get_ascertainment_prob_somatic_newick(
-                ascertainment_mrca,
-                branch_lengths,
-                branch_mutation_rates,
-                leaf_rates,
-                leaf_mutation_rates,
-                branch_indices,
-                leaf_indices,
-                ages,
-                transitions,
-                stationary_distribution)
-        loglike -= log_asc_prob
-
-    return loglike
-
-
 if __name__ == '__main__':
-    import transition_data_mut as tdm
-    import params as par
+    from . import transition_data_mut as tdm
+    from . import params as par
     import sys
     import time
     import numpy.random as npr
-    import data as da
-    import inference as inf
-    from simulate import get_parameters
+    from . import data as da
+    from . import inference as inf
+    from .simulate import get_parameters
 
     
     transition_file = 'transition_matrices_mutation_gens3_symmetric.h5'
@@ -595,4 +526,4 @@ if __name__ == '__main__':
             'somatic.newick', "lbfgs", 'somatic_parameters.txt', False, False,
             None, 16500, 1, True, False)
     inf_log_like = -inference.like_obj(inference.true_params)
-    print 'inf log like:', inf_log_like
+    print('inf log like:', inf_log_like)

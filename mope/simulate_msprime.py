@@ -1,5 +1,9 @@
 from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import unicode_literals
 
+from builtins import range
 import re
 import sys
 import argparse
@@ -8,18 +12,17 @@ import numpy.random as npr
 import scipy.stats as st
 import pandas as pd
 
-import msprime
 
 from scipy.misc import comb
 from collections import OrderedDict
 
-import likelihoods_somatic as lis
+from . import likelihoods as lik
 
-import _wf
-import _util
-import newick
-import ages
-from util import *
+from . import _wf
+from . import _util
+from . import newick
+from . import ages
+from .util import *
 
 def get_parameters(
         params_file,
@@ -108,9 +111,9 @@ def get_stationary_distn(N, a, b, double_beta = False, ppoly = None):
     assert 3/2 == 1.5
     if double_beta:
         assert ppoly is not None, "ppoly must not be None for double beta"
-        p = lis.discretize_double_beta_distn(a, b, N, ppoly)
+        p = lik.discretize_double_beta_distn(a, b, N, ppoly)
     else:
-        p = lis.discretize_beta_distn(a, b, N)
+        p = lik.discretize_beta_distn(a, b, N)
         p /= p.sum()
     return p
 
@@ -133,6 +136,8 @@ def run_simulations(reps, tree, bls, mrs, N, mean_coverage,
     binomial_sample_size
     family_indices
     '''
+
+    import msprime
 
     leaves = []
     multipliers = {}
@@ -212,14 +217,14 @@ def run_simulations(reps, tree, bls, mrs, N, mean_coverage,
         num_reps = 1
 
 
-    for f in xrange(num_families):
+    for f in range(num_families):
         fam_depths = {}
         for node in tree.walk('postorder'):
             fam_depths[node.name] = depths[node.name][f]
 
         # sample sizes and timing
         samps = []
-        for pop in pop_idxs.keys():
+        for pop in list(pop_idxs.keys()):
             samps.extend([[pop_idxs[pop], fam_depths[pop]]] * n)
 
         child_blood_config = msprime.PopulationConfiguration(
@@ -343,7 +348,7 @@ def run_simulations(reps, tree, bls, mrs, N, mean_coverage,
         fam = f
 
         samps_obtained = False
-        for rep in xrange(num_reps):
+        for rep in range(num_reps):
             sims = msprime.simulate(
                     Ne = 1.0,
                     length = genome_size,
@@ -440,12 +445,12 @@ def run_sim_ms(args):
 
     N = args.N
     comment_strings = []
-    for varname in branch_lengths.keys():
+    for varname in list(branch_lengths.keys()):
         comment_strings.append("# {} {} {}".format(varname,
             branch_lengths[varname], mut_rates[varname]))
     comment_strings.append('# data columns: ' + ','.join(leaves))
     comment_strings.append('# ' + ' '.join(sys.argv))
-    print '\n'.join(comment_strings)
+    print('\n'.join(comment_strings))
 
     results = run_simulations(args.num_families, tree,  branch_lengths,
             mut_rates, N, args.mean_coverage, family_indices = ages['family'],

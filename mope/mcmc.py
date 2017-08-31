@@ -1,4 +1,8 @@
 from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import unicode_literals
+from builtins import zip
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = "1"
 os.environ['MKL_NUM_THREADS'] = "1"
@@ -8,85 +12,22 @@ import sys
 import numpy as np
 import scipy.optimize as opt
 import pandas as pd
-import likelihoods as lis
-import transition_data_mut as tdm
-import params as par
-import initialguess as igs
+from . import likelihoods as lis
+from . import transition_data_mut as tdm
+from . import params as par
+from . import initialguess as igs
 from functools import partial
 import multiprocessing as mp
 import numpy.random as npr
 
-import newick
-import inference as inf
-import util as ut
-import data as da
-import _binom
-from pso import pso
-from _util import print_csv_line, print_csv_lines, print_parallel_csv_lines
-import ascertainment as asc
-
-def target(x):
-    global inf_data
-    val = -1.0*inf_data.penalty_bound_log_posterior(x)
-    return val
-
-def inf_bound_target(x):
-    global inf_data
-    val = -1.0*inf_data.log_posterior(x)
-    return val
-
-
-def optimize_posterior(inf_data, pool):
-    '''
-    maximizes posterior
-
-    inf_data    Inference object
-
-    returns varparams in normal space
-    '''
-
-    lower_bound = inf_data.lower+1e-10
-    upper_bound = inf_data.upper-1e-10
-
-    swarmsize = 5000
-    minfunc = 1e-5
-    swarm_init_weight = 0.1
-
-
-    x, f = pso(target, lower_bound, upper_bound,
-            swarmsize = swarmsize, minfunc = minfunc,
-            init_params = inf_data.init_params,
-            init_params_weight = swarm_init_weight,
-            processes = inf_data.num_processes, pool = pool)
-
-    print '! pso:', x, f
-
-    bounds = [[l,u] for l, u in zip(inf_data.lower, inf_data.upper)]
-    epsilon = 1e-10
-    x, f, d = opt.lbfgsb.fmin_l_bfgs_b(
-            target,
-            x,
-            approx_grad = True,
-            factr = 50,
-            bounds = bounds,
-            epsilon = epsilon)
-
-    print '! lbfgsb:', x, f
-
-    options = {'maxfev': 1000000}
-    res = opt.minimize(inf_bound_target,
-            x,
-            method = "Nelder-Mead",
-            options = options)
-    x = res.x
-    f = res.fun
-
-    print '! nelder-mead:', x, f
-
-
-    return x
-
-
+from . import newick
+from . import inference as inf
+from . import util as ut
+from . import data as da
+from . import _binom
+from .pso import pso
+from ._util import print_csv_line, print_csv_lines, print_parallel_csv_lines
+from . import ascertainment as asc
 
 def run_mcmc(args):
     global inf_data

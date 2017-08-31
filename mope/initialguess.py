@@ -1,18 +1,22 @@
 from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import unicode_literals
+from builtins import range
 import numpy as np
 import sys
 import pandas as pd
 import scipy.optimize as opt
 import numpy.linalg as npl
-import data as da
-from util import *
-from data import *
-import likelihoods as lis
+from . import data as da
+from .util import *
+from .data import *
+from . import likelihoods as lis
 from functools import partial
 from collections import Counter
 
-import newick
-import ascertainment as asc
+from . import newick
+from . import ascertainment as asc
 
 def estimate_initial_parameters(inf):
     init_branch_params = get_initial_params_fst_newick(inf)
@@ -106,10 +110,10 @@ def get_dist_matrix(data, num_leaves, count_data = None):
     dist_matrix = np.zeros((num_leaves,num_leaves))
     if count_data is not None:
         ns = count_data.values
-        for i in xrange(num_leaves-1):
+        for i in range(num_leaves-1):
             countsi = data.iloc[:,i].values.astype(np.float64)
             missing_i = np.isnan(countsi)
-            for j in xrange(i+1, num_leaves):
+            for j in range(i+1, num_leaves):
                 countsj = data.iloc[:,j].values.astype(np.float64)
                 missing_j = np.isnan(countsj)
                 either_missing = (missing_i | missing_j)
@@ -121,10 +125,10 @@ def get_dist_matrix(data, num_leaves, count_data = None):
                 # x 2 because distance is twice the divergence time
                 dist_matrix[i,j] = -2*np.log(1-fst)
     else:
-        for i in xrange(num_leaves-1):
+        for i in range(num_leaves-1):
             freqs_i = data.iloc[:,i].values.astype(np.float64)
             missing_i = np.isnan(freqs_i)
-            for j in xrange(i+1,num_leaves):
+            for j in range(i+1,num_leaves):
                 freqs_j = data.iloc[:,j].values.astype(np.float64)
                 missing_j = np.isnan(freqs_j)
                 either_missing = (missing_i | missing_j)
@@ -206,8 +210,8 @@ def get_initial_params_fst_newick(inf):
     branch_counts = {}
     pair_indices = {}
     pidx = 0
-    for i in xrange(num_leaves-1):
-        for j in xrange(i+1,num_leaves):
+    for i in range(num_leaves-1):
+        for j in range(i+1,num_leaves):
             pair_indices[(i,j)] = pidx
             pidx += 1
             connecting_branches = get_connecting_branch_names(leaves[i],
@@ -221,8 +225,8 @@ def get_initial_params_fst_newick(inf):
     state_indices = {}
 
     idx = 0
-    for i in xrange(num_leaves-1):
-        for j in xrange(i+1, num_leaves):
+    for i in range(num_leaves-1):
+        for j in range(i+1, num_leaves):
             bcs = branch_counts[(i,j)]
             for bc in bcs:
                 vname = name_to_varname[bc]
@@ -319,10 +323,10 @@ def get_thetas(inf_data, heterozygosity_theta):
             het_leaves = frozenset(list(het_leaves))
             num_mutations_groups[het_leaves] += 1
 
-    for key, val in desc_list.iteritems():
+    for key, val in list(desc_list.items()):
         desc_list[key] = frozenset(val)
 
-    for group, count in num_mutations_groups.items():
+    for group, count in list(num_mutations_groups.items()):
         for node in inf_data.tree.walk('postorder'):
             if node.is_leaf:
                 continue
@@ -356,7 +360,7 @@ def get_thetas(inf_data, heterozygosity_theta):
     avg_num_muts = tot_num_muts / num_keys
 
     bmrs = {}
-    for vname in num_mutations_varnames.keys():
+    for vname in list(num_mutations_varnames.keys()):
         if vname == root_vname:
             continue
         bmrs[vname] = max(1e-6,
@@ -479,11 +483,11 @@ def randomize_params(params, min_max_factor = 5, all_same = False):
 
 if __name__ == '__main__':
     import pandas as pd
-    import data as da
-    import newick
-    from simulate import get_parameters
-    import transition_data_mut as tdm
-    import inference as inf
+    from . import data as da
+    from . import newick
+    from .simulate import get_parameters
+    from . import transition_data_mut as tdm
+    from . import inference as inf
     inf_data = inf.Inference(
             data_file = 'test_data_m1.txt',
             transitions_file = 'transition_matrices_mutation_gens3_symmetric.h5',
@@ -498,19 +502,19 @@ if __name__ == '__main__':
     params = inf_data.init_params
     #print params
     nv = len(inf_data.varnames)
-    for i in xrange(nv):
-        print '{}\t{}\t{}'.format(
+    for i in range(nv):
+        print('{}\t{}\t{}'.format(
                 inf_data.varnames[i],
                 params[i],
-                params[nv+i])
-    print 'ab\t{}\t{}'.format(params[2*nv], params[2*nv])
+                params[nv+i]))
+    print('ab\t{}\t{}'.format(params[2*nv], params[2*nv]))
 
     tparams = inf_data.true_params
 
-    print '-----------'
-    for i in xrange(nv):
-        print '{}\t{}\t{}'.format(
+    print('-----------')
+    for i in range(nv):
+        print('{}\t{}\t{}'.format(
                 inf_data.varnames[i],
                 tparams[i],
-                tparams[nv+i])
-    print 'ab\t{}\t{}'.format(tparams[2*nv], tparams[2*nv])
+                tparams[nv+i]))
+    print('ab\t{}\t{}'.format(tparams[2*nv], tparams[2*nv]))

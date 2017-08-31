@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import numpy as np
 
 def get_branch_lengths(scenario):

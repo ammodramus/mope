@@ -1,28 +1,34 @@
 from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import unicode_literals
+from builtins import zip
+from builtins import str
+from builtins import range
+from builtins import object
 import argparse
 import sys
 import numpy as np
 import scipy.optimize as opt
 import pandas as pd
-import likelihoods as lis
-import transition_data_mut as tdm
-import transition_data_bottleneck as tdb
-import params as par
-import initialguess as igs
+from . import likelihoods as lis
+from . import transition_data_mut as tdm
+from . import transition_data_bottleneck as tdb
+from . import params as par
+from . import initialguess as igs
 from functools import partial
 import multiprocessing as mp
 import numpy.random as npr
 import emcee
 
-import newick
-import util as ut
-import data as da
-import _binom
-import _util
-from pso import pso
-from simulate import get_parameters
-import ascertainment as asc
-import mcmc
+from . import newick
+from . import util as ut
+from . import data as da
+from . import _binom
+from . import _util
+from .pso import pso
+from .simulate import get_parameters
+from . import ascertainment as asc
 
 inf_data = None
 
@@ -37,6 +43,67 @@ def logp(x):
 def post_clone(x):
     global inf_data
     return inf_data.log_posterior(x)
+
+def target(x):
+    global inf_data
+    val = -1.0*inf_data.penalty_bound_log_posterior(x)
+    return val
+
+def inf_bound_target(x):
+    global inf_data
+    val = -1.0*inf_data.log_posterior(x)
+    return val
+
+
+def optimize_posterior(inf_data, pool):
+    '''
+    maximizes posterior
+
+    inf_data    Inference object
+
+    returns varparams in normal space
+    '''
+
+    lower_bound = inf_data.lower+1e-10
+    upper_bound = inf_data.upper-1e-10
+
+    swarmsize = 5000
+    minfunc = 1e-5
+    swarm_init_weight = 0.1
+
+
+    x, f = pso(target, lower_bound, upper_bound,
+            swarmsize = swarmsize, minfunc = minfunc,
+            init_params = inf_data.init_params,
+            init_params_weight = swarm_init_weight,
+            processes = inf_data.num_processes, pool = pool)
+
+    print('! pso:', x, f)
+
+    bounds = [[l,u] for l, u in zip(inf_data.lower, inf_data.upper)]
+    epsilon = 1e-10
+    x, f, d = opt.lbfgsb.fmin_l_bfgs_b(
+            target,
+            x,
+            approx_grad = True,
+            factr = 50,
+            bounds = bounds,
+            epsilon = epsilon)
+
+    print('! lbfgsb:', x, f)
+
+    options = {'maxfev': 1000000}
+    res = opt.minimize(inf_bound_target,
+            x,
+            method = "Nelder-Mead",
+            options = options)
+    x = res.x
+    f = res.fun
+
+    print('! nelder-mead:', x, f)
+
+
+    return x
 
 
 class Inference(object):
@@ -436,7 +503,7 @@ class Inference(object):
                 log_asc_probs)
         ll += logpoissonlike * self.poisson_like_penalty
         if self.print_debug:
-            print '@@ {:15}'.format(str(ll)), logmeanascprob, ' ',
+            print('@@ {:15}'.format(str(ll)), logmeanascprob, ' ', end=' ')
             _util.print_csv_line(varparams)
 
         return ll
@@ -465,7 +532,7 @@ class Inference(object):
 
         log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
                 mutation_rates, stat_dist, self, self.min_freq)
-        for i in xrange(lls.shape[0]):
+        for i in range(lls.shape[0]):
             lls[i] -= log_asc_probs[int(self.data['family'].iloc[i])]
 
         logmeanascprob, logpoissonlike = self.poisson_log_like(
@@ -477,10 +544,10 @@ class Inference(object):
 
     def inf_bound_like_obj(self, x):
         if np.any(x < self.lower):
-            print 'inf:', x
+            print('inf:', x)
             return np.inf
         if np.any(x > self.upper):
-            print 'inf:', x
+            print('inf:', x)
             return np.inf
         return self.like_obj(x)
 
@@ -579,7 +646,7 @@ class Inference(object):
             v = -np.inf
 
         if self.print_debug:
-            print '@@', v, pr
+            print('@@', v, pr)
 
         return v
 
@@ -678,7 +745,7 @@ class Inference(object):
             init_pos = prev_chains.values
         elif start_from_map:
             # start from MAP
-            init_params = mcmc.optimize_posterior(self, pool)
+            init_params = optimize_posterior(self, pool)
             rx = (1+init_norm_sd*npr.randn(ndim*num_walkers))
             rx = rx.reshape((num_walkers, ndim))
             proposed_init_pos = rx*init_params
@@ -718,7 +785,7 @@ class Inference(object):
 
 
         # print calling command
-        print "# " + " ".join(sys.argv)
+        print("# " + " ".join(sys.argv))
 
         ndim = 2*len(self.varnames) + 2
 
@@ -736,7 +803,7 @@ class Inference(object):
         ##############################################################
         # running normal MCMC   
         ##############################################################
-        print self.header
+        print(self.header)
         sampler = emcee.EnsembleSampler(num_walkers, ndim, post_clone,
                 pool = pool, a = chain_alpha)
         for ps, lnprobs, cur_seed in sampler.sample(init_pos,
@@ -780,9 +847,9 @@ class Inference(object):
                 dim = ndim, logl = logl, logp = logp,
                 threads = num_processes, pool = pool)
 
-        print '# betas:'
+        print('# betas:')
         for beta in sampler.betas:
-            print '#', beta
+            print('#', beta)
 
         newshape = [ntemps] + list(init_pos.shape)
         init_pos_new = np.zeros(newshape)
@@ -797,4 +864,4 @@ class Inference(object):
             for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
                 evidence = sampler.thermodynamic_integration_log_evidence(
                         fburnin=fburnin)
-                print '# evidence (fburnin = {}):'.format(fburnin), evidence
+                print('# evidence (fburnin = {}):'.format(fburnin), evidence)

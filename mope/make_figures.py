@@ -1,4 +1,7 @@
 from __future__ import division
+from __future__ import absolute_import
+from __future__ import unicode_literals
+from builtins import range
 import argparse
 import numpy as np
 import pandas as pd
@@ -8,9 +11,9 @@ import matplotlib.pyplot as plt
 import os.path as osp
 import sys
 
-from simulate import get_parameters
-import util as ut
-import newick
+from .simulate import get_parameters
+from . import util as ut
+from . import newick
 from collections import OrderedDict
 
 def get_hatch(paramtype):
@@ -46,7 +49,7 @@ def get_parameter_names(filename):
 
 def get_chains(dat, num_walkers):
     chains = []
-    for i in xrange(num_walkers):
+    for i in range(num_walkers):
         chains.append(dat.iloc[i::num_walkers,:].copy())
     return chains
 
@@ -78,7 +81,7 @@ def get_len_limits(tree, ages_file, lower_drift, upper_drift,
                 limits[varname] = [minv, maxv]
 
     # so far, it has just been the multipliers, now need to make them limits
-    for varname in limits.keys():
+    for varname in list(limits.keys()):
         mults = limits[varname]
         if is_bottleneck[varname]:
             ld, ud = lower_bottleneck, upper_bottleneck
@@ -134,7 +137,7 @@ def make_figures(
                 except ValueError:
                     continue
         priors_found = (len(priortypes) > 0)
-        for param, ptype in priortypes.iteritems():
+        for param, ptype in list(priortypes.items()):
             if ptype not in validpriortypes:
                 raise ValueError('Invalid prior type: {}. must be "uniform" or '
                                  '"loguniform".'.format(ptype))
@@ -242,7 +245,7 @@ def make_figures(
         if not add_title:
             mpl.rc('text', usetex = False)
         #mpl.rcParams.update({'font.family': 'Arial'})
-        colornames = colors.keys()
+        colornames = list(colors.keys())
         for counter, var in enumerate(colornames):
             if true_parameters is not None:
                 true_l = np.log10(true_bls[var])

@@ -1,4 +1,7 @@
 from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import unicode_literals
 
 import re
 import sys
@@ -11,13 +14,13 @@ import pandas as pd
 from scipy.misc import comb
 from collections import OrderedDict
 
-import likelihoods as lik
+from . import likelihoods as lik
 
-import _wf
-import _util
-import newick
-import ages
-from util import *
+from . import _wf
+from . import _util
+from . import newick
+from . import ages
+from .util import *
 
 def get_heteroplasmic_filter(results, is_frequencies, tree):
     leaves = []
@@ -213,8 +216,8 @@ def run_simulations(reps, tree, bls, mrs, N, stationary_distn,
             anc_counts = counts[node.ancestor.name]
             if node.multipliervalues is not None:
                 if node.is_bottleneck:
-                    print node.multipliervalues
-                    print node_varname
+                    print(node.multipliervalues)
+                    print(node_varname)
                     raise ValueError(
                     'bottleneck specified for a branch with rate')
                 rate = bls[node_varname]
@@ -295,13 +298,13 @@ def run_simulate(args):
     stationary_distn = get_stationary_distn(N, a, b,
             double_beta = (not args.single_beta), ppoly = ppoly)
     comment_strings = []
-    for varname in branch_lengths.keys():
+    for varname in list(branch_lengths.keys()):
         comment_strings.append("# {} {} {}".format(varname,
             branch_lengths[varname], mut_rates[varname]))
     comment_strings.append('# ab: {}'.format(a))
     comment_strings.append('# data columns: ' + ','.join(leaves))
     comment_strings.append('# ' + ' '.join(sys.argv))
-    print '\n'.join(comment_strings)
+    print('\n'.join(comment_strings))
 
     if args.exact_ages:
         reps = ages.shape[0]

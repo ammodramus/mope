@@ -1,7 +1,10 @@
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import unicode_literals
 import numpy as np
 
-import likelihoods as lis
-import _likes
+from . import likelihoods as lis
+from . import _likes
 
 def get_ascertainment_prob_for_binom(x, inf):
     '''
@@ -300,20 +303,20 @@ def get_family_asc_probs(
 if __name__ == '__main__':
     import pandas as pd
     import numpy as np
-    import newick
-    import transition_data_mut as tdm
-    import params as par
+    from . import newick
+    from . import transition_data_mut as tdm
+    from . import params as par
     import sys
     import time
     import numpy.random as npr
-    import data as da
+    from . import data as da
 
     from functools import partial
 
-    import _binom
-    from simulate import get_parameters
-    import likelihoods as lis
-    import inference
+    from . import _binom
+    from .simulate import get_parameters
+    from . import likelihoods as lis
+    from . import inference
 
     import argparse
 
@@ -355,9 +358,9 @@ if __name__ == '__main__':
     branch_lengths = tp[:inf.num_branches]
     mutation_rates = tp[inf.num_branches:2*inf.num_branches]
     ab = 10**tp[2*inf.num_branches]
-    print 'branch lengths:', branch_lengths
-    print 'mutation rates:', mutation_rates
-    print 'ab:', ab
+    print('branch lengths:', branch_lengths)
+    print('mutation rates:', mutation_rates)
+    print('ab:', ab)
 
     stat_dist = lis.get_stationary_distribution_beta(inf.freqs, inf.breaks,
             inf.transition_N, ab, ab)
@@ -367,4 +370,4 @@ if __name__ == '__main__':
             mutation_rates,
             stat_dist,
             inf)
-    print np.exp(log_asc_prob)
+    print(np.exp(log_asc_prob))

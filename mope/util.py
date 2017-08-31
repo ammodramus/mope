@@ -1,3 +1,9 @@
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+from builtins import str
+from builtins import range
+from past.utils import old_div
 import argparse
 import multiprocessing as mp
 import numpy as np
@@ -6,7 +12,7 @@ from scipy.special import logit, expit
 def get_debug_func(debug_opt):
     if debug_opt:
         def debug(s):
-            print '@ ' + s
+            print('@ ' + s)
     else:
         def debug(s):
             return
@@ -79,6 +85,6 @@ def mp_approx_fprime(x, inq, outq, eps = 1e-8):
     
     fprimes = []
     for i in range(num_params):
-        fprime = (fxps[i]-fx) / eps
+        fprime = old_div((fxps[i]-fx), eps)
         fprimes.append(fprime)
     return np.array(fprimes)

@@ -1,4 +1,6 @@
 from __future__ import division
+from __future__ import unicode_literals
+from builtins import str
 import numpy as np
 import numpy.random as npr
 import pandas as pd
@@ -33,7 +35,7 @@ def get_ascertainable_only(all_loci):
             'K': list('M12')
             }
     asc_loci = {}
-    for ped in all_loci.keys():
+    for ped in list(all_loci.keys()):
         left_count_vars = [('bld'+el, 'buc'+el) for el in left_labels[ped]]
         left_count_vars = [el for sublist in left_count_vars for el in sublist]
         right_count_vars = [('bld'+el, 'buc'+el) for el in right_labels[ped]]
@@ -87,7 +89,7 @@ def get_polymorphic_only(all_loci):
             'K': list('M12')
             }
     polymorphic_loci = {}
-    for ped in all_loci.keys():
+    for ped in list(all_loci.keys()):
         left_count_vars = [('bld'+el, 'buc'+el) for el in left_labels[ped]]
         left_count_vars = [el for sublist in left_count_vars for el in sublist]
         right_count_vars = [('bld'+el, 'buc'+el) for el in right_labels[ped]]

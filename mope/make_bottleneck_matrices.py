@@ -1,4 +1,9 @@
 from __future__ import division
+from __future__ import absolute_import
+from __future__ import unicode_literals
+from builtins import zip
+from builtins import str
+from builtins import range
 import sys
 import argparse
 import h5py
@@ -7,8 +12,8 @@ os.environ['OPENBLAS_NUM_THREADS'] = "1"
 os.environ['MKL_NUM_THREADS'] = "1"
 import numpy as np
 
-import _transition as trans
-import util as ut
+from . import _transition as trans
+from . import util as ut
 
 
 def get_bottleneck_transition_matrix(N, Nb, mu):
@@ -87,7 +92,7 @@ def get_breaks(N, uniform_weight, min_bin_size):
 
     breaks = [0,1]
     cur_prob = 0.0
-    for i, prob in zip(xrange(1, N), interior_probs):
+    for i, prob in zip(list(range(1, N)), interior_probs):
         cur_prob += prob
         if cur_prob >= min_bin_size:
             breaks.append(i+1)
@@ -141,7 +146,7 @@ def get_breaks_symmetric(N, uniform_weight, min_bin_size):
 
     breaks = [0,1]
     cur_prob = 0.0
-    for i, prob in zip(xrange(1, N), interior_probs):
+    for i, prob in zip(list(range(1, N)), interior_probs):
         cur_prob += prob
         if cur_prob >= min_bin_size:
             breaks.append(i+1)
@@ -229,7 +234,7 @@ def run_make_bot(args):
 
         dataset_idx = 0
         if args.sizes_file is None:
-            Nbs = range(args.start, args.end+1, args.step)
+            Nbs = list(range(args.start, args.end+1, args.step))
         else:
             Nbs = []
             with open(args.sizes_file) as nb_in:

@@ -1,9 +1,13 @@
 from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import unicode_literals
+from builtins import object
 import h5py
 import numpy as np
 import numpy.random as npr
 #import lru_cache as lru
-import _interp
+from . import _interp
 from lru import LRU
 
 def isclose(a,b, rtol = 1e-5):
@@ -52,7 +56,7 @@ class TransitionDataBottleneck(object):
                 raise Exception('Found multiple distinct shapes of matrices \
                         in file')
             if key in self._links:
-                print key
+                print(key)
                 err_msg = 'Found duplicate bottleneck size / mutation rate \
                         combination in matrices'
                 raise Exception(err_msg)
@@ -88,7 +92,7 @@ class TransitionDataBottleneck(object):
     def get_transition_probabilities_time_mutation(self, nb,
             scaled_mut):
         key = (nb, scaled_mut)
-        if self._cache.has_key(key):
+        if key in self._cache:
             return self._cache[key]
         else:
             val = self.get_transition_probabilities_time_mutation_not_cached(
