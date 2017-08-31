@@ -86,13 +86,6 @@ def optimize_posterior(inf_data, pool):
 
     return x
 
-def logl(x):
-    global inf_data
-    return -1.0*inf_data.inf_bound_like_obj(x)
-
-def logp(x):
-    global inf_data
-    return inf_data.logprior(x)
 
 
 def run_mcmc(args):
@@ -102,6 +95,12 @@ def run_mcmc(args):
     Initialization / setup
     =========================
     '''
+
+    if args.start_from_map and (args.prev_chain is not None):
+        raise ValueError('--start-from-map and --prev-chain are mutually '
+                         'exclusive')
+
+
     inf_data = inf.Inference(
             data_file = args.data,
             transitions_file = args.transitions,
@@ -116,8 +115,17 @@ def run_mcmc(args):
             poisson_like_penalty = args.asc_prob_penalty,
             print_debug = args.debug)
 
-    inf_data.run_mcmc(
-            args.numiter, args.num_walkers, args.processes, args.mpi,
-            args.prev_chain, args.start_from_map, args.init_norm_sd,
-            args.parallel_temper, args.evidence_integral, args.chain_alpha)
+    if (not args.num_temperatures > 1) and (not args.evidence_integral):
+        inf_data.run_mcmc(
+                args.numiter, args.num_walkers, args.num_processes, args.mpi,
+                args.prev_chain, args.start_from_map, args.init_norm_sd,
+                args.chain_alpha)
+
+
+    else:
+        inf_data.run_parallel_temper_mcmc(args.numiter, args.num_walkers,
+                args.prev_chain, args.start_from_map, args.init_norm_sd,
+                do_evidence = args.evidence_integral,
+                num_processes = args.num_processes,
+                num_temperatures = args.num_temperatures)
 

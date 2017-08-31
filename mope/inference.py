@@ -26,6 +26,14 @@ import mcmc
 
 inf_data = None
 
+def logl(x):
+    global inf_data
+    return -1.0*inf_data.inf_bound_like_obj(x)
+
+def logp(x):
+    global inf_data
+    return inf_data.logprior(x)
+
 def post_clone(x):
     global inf_data
     return inf_data.log_posterior(x)
@@ -606,13 +614,7 @@ class Inference(object):
 
         return good_params, penalty
 
-    def run_mcmc(
-            self, num_iter, num_walkers, num_processes = 1, mpi = False,
-            prev_chain = None, start_from_map = False, init_norm_sd = 0.2,
-            parallel_temper = False, evidence_integral = False,
-            chain_alpha = 2.0):
-        global inf_data
-        inf_data = self
+    def _get_pool(self, num_processes):
 
         def initializer(
             data_file, transitions_file, tree_file, true_parameters,
@@ -655,21 +657,15 @@ class Inference(object):
         else:
             pool = None
 
+        return pool
 
-        '''
-        =========================
-        MCMC
-        =========================
-        '''
 
-        # print calling command
-        print "# " + " ".join(sys.argv)
+
+    def _get_initial_mcmc_position(
+            self, num_walkers, prev_chain, start_from_map, init_norm_sd, pool):
 
         ndim = 2*len(self.varnames) + 2
 
-        ##########################################################################
-        # get initial position: previous chains, MAP, or heuristic guess
-        ##########################################################################
         if prev_chain is not None:
             # start from previous state
             prev_chains = pd.read_csv(prev_chain, sep = '\t', header = None)
@@ -710,46 +706,95 @@ class Inference(object):
                     arr = proposed_init_pos)
             init_pos = proposed_init_pos
 
-        if not parallel_temper and (not evidence_integral):
-            ##############################################################
-            # running normal MCMC   
-            ##############################################################
-            print self.header
-            sampler = emcee.EnsembleSampler(num_walkers, ndim, post_clone,
-                    pool = pool, a = chain_alpha)
-            for ps, lnprobs, cur_seed in sampler.sample(init_pos,
-                    iterations = num_iter, storechain = False):
-                _util.print_csv_lines(ps, lnprobs)
-                self.transition_data.clear_cache()
+        return init_pos
 
-        else:
-            ##############################################################
-            # use parallel-tempering
-            ##############################################################
-            if evidence_integral:
+
+    def run_mcmc(
+            self, num_iter, num_walkers, num_processes = 1, mpi = False,
+            prev_chain = None, start_from_map = False, init_norm_sd = 0.2,
+            chain_alpha = 2.0, init_pos = None, pool = None):
+        global inf_data
+        inf_data = self
+
+
+        # print calling command
+        print "# " + " ".join(sys.argv)
+
+        ndim = 2*len(self.varnames) + 2
+
+        if pool is None and num_processes > 1:
+            pool = self._get_pool(num_processes)
+
+        ##########################################################################
+        # get initial position: previous chains, MAP, or heuristic guess
+        ##########################################################################
+
+        if init_pos is None:
+            init_pos = self._get_initial_mcmc_position(num_walkers, prev_chain,
+                    start_from_map, init_norm_sd, pool)
+
+        ##############################################################
+        # running normal MCMC   
+        ##############################################################
+        print self.header
+        sampler = emcee.EnsembleSampler(num_walkers, ndim, post_clone,
+                pool = pool, a = chain_alpha)
+        for ps, lnprobs, cur_seed in sampler.sample(init_pos,
+                iterations = num_iter, storechain = False):
+            _util.print_csv_lines(ps, lnprobs)
+            self.transition_data.clear_cache()
+
+    def run_parallel_temper_mcmc(
+            self, num_iter, num_walkers, prev_chain, start_from_map,
+            init_norm_sd, pool = None, ntemps = None, do_evidence = False,
+            num_processes = 1, init_pos = None, num_temperatures = 5):
+
+        '''
+        not compatible with make_figures
+        '''
+
+        global inf_data
+        inf_data = self
+
+
+
+        ##############################################################
+        # use parallel-tempering
+        ##############################################################
+        if ntemps is None:
+            if do_evidence:
                 ntemps = 25
             else:  # regular parallel tempering MCMC
                 ntemps = 5
 
-            ndim = 2*len(self.varnames)+2
-            sampler = emcee.PTSampler(ntemps, nwalkers = num_walkers,
-                    dim = ndim, logl = logl, logp = logp,
-                    threads = self.num_processes, pool = pool)
-            print '! betas:'
-            for beta in sampler.betas:
-                print '!', beta
-            import cPickle
-            newshape = [ntemps] + list(init_pos.shape)
-            init_pos_new = np.zeros(newshape)
-            for i in range(ntemps):
-                init_pos_new[i,:,:] = init_pos.copy()
+        if pool is None and num_processes > 1:
+            pool = self._get_pool(num_processes)
 
-            for p, lnprob, lnlike in sampler.sample(init_pos_new,
-                    iterations=num_iter, storechain = True):
-                _util.print_parallel_csv_lines(p, lnprob)
+        if init_pos is None:
+            init_pos = self._get_initial_mcmc_position(num_walkers, prev_chain,
+                    start_from_map, init_norm_sd, pool)
 
-            if evidence_integral:
-                for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
-                    evidence = sampler.thermodynamic_integration_log_evidence(
-                            fburnin=fburnin)
-                    print '* evidence (fburnin = {}):'.format(fburnin), evidence
+
+        ndim = 2*len(self.varnames)+2
+        sampler = emcee.PTSampler(ntemps, nwalkers = num_walkers,
+                dim = ndim, logl = logl, logp = logp,
+                threads = num_processes, pool = pool)
+
+        print '# betas:'
+        for beta in sampler.betas:
+            print '#', beta
+
+        newshape = [ntemps] + list(init_pos.shape)
+        init_pos_new = np.zeros(newshape)
+        for i in range(ntemps):
+            init_pos_new[i,:,:] = init_pos.copy()
+
+        for p, lnprob, lnlike in sampler.sample(init_pos_new,
+                iterations=num_iter, storechain = True):
+            _util.print_parallel_csv_lines(p, lnprob)
+
+        if do_evidence:
+            for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
+                evidence = sampler.thermodynamic_integration_log_evidence(
+                        fburnin=fburnin)
+                print '# evidence (fburnin = {}):'.format(fburnin), evidence
