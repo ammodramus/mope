@@ -458,5 +458,5 @@ def run_sim_ms(args):
             free_recomb = args.free_recombination)
 
     
-    results.to_csv(sys.stdout, sep = '\t', index = False,
+    results.to_csv(sys.stdout, sep = b'\t', index = False,
             float_format = '%.4f')
