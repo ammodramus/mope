@@ -83,7 +83,7 @@ setup(
         author_email='pwilton@berkeley.edu',
         license='MIT',
         install_requires = requirements,
-        python_requires = '>=2.7, <3',
+        python_requires = '>=2.7',
         packages = find_packages(),
         entry_points = entry_points,
         ext_modules=extensions)
