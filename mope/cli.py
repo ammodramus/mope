@@ -14,6 +14,7 @@ from make_bottleneck_matrices import run_make_bot
 from get_ages_from_sims import run_ages
 from count_heteroplasmies import count_hets
 from simulate_msprime import run_sim_ms
+from make_figures import _run_make_figures
 
 
 def main():
@@ -61,21 +62,27 @@ def main():
     parser_run.add_argument('--genome-size', type = ut.positive_int,
             default = 16569, help = 'genome size is G bp [%(default)s]',
             metavar = 'G')
-    parser_run.add_argument('--num-walkers', type = ut.positive_int, default = 100,
-            help = 'number of walkers (chains) to use')
-    parser_run.add_argument('--num-threads', type = ut.positive_int, default = 1)
+    parser_run.add_argument('--num-walkers', type = ut.positive_int,
+            default = 500,
+            help = 'number of walkers (chains) to use [%(default)s]')
     parser_run.add_argument('--init-norm-sd', type = float, default = 0.2,
-            help = 'initial parameters are multiplied by 1+a*X, \
-                    where X~norm(0,1) and a is the specified parameter')
-    parser_run.add_argument('--processes', type = ut.positive_int, default = 1)
-    parser_run.add_argument('--ascertainment', action = 'store_true')
+            help = 'initial parameters are multiplied by 1+a*X, '
+                    'where X~norm(0,1) and a is the specified parameter '
+                    '[%(default)s]')
+    parser_run.add_argument('--num-processes',
+            type = ut.positive_int, default = 1,
+            help = 'number of parallel processes to use [%(default)s]')
     parser_run.add_argument('--asc-prob-penalty', type = float, default = 1.0,
-            help = 'multiplicative factor penalty for Poisson count of \
-                    part of likelihood function')
+            help = 'multiplicative factor penalty for Poisson count of '
+                    'part of likelihood function (1 = no penalty, '
+                    '0 = full penalty) [%(default)s]')
     parser_run.add_argument('--min-het-freq', type = ut.probability,
-            help = 'minimum heteroplasmy frequency considered',
+            help = 'minimum heteroplasmy frequency considered [%(default)s]',
             default = 0.001)
-    parser_run.add_argument('--parallel-temper', action = 'store_true')
+    parser_run.add_argument('--num-temperatures', default = ut.positive_int,
+            type = int,
+            help = 'number of temperatures for parallel-tempering MCMC. '
+                   'specifying > 1 will enable paralle-tempering MCMC.')
     parser_run.add_argument('--evidence-integral', action = 'store_true')
     parser_run.add_argument('--prev-chain',
             help = 'tab-separated table of previous chain positions, with \
@@ -220,25 +227,27 @@ def main():
     parser_fig = subparsers.add_parser('make-figures',
             description='make plots for MCMC results')
     parser_fig.add_argument('results', type = str, help = 'file containing results '
-            'table from mcmc_somatic.py (can be gzipped)')
+            'table from mope (can be gzipped)')
     parser_fig.add_argument('tree', help = 'tree file', type = str)
-    parser_fig.add_argument('--traces', action = 'store_true',
+    parser_fig.add_argument('--plot-traces', action = 'store_true',
             help = 'also make traces plot')
     parser_fig.add_argument('--num-walkers', type = ut.positive_int,
-            default = 500, help = 'number of chains in MCMC ensemble')
+            default = 500,
+            help = 'number of chains in MCMC ensemble [%(default)s]')
     parser_fig.add_argument('--trace-burnin-steps', type = int, default = 500,
-            help = 'number of burnin stems for trace plot')
+            help = 'number of burnin stems for trace plot [%(default)s]')
     parser_fig.add_argument('--posterior-burnin-steps', type = ut.positive_int,
             default = 2500,
-            help = 'number of burnin stems for posterior histograms')
+            help = 'number of burnin stems for posterior histograms '
+                   '[%(default)s]')
     parser_fig.add_argument('--prefix', type = str,
             help = 'prefix for image names, if not provided then taken from '
                    'input file name (defaults to current directory)')
     parser_fig.add_argument('--format', type = str, default = 'png',
-            help = 'image format')
+            help = 'image format [%(default)s]')
     parser_fig.add_argument('--true-parameters', type = str,
             help = 'params file for true (simulated) parameters')
-    parser_fig.add_argument('--colorsandtypes', '-c',
+    parser_fig.add_argument('--colors-and-types', '-c',
             help = 'filename for file specifying colors and parameter types '
                    ' for each variable. columns are variable name, color, '
                    'type, whitespace separated. valid types are "fixed", '
@@ -246,12 +255,16 @@ def main():
     parser_fig.add_argument('--mutation-prior-limits', nargs = 2,
             help = 'lower and upper log10 limits for mutation rate parameters, '
                    'two parameters, in log10 space')
-    parser_fig.add_argument('--length-prior-limits', nargs = 3,
+    parser_fig.add_argument('--length-prior-limits', nargs = 2,
             help = 'three arguments: lower and upper length-parameter prior '
                    'limits, followed by the family-ages file for the data. '
                    'prior limits are in log10 space')
+    parser_fig.add_argument('--ages-file', type = str,
+            help = 'individual ages in tab-separated table')
+
     parser_fig.add_argument('--add-title', action = 'store_true')
     parser_fig.add_argument('--dpi', type = ut.positive_int, default = 300)
+    parser_fig.set_defaults(func = _run_make_figures)
 
     ############################################
     # parse and run
