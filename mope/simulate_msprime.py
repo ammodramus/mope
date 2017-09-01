@@ -1,7 +1,6 @@
 from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
-from __future__ import unicode_literals
 
 from builtins import range
 import re
@@ -458,5 +457,5 @@ def run_sim_ms(args):
             free_recomb = args.free_recombination)
 
     
-    results.to_csv(sys.stdout, sep = b'\t', index = False,
+    results.to_csv(sys.stdout, sep = '\t', index = False,
             float_format = '%.4f')

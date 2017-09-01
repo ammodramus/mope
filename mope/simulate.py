@@ -1,7 +1,6 @@
 from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
-from __future__ import unicode_literals
 
 import re
 import sys
@@ -320,8 +319,8 @@ def run_simulate(args):
         cond = get_heteroplasmic_filter(results, args.frequencies, tree)
         results = results.loc[cond,:]
 
-    results.to_csv(sys.stdout, sep = '\t', index = False,
-            float_format = '%.4f')
+    results.to_csv(sys.stdout, sep = '\t',
+            index = False, float_format = '%.4f')
 
 if __name__ == '__main__':
     run_simulate()
