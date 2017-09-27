@@ -4,7 +4,7 @@ import numpy as np
 cimport numpy as np
 import pandas as pd
 import transition_data_mut as tdm
-from libc.math cimport log
+from libc.math cimport log, exp
 from libc.string cimport memset
 cimport cython
 
@@ -27,6 +27,34 @@ def reset_likes_ones(np.ndarray[np.float64_t, ndim=2] likes):
         for j in range(ncol):
             likes[i,j] = 1.0
 
+cdef int _binary_index(double freq, double [:] freqs, int nfreqs):
+    cdef int start, end, mid
+    cdef double midval, midvalp1
+
+    start = 0
+    end = nfreqs - 1
+
+    if freq > freqs[end]:
+        raise ValueError('freq ({}) greater than maximum in freqs'.format(
+            freq))
+    if freq < freqs[start]:
+        raise ValueError('freq ({}) less than minimum in freqs'.format(
+            freq))
+
+    while True:
+        mid = start + (end-start)//2
+        midval = freqs[mid]
+        midvalp1 = freqs[mid+1]
+        if midval <= freq:
+            if midvalp1 > freq:
+                return mid
+            elif midvalp1 <= freq:
+                start = mid+1
+                continue
+        if midval > freq:
+            end = mid
+            continue
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def reset_likes_zeros(np.ndarray[np.float64_t, ndim=2] likes): 
@@ -35,6 +63,31 @@ def reset_likes_zeros(np.ndarray[np.float64_t, ndim=2] likes):
     for i in range(nrow):
         for j in range(ncol):
             likes[i,j] = 0.0
+
+def _get_transition_probabilities_just_mutation(
+        double scaled_time,
+        double mut_rate,
+        double [:] freqs,
+        int nfreqs):
+
+    P_np = np.zeros((nfreqs, nfreqs), dtype = np.float64)
+    cdef double [:,:] P = P_np
+    cdef double xt, frac_l, frac_u, freqlx, frequx
+    cdef int lx  # index of the freq less than or equal to xt
+
+    for i in xrange(nfreqs):
+        x = freqs[i]
+        xt = 0.5 + (x-0.5)*exp(-2.0*mut_rate*scaled_time)
+        lx = _binary_index(xt, freqs, nfreqs)
+        freqlx = freqs[lx]
+        frequx = freqs[lx+1]
+        frac_u = (xt-freqlx)/(frequx-freqlx)
+        frac_l = 1.0 - frac_u
+        P[i,lx] = frac_l
+        P[i,lx+1] = frac_u
+
+    return P
+        
 
 #####################
 # newick functions
@@ -69,6 +122,26 @@ def compute_branch_transition_likelihood(
     P = transitions.get_transition_probabilities_time_mutation(
             node_length,
             mut_rate)
+    for i in range(num_loci):
+        ancestor_likes[i] *= np.dot(P, node_likes[i])
+
+
+def compute_mutation_transition_likelihood(
+            np.ndarray[np.float64_t,ndim=2] node_likes,
+            np.ndarray[np.float64_t,ndim=2] ancestor_likes,
+            double mut_time,
+            double mut_rate,
+            transitions):
+
+    cdef np.ndarray[np.float64_t,ndim=1] freqs_np = transitions._frequencies
+    cdef double [:] freqs = freqs_np
+    cdef int nfreqs = freqs_np.shape[0]
+    cdef int i
+    cdef int num_loci = node_likes.shape[0]
+
+    P = _get_transition_probabilities_just_mutation(
+            mut_time, mut_rate, freqs, nfreqs)
+
     for i in range(num_loci):
         ancestor_likes[i] *= np.dot(P, node_likes[i])
 

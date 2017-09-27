@@ -39,8 +39,6 @@ def estimate_initial_parameters(inf):
     # guess in units of N generations  EDIT: 100 for now, will get maximized
     for i, vn in enumerate(inf.varnames):
         if inf.is_bottleneck[vn]:
-            #l = init_branch_params[i]
-            #init_branch_params[i] = 2/l
             init_branch_params[i] = 100
 
     init_params = np.concatenate((init_branch_params,

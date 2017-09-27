@@ -380,7 +380,17 @@ def get_log_likelihood_somatic_newick(
                         bottleneck_size,
                         mut_rate,
                         bottlenecks)
-            else:  # not a bottleneck
+            elif node.is_mut:
+                assert node.is_bottleneck == False
+                mut_time = branch_lengths[branch_index]
+                _likes.compute_mutation_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        mut_time,
+                        mut_rate,
+                        transitions)
+
+            else:  # not a bottleneck, not a just-mut branch
                 node_length = branch_lengths[branch_index]
                 _likes.compute_branch_transition_likelihood(
                         node_likes,
@@ -485,6 +495,17 @@ def get_locus_log_likelihoods_newick(
                         bottleneck_size,
                         mut_rate,
                         bottlenecks)
+
+            elif node.is_mut:
+                assert node.is_bottleneck == False
+                mut_time = branch_lengths[branch_index]
+                _likes.compute_mutation_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        mut_time,
+                        mut_rate,
+                        transitions)
+
             else:  # not a bottleneck
                 node_length = branch_lengths[branch_index]
                 _likes.compute_branch_transition_likelihood(

@@ -76,7 +76,7 @@ def optimize_posterior(inf_data, pool):
             swarmsize = swarmsize, minfunc = minfunc,
             init_params = inf_data.init_params,
             init_params_weight = swarm_init_weight,
-            processes = inf_data.num_processes, pool = pool)
+            pool = pool)
 
     print('! pso:', x, f)
 
@@ -202,6 +202,8 @@ class Inference(object):
         self.varnamedict = {}
         # a dict to determine whether each varname is a bottleneck
         self.is_bottleneck = {}
+        # a dict to determine whether each varname is a mut
+        self.is_mut = {}
 
         multipliernames_set = set([])
         varnames_set = set([])
@@ -226,6 +228,10 @@ class Inference(object):
                 self.is_bottleneck[node.varname] = True
             else:
                 self.is_bottleneck[node.varname] = False
+            if node.is_mut:
+                self.is_mut[node.varname] = True
+            else:
+                self.is_mut[node.varname] = False
 
         self.multipliernames = list(multipliernames_set)
         self.varnames = sorted(list(varnames_set))
@@ -417,6 +423,7 @@ class Inference(object):
         max_allowed_bottleneck = 500
         min_mut = -8
         max_mut = -1
+        max_allowed_just_mut = 10
         min_ab = -9
         max_ab = 0
         min_polyprob = -9
@@ -431,8 +438,15 @@ class Inference(object):
         lower_len[is_bottleneck_arr] = min_allowed_bottleneck
         upper_len[is_bottleneck_arr] = max_allowed_bottleneck
 
+
         lower_mut = np.repeat(min_mut, num_varnames)
         upper_mut = np.repeat(max_mut, num_varnames)
+
+        is_mut_arr = np.array(
+                [self.is_mut[vn] for vn in self.varnames], dtype = bool)
+        self.is_mut_arr = is_mut_arr
+        upper_mut[is_mut_arr] = max_allowed_just_mut
+
         lower = np.concatenate((lower_len, lower_mut, (min_ab,min_polyprob)))
         upper = np.concatenate((upper_len, upper_mut, (max_ab,max_polyprob)))
 
@@ -632,8 +646,10 @@ class Inference(object):
         # make the branch lengths positive
         x[:num_varnames] = np.abs(x[:num_varnames])
         # make the mutation rates negative
-        x[num_varnames:2*num_varnames] = (
-                -1.0*np.abs(x[num_varnames:2*num_varnames]))
+        neg_mut_indices = (
+                np.arange(num_varnames, 2*num_varnames)[~(self.is_mut_arr)])
+        x[neg_mut_indices] = (
+                -1.0*np.abs(x[neg_mut_indices]))
         # make the last two non-positive
         x[-2:] = -np.abs(x[-2:])
         pr = self.logprior(x)
@@ -712,7 +728,8 @@ class Inference(object):
                         self.start_from_true, not self.data_are_counts,
                         self.genome_size,
                         self.bottleneck_file, self.min_freq,
-                        self.ages_data_fn, self.poisson_like_penalty,
+                        self.ages_data_fn,
+                        self.poisson_like_penalty,
                         self.print_debug
                         ])
         elif mpi:

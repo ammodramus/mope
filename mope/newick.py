@@ -69,7 +69,8 @@ class Node(object):
         self.multipliervalues = None
         self.varname = None
         self.ages = None
-        self.is_bottleneck = None
+        self.is_bottleneck = False
+        self.is_mut = False
 
         if look_for_multiplier:
             nodelen = self.length
@@ -92,8 +93,9 @@ class Node(object):
         if self.varname is not None and self.varname.endswith('^'):
             self.is_bottleneck = True
             self.varname = self.varname[:-1]
-        else:
-            self.is_bottleneck = False
+        elif self.varname is not None and self.varname.endswith('%'):
+            self.is_mut = True
+            self.varname = self.varname[:-1]
 
     
     def set_multiplier_values(self, ages):
