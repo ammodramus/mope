@@ -77,7 +77,7 @@ entry_points = {'console_scripts': ['mope = mope.cli:main']}
 
 setup(
         name='mope',
-        version = '0.1.2',
+        version = '0.1.3',
         description='Molecular ontogenetic phylogeny estimation',
         author='Peter Wilton',
         author_email='pwilton@berkeley.edu',
