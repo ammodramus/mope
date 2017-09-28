@@ -700,7 +700,7 @@ class Inference(object):
 
         return good_params, penalty
 
-    def _get_pool(self, num_processes):
+    def _get_pool(self, num_processes, mpi):
 
         def initializer(
             data_file, transitions_file, tree_file, true_parameters,
@@ -723,7 +723,15 @@ class Inference(object):
                     poisson_like_penalty = poisson_like_penalty,
                     print_debug = print_debug)
 
-        if num_processes > 1:
+        # MPI takes priority
+        if mpi:
+            from emcee.utils import MPIPool
+            pool = MPIPool()
+            if not pool.is_master():
+                pool.wait()
+                sys.exit(0)
+
+        elif num_processes > 1:
             pool = mp.Pool(num_processes, initializer = initializer,
                     initargs = [
                         self.data_file, self.transitions_file,
@@ -735,12 +743,7 @@ class Inference(object):
                         self.poisson_like_penalty,
                         self.print_debug
                         ])
-        elif mpi:
-            from emcee.utils import MPIPool
-            pool = MPIPool()
-            if not pool.is_master():
-                pool.wait()
-                sys.exit(0)
+
         else:
             pool = None
 
@@ -809,8 +812,8 @@ class Inference(object):
 
         ndim = 2*len(self.varnames) + 2
 
-        if pool is None and num_processes > 1:
-            pool = self._get_pool(num_processes)
+        if pool is None and (num_processes > 1 or mpi):
+            pool = self._get_pool(num_processes, mpi)
 
         ##########################################################################
         # get initial position: previous chains, MAP, or heuristic guess
@@ -833,8 +836,9 @@ class Inference(object):
 
     def run_parallel_temper_mcmc(
             self, num_iter, num_walkers, prev_chain, start_from_map,
-            init_norm_sd, pool = None, ntemps = None, do_evidence = False,
-            num_processes = 1, init_pos = None, num_temperatures = 5):
+            init_norm_sd, pool = None, mpi = False, ntemps = None,
+            do_evidence = False, num_processes = 1, init_pos = None,
+            num_temperatures = 5):
 
         '''
         not compatible with make_figures
@@ -854,8 +858,8 @@ class Inference(object):
             else:  # regular parallel tempering MCMC
                 ntemps = 5
 
-        if pool is None and num_processes > 1:
-            pool = self._get_pool(num_processes)
+        if pool is None and (num_processes > 1 or mpi):
+            pool = self._get_pool(num_processes, mpi)
 
         if init_pos is None:
             init_pos = self._get_initial_mcmc_position(num_walkers, prev_chain,

@@ -71,5 +71,6 @@ def run_mcmc(args):
                 args.prev_chain, args.start_from_map, args.init_norm_sd,
                 do_evidence = args.evidence_integral,
                 num_processes = args.num_processes,
+                mpi = args.mpi,
                 num_temperatures = args.num_temperatures)
 
