@@ -6,6 +6,9 @@ from builtins import range
 from past.utils import old_div
 import argparse
 import multiprocessing as mp
+import os 
+os.environ['OPENBLAS_NUM_THREADS'] = '1' 
+os.environ['MKL_NUM_THREADS'] = '1' 
 import numpy as np
 from scipy.special import logit, expit
 

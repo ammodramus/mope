@@ -63,3 +63,41 @@ Usage
 --------------
 
 
+Ontogenetic tree file
+-----------------------
+
+Ontogenetic trees are specified in a modified
+[NEWICK](https://en.wikipedia.org/wiki/Newick_format) format. Each node
+requires a unique name, and a length. Only alphanumeric characters and
+underscores are allowed in node names.
+
+Node lengths specify the name of the parameter pair (vz., genetic drift and
+mutation parameters) associated with the branch. Optionally, this parameter
+name may be multiplied by an age variable, indicating that this parameter is to
+be interpreted as a branch length that depends on some age. (Note that this age
+name must be a variable in the data file -- see [Data file](#data-file).)
+
+It is also possible to specify that the genetic drift for a certain parameter
+is modeled as a bottleneck. This done by appending `^` to the parameter name.
+
+These three ways of specifying a node are demonstrated here:
+
+```
+mother_blood:blo               # simple genetic drift, no dependence on age
+mother_blood:blo*mother_age    # rate of accumulation of drift, with mother_age
+mother_blood:blo^              # blo is a bottleneck
+```
+
+
+```
+(((mother_blood:blo*mother_age)mother_fixed_blood:fblo,(mother_cheek:buc*mother_age)mother_fixed_cheek:fbuc)somM:som,((((child_blood:blo*child_age)child_fixed_blood:fblo,(child_cheek:buc*child_age)child_fixed_cheek:fbuc)som1:som)loo:loo*mother_birth_age)eoo:eoo)emb;
+
+(((mother_blood:blo*mother_age)mother_fixed_blood:fblo,(mother_cheek:buc*mother_age)mother_fixed_cheek:fbuc)somM:som,((((child_blood:blo*child_age)child_fixed_blood:fblo,(child_cheek:buc*child_age)child_fixed_cheek:fbuc)som1:som)loo:loo*mother_birth_age)eoo:eoo)emb;
+```
+
+Parameters file (simulations only)
+-----------------------------------
+
+The parameters file specifies simulation parameters. It is a
+whitespace-delimited table of parameter names (first column, must match tree
+file) and their values (second column).

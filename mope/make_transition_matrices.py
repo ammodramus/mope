@@ -4,6 +4,9 @@ from __future__ import unicode_literals
 from builtins import zip
 from builtins import str
 from builtins import range
+import os 
+os.environ['OPENBLAS_NUM_THREADS'] = '1' 
+os.environ['MKL_NUM_THREADS'] = '1' 
 import numpy as np
 import numpy.linalg as npl
 from scipy.misc import comb

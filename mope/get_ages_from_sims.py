@@ -2,6 +2,9 @@ from __future__ import division
 import argparse
 import sys
 import pandas as pd
+import os 
+os.environ['OPENBLAS_NUM_THREADS'] = '1' 
+os.environ['MKL_NUM_THREADS'] = '1' 
 import numpy as np
 
 
