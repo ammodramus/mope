@@ -1,6 +1,9 @@
 from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import unicode_literals
+import os 
+os.environ['OPENBLAS_NUM_THREADS'] = '1' 
+os.environ['MKL_NUM_THREADS'] = '1' 
 import numpy as np
 
 from . import likelihoods as lis
