@@ -364,14 +364,28 @@ def get_log_likelihood_somatic_newick(
             node_likes = node.cond_probs
 
         if multipliername is not None:
-            node_lengths = (data[multipliername].values *
-                    branch_lengths[branch_index])
-            _likes.compute_leaf_transition_likelihood(
-                    node_likes,
-                    ancestor_likes,
-                    node_lengths,
-                    mut_rate,
-                    transitions)
+            if node.is_mut:
+                # assume that the associated multipliername is an age
+                ages = data[multipliername].values
+                # minimum age at which mutation begins to have an effect
+                mut_time = branch_lengths[branch_index]
+                _likes.compute_mutation_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        ages,
+                        mut_time,
+                        mut_rate,
+                        transitions)
+            else:
+                node_lengths = (data[multipliername].values *
+                        branch_lengths[branch_index])
+                _likes.compute_leaf_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        node_lengths,
+                        mut_rate,
+                        transitions)
+
         else:  # multipliername is None
             if node.is_bottleneck:
                 if bottlenecks is None:
@@ -383,15 +397,6 @@ def get_log_likelihood_somatic_newick(
                         bottleneck_size,
                         mut_rate,
                         bottlenecks)
-            elif node.is_mut:
-                assert node.is_bottleneck == False
-                mut_time = branch_lengths[branch_index]
-                _likes.compute_mutation_transition_likelihood(
-                        node_likes,
-                        ancestor_likes,
-                        mut_time,
-                        mut_rate,
-                        transitions)
 
             else:  # not a bottleneck, not a just-mut branch
                 node_length = branch_lengths[branch_index]
@@ -479,14 +484,28 @@ def get_locus_log_likelihoods_newick(
             node_likes = node.cond_probs
 
         if multipliername is not None:
-            node_lengths = (data[multipliername].values *
-                    branch_lengths[branch_index])
-            _likes.compute_leaf_transition_likelihood(
-                    node_likes,
-                    ancestor_likes,
-                    node_lengths,
-                    mut_rate,
-                    transitions)
+            if node.is_mut:
+                # assume that the associated multipliername is an age
+                ages = data[multipliername].values
+                # minimum age at which mutation begins to have an effect
+                mut_time = branch_lengths[branch_index]
+                _likes.compute_mutation_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        ages,
+                        mut_time,
+                        mut_rate,
+                        transitions)
+            else:
+                node_lengths = (data[multipliername].values *
+                        branch_lengths[branch_index])
+                _likes.compute_leaf_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        node_lengths,
+                        mut_rate,
+                        transitions)
+
         else:  # multipliername is None
             if node.is_bottleneck:
                 if bottlenecks is None:
@@ -498,16 +517,6 @@ def get_locus_log_likelihoods_newick(
                         bottleneck_size,
                         mut_rate,
                         bottlenecks)
-
-            elif node.is_mut:
-                assert node.is_bottleneck == False
-                mut_time = branch_lengths[branch_index]
-                _likes.compute_mutation_transition_likelihood(
-                        node_likes,
-                        ancestor_likes,
-                        mut_time,
-                        mut_rate,
-                        transitions)
 
             else:  # not a bottleneck
                 node_length = branch_lengths[branch_index]

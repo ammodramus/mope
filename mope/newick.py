@@ -88,6 +88,14 @@ class Node(object):
                         raise ValueError('invalid length in tree file')
                     self.multipliername = multiplier_name
                     self.varname = varname
+                elif '%' in nodelen:
+                    try:
+                        varname, multiplier_name = nodelen.strip().split('%')
+                    except:
+                        raise ValueError('invalid length in tree file')
+                    self.multipliername = multiplier_name
+                    self.varname = varname
+                    self.is_mut = True
                 else:
                     varname = nodelen.strip()
                     self.varname = varname
@@ -95,9 +103,6 @@ class Node(object):
 
         if self.varname is not None and self.varname.endswith('^'):
             self.is_bottleneck = True
-            self.varname = self.varname[:-1]
-        elif self.varname is not None and self.varname.endswith('%'):
-            self.is_mut = True
             self.varname = self.varname[:-1]
 
     

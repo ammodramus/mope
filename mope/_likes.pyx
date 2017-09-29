@@ -109,6 +109,38 @@ def compute_leaf_transition_likelihood(
                 time, mut_rate)
         ancestor_likes[i,:] *= np.dot(P, leaf_likes[i,:])
 
+def compute_mutation_transition_likelihood(
+            np.ndarray[np.float64_t,ndim=2] node_likes,
+            np.ndarray[np.float64_t,ndim=2] ancestor_likes,
+            np.ndarray[np.float64_t,ndim=1] mother_birth_ages,
+            double first_mut_time,
+            double mut_rate,
+            transitions):
+    '''
+    mother_birth_ages are just the node_lengths from the Inference object
+    first_mut_time is the *age* at which mutation begins to have an effect
+    mut_rate is the rate of convergence to 0.5 in years
+    '''
+
+    cdef np.ndarray[np.float64_t,ndim=1] freqs_np = transitions._frequencies
+    cdef double [:] freqs = freqs_np
+    cdef int nfreqs = freqs_np.shape[0]
+    cdef int i
+    cdef int num_loci = node_likes.shape[0]
+    cdef double age, mut_time
+
+    for i in range(num_loci):
+        age = mother_birth_ages[i]
+        if age > first_mut_time:
+            mut_time = age - first_mut_time
+            P = _get_transition_probabilities_just_mutation(
+                    mut_time, mut_rate, freqs, nfreqs)
+            ancestor_likes[i] *= np.dot(P, node_likes[i])
+        else:
+            # identity: no effect of mutation
+            ancestor_likes[i] = node_likes[i].copy()
+
+
 
 def compute_branch_transition_likelihood(
             np.ndarray[np.float64_t,ndim=2] node_likes,
@@ -126,24 +158,6 @@ def compute_branch_transition_likelihood(
         ancestor_likes[i] *= np.dot(P, node_likes[i])
 
 
-def compute_mutation_transition_likelihood(
-            np.ndarray[np.float64_t,ndim=2] node_likes,
-            np.ndarray[np.float64_t,ndim=2] ancestor_likes,
-            double mut_time,
-            double mut_rate,
-            transitions):
-
-    cdef np.ndarray[np.float64_t,ndim=1] freqs_np = transitions._frequencies
-    cdef double [:] freqs = freqs_np
-    cdef int nfreqs = freqs_np.shape[0]
-    cdef int i
-    cdef int num_loci = node_likes.shape[0]
-
-    P = _get_transition_probabilities_just_mutation(
-            mut_time, mut_rate, freqs, nfreqs)
-
-    for i in range(num_loci):
-        ancestor_likes[i] *= np.dot(P, node_likes[i])
 
 
 def compute_bottleneck_transition_likelihood(

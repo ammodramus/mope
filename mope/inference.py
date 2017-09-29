@@ -74,12 +74,15 @@ def optimize_posterior(inf_data, pool):
     minfunc = 1e-5
     swarm_init_weight = 0.1
 
+    # doesn't actually matter that it's 2, just needs to be > 1
+    # to signal that the pool should be used
+    num_processes = 1 if pool is None else 2
 
     x, f = pso(target, lower_bound, upper_bound,
             swarmsize = swarmsize, minfunc = minfunc,
             init_params = inf_data.init_params,
             init_params_weight = swarm_init_weight,
-            pool = pool)
+            pool = pool, processes = num_processes)
 
     print('! pso:', x, f)
 
@@ -431,6 +434,8 @@ class Inference(object):
         max_ab = 0
         min_polyprob = -9
         max_polyprob = 0
+        min_switch_age = 0
+        max_switch_age = 40
 
         lower_len = min_allowed_len / self.min_mults
         upper_len = max_allowed_len / self.max_mults
@@ -438,16 +443,18 @@ class Inference(object):
         is_bottleneck_arr = np.array(
                 [self.is_bottleneck[vn] for vn in self.varnames], dtype = bool)
         self.is_bottleneck_arr = is_bottleneck_arr
+        is_mut_arr = np.array(
+                [self.is_mut[vn] for vn in self.varnames], dtype = bool)
+        self.is_mut_arr = is_mut_arr
+
         lower_len[is_bottleneck_arr] = min_allowed_bottleneck
         upper_len[is_bottleneck_arr] = max_allowed_bottleneck
-
+        lower_len[is_mut_arr] = min_switch_age
+        upper_len[is_mut_arr] = max_switch_age
 
         lower_mut = np.repeat(min_mut, num_varnames)
         upper_mut = np.repeat(max_mut, num_varnames)
 
-        is_mut_arr = np.array(
-                [self.is_mut[vn] for vn in self.varnames], dtype = bool)
-        self.is_mut_arr = is_mut_arr
         upper_mut[is_mut_arr] = max_allowed_just_mut
 
         lower = np.concatenate((lower_len, lower_mut, (min_ab,min_polyprob)))

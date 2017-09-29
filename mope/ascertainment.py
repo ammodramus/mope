@@ -115,15 +115,6 @@ def get_ascertainment_prob_somatic_newick_min_freq(
                         bottleneck_size,
                         mut_rate,
                         bottlenecks)
-            elif node.is_mut:
-                assert node.is_bottleneck == False
-                mut_time = branch_lengths[branch_index]
-                _likes.compute_mutation_transition_likelihood(
-                        node_likes,
-                        ancestor_likes,
-                        mut_time,
-                        mut_rate,
-                        transitions)
                 
             else:  # neither bottleneck nor just-mut
                 node_length = branch_lengths[branch_index]
@@ -179,6 +170,7 @@ def get_locus_asc_probs(
     asc_ages = inf.asc_ages
     branch_indices = inf.branch_indices
     counts = inf.asc_ages['count'].values
+    data = inf.data
 
     freqs = inf.freqs
 
@@ -209,15 +201,29 @@ def get_locus_asc_probs(
         ancestor_likes = ancestor.cond_probs
 
         if multipliername is not None:
-            node_lengths = np.repeat((asc_ages[multipliername].values *
-                    branch_lengths[branch_index]), 2)
-            assert node_lengths.shape[0] == 2*inf.num_asc_combs
-            _likes.compute_leaf_transition_likelihood(
-                    node_likes,
-                    ancestor_likes,
-                    node_lengths,
-                    mut_rate,
-                    transitions)
+            if node.is_mut:
+                # assume that the associated multipliername is an age
+                # have to change newick.py to accommodate this
+                ages = data[multipliername].values
+                mut_time = branch_lengths[branch_index]
+                _likes.compute_mutation_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        ages,
+                        mut_time,
+                        mut_rate,
+                        transitions)
+
+            else:
+                node_lengths = np.repeat((asc_ages[multipliername].values *
+                        branch_lengths[branch_index]), 2)
+                assert node_lengths.shape[0] == 2*inf.num_asc_combs
+                _likes.compute_leaf_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        node_lengths,
+                        mut_rate,
+                        transitions)
         else:
             if node.is_bottleneck:
                 if bottlenecks is None:
@@ -229,15 +235,6 @@ def get_locus_asc_probs(
                         bottleneck_size,
                         mut_rate,
                         bottlenecks)
-            elif node.is_mut:
-                assert node.is_bottleneck == False
-                mut_time = branch_lengths[branch_index]
-                _likes.compute_mutation_transition_likelihood(
-                        node_likes,
-                        ancestor_likes,
-                        mut_time,
-                        mut_rate,
-                        transitions)
 
             else:  # not a bottleneck, not a just-mut
                 node_length = branch_lengths[branch_index]
@@ -273,6 +270,7 @@ def get_family_asc_probs(
     asc_ages = inf.asc_ages
     branch_indices = inf.branch_indices
     counts = inf.asc_counts
+    data = inf.data
 
     e0 = np.zeros(nfreqs)
     e0[0] = 1.0
@@ -299,15 +297,29 @@ def get_family_asc_probs(
         ancestor_likes = ancestor.cond_probs
 
         if multipliername is not None:
-            node_lengths = np.repeat((asc_ages[multipliername] *
-                    branch_lengths[branch_index]), 2)
-            assert node_lengths.shape[0] == 2*inf.num_asc_combs
-            _likes.compute_leaf_transition_likelihood(
-                    node_likes,
-                    ancestor_likes,
-                    node_lengths,
-                    mut_rate,
-                    transitions)
+            if node.is_mut:
+                # assume that the associated multipliername is an age
+                # have to change newick.py to accommodate this
+                ages = data[multipliername].values
+                mut_time = branch_lengths[branch_index]
+                _likes.compute_mutation_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        ages,
+                        mut_time,
+                        mut_rate,
+                        transitions)
+            else:
+                node_lengths = np.repeat((asc_ages[multipliername] *
+                        branch_lengths[branch_index]), 2)
+                assert node_lengths.shape[0] == 2*inf.num_asc_combs
+                _likes.compute_leaf_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        node_lengths,
+                        mut_rate,
+                        transitions)
+
         else:
             node_length = branch_lengths[branch_index]
             _likes.compute_branch_transition_likelihood(
