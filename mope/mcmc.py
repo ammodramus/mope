@@ -47,11 +47,11 @@ def run_mcmc(args):
 
     inf_data = inf.Inference(
             data_file = args.data,
-            transitions_file = args.transitions,
+            transitions_file = args.drift,
             tree_file = args.tree,
             true_parameters = args.true_parameters,
             start_from_true = args.start_from_true,
-            data_are_freqs = args.study_frequencies,
+            data_are_freqs = args.data_are_frequencies,
             genome_size = args.genome_size,
             bottleneck_file = args.bottlenecks,
             min_freq = args.min_het_freq,

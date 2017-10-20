@@ -18,6 +18,7 @@ from .count_heteroplasmies import count_hets
 from .simulate_msprime import run_sim_ms
 from .make_figures import _run_make_figures
 from .download_transitions import _run_download
+from .generate_transitions import _run_generate, _run_master, _run_gencmd
 
 
 def main():
@@ -41,8 +42,8 @@ def main():
     parser_run.add_argument('data', type = str, help = "data file")
     parser_run.add_argument('tree', type = str, help = "file containing newick \
             tree")
-    parser_run.add_argument('transitions', type = str, help = "HDF5 file for \
-            pre-calculated transition matrices")
+    parser_run.add_argument('drift', type = str, help = "HDF5 file for \
+            pre-calculated drift transition distributions")
     parser_run.add_argument('bottlenecks', type = str,
             help = 'HDF5 file for pre-calculated bottleneck transition \
                     distributions')
@@ -56,12 +57,14 @@ def main():
             help = 'perform n optimizations [%(default)s]')
     parser_run.add_argument('--true-parameters',
             help = 'file containing true parameters', metavar = "FILE")
-    parser_run.add_argument('--start-from-true', action = 'store_true')
-    parser_run.add_argument('--start-from-map', action = 'store_true')
-    parser_run.add_argument('--study-frequencies', action = 'store_true',
-            help = 'use heteroplasmy frequencies from Li et al supplement')
-    parser_run.add_argument('--fst-filter', type = ut.probability, metavar = 'X',
-            help = 'remove the top X quantile of FST')
+    parser_run.add_argument('--start-from-true', action = 'store_true',
+            help = 'start MCMC from true parameters, for debugging with '
+                   'simulations')
+    parser_run.add_argument('--start-from-map', action = 'store_true',
+            help = 'start MCMC chain from MAP estimate. this improves '
+                   'convergence')
+    parser_run.add_argument('--data-are-frequencies', action = 'store_true',
+            help = 'data are frequencies rather than allele counts')
     parser_run.add_argument('--genome-size', type = ut.positive_int,
             default = 16569, help = 'genome size is G bp [%(default)s]',
             metavar = 'G')
@@ -256,8 +259,8 @@ def main():
                    'type, whitespace separated. valid types are "fixed", '
                    '"rate", and "bottleneck".')
     parser_fig.add_argument('--mutation-prior-limits', nargs = 2,
-            help = 'lower and upper log10 limits for mutation rate parameters, '
-                   'two parameters, in log10 space')
+            help = 'lower and upper log10 limits for mutation rate parameters,'
+                   ' two parameters, in log10 space')
     parser_fig.add_argument('--length-prior-limits', nargs = 2,
             help = 'three arguments: lower and upper length-parameter prior '
                    'limits, followed by the family-ages file for the data. '
@@ -275,6 +278,69 @@ def main():
                    'directory', default = '.')
     parser_download.set_defaults(
             func = _run_download)
+
+    parser_master = subparsers.add_parser('make-master-transitions',
+            description = 'make master file named MF from many previously '
+                          'generated transition files')
+    parser_master.add_argument('files', nargs = '+',
+            help = 'previously generated HDF5 files containing transitions '
+                   '(use mope generate-transitions to generate these files)')
+    parser_master.add_argument('--out-file', '-o', type = str,
+            help = "filename for output HDF5 file", default = 'master.h5',
+            metavar = 'filename')
+    parser_master.set_defaults(
+            func = _run_master)
+
+    parser_gendrift = subparsers.add_parser('generate-transitions',
+            description = 'generate genetic drift and bottleneck transition '
+                          'distribution files')
+    parser_gendrift.add_argument('N', help='haploid population size',
+            type = ut.positive_int)
+    parser_gendrift.add_argument('s',
+            help='selection coefficient', type = ut.probability)
+    parser_gendrift.add_argument('u', help='mutation probability away from '
+            'the focal allele', type = ut.probability)
+    parser_gendrift.add_argument('v', help='mutation probability towards from '
+            'the focal allele', type = ut.probability)
+    parser_gendrift.add_argument('start',
+            help='first generation (or minimum bottleneck size) to record '
+            '(generation 1 is first generation after the present generation)',
+            type = ut.nonneg_int)
+    parser_gendrift.add_argument('every',
+            help='step size for recording generations or bottleneck sizes',
+            type = ut.positive_int)
+    parser_gendrift.add_argument('end',
+            help='final generation or bottleneck size to record',
+            type = ut.nonneg_int)
+    parser_gendrift.add_argument('output',
+            help='filename for output hdf5 file. overwrites if exists.')
+    parser_gendrift.add_argument('--bottlenecks', action = 'store_true',
+            help = 'generate bottleneck transition files instead of W-F drift')
+    parser_gendrift.add_argument('--breaks',
+            help = 'uniform weight and minimum bin size for binning of larger '
+                   'matrix into smaller matrix',
+            nargs = 2, metavar = ('uniform_weight', 'min_bin_size'),
+            type = float, default = (0.5, 0.01))
+    parser_gendrift.add_argument('--input-file', '-g', type = str,
+            help = 'file containing generations or bottleneck sizes to '
+                   'produce, one per line. ' 'overrides start, every, and '
+                   'end.')
+    parser_gendrift.set_defaults(
+            func = _run_generate)
+
+    parser_gencmd = subparsers.add_parser('generate-commands',
+            description = 'generate commands for producing default '
+                          'drift and bottleneck files. This also '
+                          'produces gens.txt and bots.txt, containing the '
+                          'default generations and bottleneck sizes. Run '
+                          'these commands with GNU Parallel to parallelize '
+                          'calculations. Notice that two final commands '
+                          'need to be run after completion of all others '
+                          'in order to make the master files containing '
+                          'all transitions.')
+                           
+    parser_gencmd.set_defaults(
+            func = _run_gencmd)
 
 
     ############################################
