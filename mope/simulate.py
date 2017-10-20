@@ -34,8 +34,8 @@ def get_heteroplasmic_filter(results, is_frequencies, tree):
     else:
         n_cols = [leaf + '_n' for leaf in leaves]
 
-        freqs = (results.loc[:,leaves] /
-                results.loc[:,n_cols].astype(np.float64))
+        freqs = (results.loc[:,leaves].values /
+                results.loc[:,n_cols])
     is_het = ~((freqs.sum(1) == len(leaves)) | (freqs.sum(1) == 0.0))
     return is_het
 
