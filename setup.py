@@ -8,7 +8,8 @@ requirements = [
         'numpy',
         'h5py',
         'pandas',
-        'future'
+        'future',
+        'lru-dict'
         ]
 
 have_mkl = False

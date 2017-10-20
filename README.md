@@ -12,18 +12,23 @@ genetics and phylogenetics.
 Requirements
 --------------
 
-Mope is written in Python and requires Python 2.7+ or Python 3.1+. Additional
-third-party Python packages are required, including [Numpy](http://numpy.org),
-[Scipy](http://scipy.org), [Pandas](http://pandas.pydata.org),
-[H5py](http://h5py.org) (for HDF5 data processing), and
-[emcee](http://dan.iel.fm/emcee/current/) for Ensemble MCMC machinery. All of
-these, except for emcee, are included with the
+Mope is written in Python and requires Python 2.7+ or Python 3.1+. The
+following python module are required:
+ - [Numpy](http://numpy.org),
+ - [Scipy](http://scipy.org)
+ - [Pandas](http://pandas.pydata.org)
+ - [H5py](http://h5py.org) (for HDF5 data processing)
+ - [emcee](http://dan.iel.fm/emcee/current/) for Ensemble MCMC machinery
+ - [future](http://python-future.org/) for Python 2/3 compatibility
+ - [lru-dict](https://pypi.python.org/pypi/lru-dict/) for fast caching
+ 
+All of these, except for emcee, future, and lru-dict, are included with the
 [Anaconda Python distribution](https://www.anaconda.com/).
 
 To install these dependencies, you can use pip:
 
 ```
-# pip install -U numpy scipy pandas h5py emcee
+# pip install -U numpy scipy pandas h5py emcee future lru-dict
 ```
 
 Mope also requires some compilation of code written in C into python modules.
