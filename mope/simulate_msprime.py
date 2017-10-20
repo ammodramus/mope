@@ -139,7 +139,11 @@ def run_simulations(reps, tree, bls, mrs, N, mean_coverage,
     family_indices
     '''
 
-    import msprime
+    try:
+        import msprime
+    except ImportError:
+        raise ImportError('running msprime simulations requires installing '
+                          'msprime')
 
     leaves = []
     multipliers = {}
