@@ -17,6 +17,7 @@ from .get_ages_from_sims import run_ages
 from .count_heteroplasmies import count_hets
 from .simulate_msprime import run_sim_ms
 from .make_figures import _run_make_figures
+from .download_transitions import _run_download
 
 
 def main():
@@ -263,10 +264,18 @@ def main():
                    'prior limits are in log10 space')
     parser_fig.add_argument('--ages-file', type = str,
             help = 'individual ages in tab-separated table')
-
     parser_fig.add_argument('--add-title', action = 'store_true')
     parser_fig.add_argument('--dpi', type = ut.positive_int, default = 300)
     parser_fig.set_defaults(func = _run_make_figures)
+
+    parser_download = subparsers.add_parser('download-transitions',
+            description='download allele frequency transitions')
+    parser_download.add_argument('--directory', '-d',
+            help = 'directory in which to place the downloaded transitions/ '
+                   'directory', default = '.')
+    parser_download.set_defaults(
+            func = _run_download)
+
 
     ############################################
     # parse and run
