@@ -6,7 +6,8 @@ Mitochondrial Ontogenetic Phylogeny Estimation
 
 Mope is a program for making inferences about the dynamics of mitochondrial
 heteroplasmy during different life stages, using approaches from population
-genetics and phylogenetics.
+genetics and phylogenetics. See the preprint
+[here](https://www.biorxiv.org/content/early/2017/10/17/204479).
 
 
 Requirements
@@ -115,6 +116,8 @@ For usage, try
 ```
 # mope run --help
 ```
+
+or see `examples/`.
 
 Format specifications
 ==============================
