@@ -4,8 +4,9 @@ mope
 Mitochondrial Ontogenetic Phylogeny Estimation
 -----------------------------------------------
 
-Mope is a program for making inferences about genetic drift and mutation
-during different reproductive and developmental stages.
+Mope is a program for making inferences about the dynamics of mitochondrial
+heteroplasmy during different life stages, using approaches from population
+genetics and phylogenetics.
 
 
 Requirements
