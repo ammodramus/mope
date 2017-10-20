@@ -10,8 +10,29 @@ requirements = [
         'pandas',
         ]
 
-link_args = ["-lgsl", "-lopenblas"]
-#link_args = ["-lgsl", "-lmkl_sequential", "-lmkl_core", "-lmkl_intel_lp64"]
+have_mkl = False
+try:
+    mklinfo = np.__config__.blas_mkl_info
+    if mklinfo != {}:
+        have_mkl = True
+except:
+    False
+have_openblas = False
+try:
+    openblasinfo = np.__config__.openblas_info
+    if openblasinfo != {}:
+        have_openblas = True
+except:
+    pass
+openblas_link_args = ["-lgsl", "-lopenblas"]
+mkl_link_args = ["-lgsl", "-lmkl_sequential", "-lmkl_core", "-lmkl_intel_lp64"]
+cblas_link_args = ["-lgsl", "-lblas"]
+if have_mkl:
+    link_args = mkl_link_args
+elif have_openblas:
+    link_args = openblas_link_args
+else:
+    link_args = cblas_link_args
 compile_args = ['-march=native', '-O3']
 try:
     library_dirs = os.environ['LIBRARY_PATH'].split(':')
@@ -77,11 +98,11 @@ entry_points = {'console_scripts': ['mope = mope.cli:main']}
 
 setup(
         name='mope',
-        version = '0.1.3',
+        version = '0.1',
         description='Molecular ontogenetic phylogeny estimation',
         author='Peter Wilton',
         author_email='pwilton@berkeley.edu',
-        license='MIT',
+        license='GPLv3',
         install_requires = requirements,
         python_requires = '>=2.7',
         packages = find_packages(),
