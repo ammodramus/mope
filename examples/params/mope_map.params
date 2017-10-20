@@ -1,0 +1,12 @@
+blo  2.104e-3       1.035e-8
+buc  2.08e-3        1.0635e-8
+fblo 2.104e-2       1.035e-6
+fbuc 2.08e-2        1.0635e-6
+som  4.937e-2       1.0632e-8
+loo  1.984e-4       1.0265e-8
+eoo  3.903e2        1.01626e-8
+emb	 3.14697e-3     2.5575e-3
+----------------
+mother_birth_age  30.30 5.11
+child_age         10.16 5
+mother_age        child_age+mother_birth_age
