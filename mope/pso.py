@@ -213,8 +213,15 @@ def pso(func, lb, ub, ieqcons=[], f_ieqcons=None, args=(), kwargs={},
         if pool is None:
             import multiprocessing
             mp_pool = multiprocessing.Pool(processes)
+            using_mpi = False
         else:
             mp_pool = pool
+            try:
+                _ = mp_pool.comm
+                using_mpi = True
+            except AttributeError:
+                using_mpi = False
+
         
     # Initialize the particle swarm ###########################################
     S = swarmsize
@@ -238,8 +245,13 @@ def pso(func, lb, ub, ieqcons=[], f_ieqcons=None, args=(), kwargs={},
 
     # Calculate objective and constraints for each particle
     if processes > 1:
-        fx = np.array(mp_pool.map(obj, x, S//processes))
-        fs = np.array(list(map(is_feasible, x)))
+        if not using_mpi:
+            fx = np.array(mp_pool.map(obj, x, S//processes))
+        else:  # mpi
+            fx = np.array(mp_pool.map(obj, x))
+        for i in range(S):
+            fs[i] = is_feasible(x[i, :])
+
     else:
         for i in range(S):
             fx[i] = obj(x[i, :])
@@ -281,8 +293,12 @@ def pso(func, lb, ub, ieqcons=[], f_ieqcons=None, args=(), kwargs={},
 
         # Update objectives and constraints
         if processes > 1:
-            fx = np.array(mp_pool.map(obj, x, S//processes))
-            fs = np.array(list(map(is_feasible, x)))
+            if not using_mpi:
+                fx = np.array(mp_pool.map(obj, x, S//processes))
+            else:
+                fx = np.array(mp_pool.map(obj, x))
+            for i in range(S):
+                fs[i] = is_feasible(x[i, :])
         else:
             for i in range(S):
                 fx[i] = obj(x[i, :])

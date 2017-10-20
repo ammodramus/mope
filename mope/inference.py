@@ -74,12 +74,15 @@ def optimize_posterior(inf_data, pool):
     minfunc = 1e-5
     swarm_init_weight = 0.1
 
+    # doesn't actually matter that it's 2, just needs to be > 1
+    # to signal that the pool should be used
+    num_processes = 1 if pool is None else 2
 
     x, f = pso(target, lower_bound, upper_bound,
             swarmsize = swarmsize, minfunc = minfunc,
             init_params = inf_data.init_params,
             init_params_weight = swarm_init_weight,
-            processes = inf_data.num_processes, pool = pool)
+            pool = pool, processes = num_processes)
 
     print('! pso:', x, f)
 
