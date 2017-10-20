@@ -8,6 +8,7 @@ requirements = [
         'numpy',
         'h5py',
         'pandas',
+        'future'
         ]
 
 have_mkl = False
@@ -98,7 +99,7 @@ entry_points = {'console_scripts': ['mope = mope.cli:main']}
 
 setup(
         name='mope',
-        version = '0.1',
+        version = '0.5',
         description='Molecular ontogenetic phylogeny estimation',
         author='Peter Wilton',
         author_email='pwilton@berkeley.edu',
