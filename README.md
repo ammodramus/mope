@@ -15,7 +15,7 @@ Requirements
 
 Mope is written in Python and requires Python 2.7+ or Python 3.1+. The
 following python module are required:
- - [Numpy](http://numpy.org),
+ - [Numpy](http://numpy.org)
  - [Scipy](http://scipy.org)
  - [Pandas](http://pandas.pydata.org)
  - [H5py](http://h5py.org) (for HDF5 data processing)
