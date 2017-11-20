@@ -99,6 +99,10 @@ def main():
             help = 'use MPI for distribution of chain posterior calculations')
     parser_run.add_argument('--debug', action = 'store_true',
             help = 'print debug output')
+    parser_run.add_argument('--log-uniform-drift-priors',
+            action = 'store_true',
+            help = 'use log-uniform prior distributions for drift parameters,'
+                   'rather than the default uniform priors')
     parser_run.set_defaults(func = run_mcmc)
 
 

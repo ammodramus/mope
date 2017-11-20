@@ -118,7 +118,8 @@ class Inference(object):
             start_from_true, data_are_freqs, genome_size, 
             ages_data_fn, bottleneck_file = None, poisson_like_penalty = 1.0,
             min_freq = 0.001, transition_copy = None, transition_buf = None,
-            transition_shape = None, print_debug = False):
+            transition_shape = None, print_debug = False,
+            log_unif_drift = False):
 
         self.asc_tree = None
         self.asc_num_loci = None
@@ -144,6 +145,7 @@ class Inference(object):
         self.min_freq = min_freq
         self.ages_data_fn = ages_data_fn
         self.print_debug = print_debug
+        self.log_unif_drift = log_unif_drift
 
         ############################################################
         # read in data
@@ -607,7 +609,13 @@ class Inference(object):
         if np.any(x > self.upper):
             return -np.inf
         # for log-scale mutation parameterization
-        logp = 1.0
+        if self.log_unif_drift:
+            # first num_varnames are drift parameters
+            # rather than specify drift in actual log units, just calculate
+            # prior this way.
+            logp = -1.0*np.sum(x[:num_varnames])
+        else:
+            logp = 1.0
         return logp
 
 

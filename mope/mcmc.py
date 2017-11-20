@@ -57,7 +57,8 @@ def run_mcmc(args):
             min_freq = args.min_het_freq,
             ages_data_fn = args.agesdata,
             poisson_like_penalty = args.asc_prob_penalty,
-            print_debug = args.debug)
+            print_debug = args.debug,
+            log_unif_drift = args.log_uniform_drift_priors)
 
     if (not args.num_temperatures > 1) and (not args.evidence_integral):
         inf_data.run_mcmc(
