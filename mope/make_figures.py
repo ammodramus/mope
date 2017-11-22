@@ -159,8 +159,12 @@ def make_figures(
 
     cols = get_parameter_names(tree_file)
     varnames = [col[:-2] for col in cols if col.endswith('_l')]
-    dat_m1 = pd.read_csv(results,
-            sep = '\t', header = None, names = cols, dtype = np.float64)
+    try:
+        dat_m1 = pd.read_csv(results,
+                sep = '\t', header = None, names = cols, dtype = np.float64)
+    except ValueError:
+        dat_m1 = pd.read_csv(results,
+                sep = '\t', header = 0, names = cols, dtype = np.float64)
     dat_m1.loc[:,dat_m1.columns.str.contains('_l')] = np.log10(np.abs(
             dat_m1.loc[:,dat_m1.columns.str.contains('_l')]))
     dat_m1.loc[:,dat_m1.columns.str.contains('_m')] = -np.abs(
