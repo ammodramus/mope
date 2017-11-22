@@ -701,7 +701,7 @@ class Inference(object):
             data_file, transitions_file, tree_file, true_parameters,
             start_from_true, data_are_freqs, genome_size,
             bottleneck_file, min_freq, ages_data_fn,
-            poisson_like_penalty, print_debug):
+            poisson_like_penalty, print_debug, log_unif_drift):
 
             global inf_data
             inf_data = Inference(
@@ -716,7 +716,8 @@ class Inference(object):
                     min_freq = min_freq,
                     ages_data_fn = ages_data_fn,
                     poisson_like_penalty = poisson_like_penalty,
-                    print_debug = print_debug)
+                    print_debug = print_debug,
+                    log_unif_drift = log_unif_drift)
 
         # MPI takes priority
         if mpi:
@@ -729,13 +730,19 @@ class Inference(object):
         elif num_processes > 1:
             pool = mp.Pool(num_processes, initializer = initializer,
                     initargs = [
-                        self.data_file, self.transitions_file,
-                        self.tree_file, self.true_params,
-                        self.start_from_true, not self.data_are_counts,
+                        self.data_file,
+                        self.transitions_file,
+                        self.tree_file,
+                        self.true_params,
+                        self.start_from_true,
+                        not self.data_are_counts,
                         self.genome_size,
-                        self.bottleneck_file, self.min_freq,
-                        self.ages_data_fn, self.poisson_like_penalty,
-                        self.print_debug
+                        self.bottleneck_file,
+                        self.min_freq,
+                        self.ages_data_fn,
+                        self.poisson_like_penalty,
+                        self.print_debug,
+                        self.log_unif_drift
                         ])
 
         else:
