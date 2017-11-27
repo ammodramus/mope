@@ -100,7 +100,7 @@ def make_figures(
         img_format = 'png', dpi = 300, colors_and_types = None,
         length_prior_limits = (-6,0.477), mutation_prior_limits = (-8,-1),
         true_parameters = None, do_traces = False, trace_burnin_steps = 500,
-        posterior_burnin_steps = 2500, add_title = True):
+        posterior_burnin_steps = 2500, add_title = True, log_uniform_drift_priors = False):
 
     validparamtypes = ('fixed', 'rate', 'bottleneck')
 
@@ -120,9 +120,7 @@ def make_figures(
     if colors_and_types is not None:
         colors = OrderedDict()
         types = OrderedDict()
-        priortypes = OrderedDict()
-        priormins = OrderedDict()
-        priormaxes = OrderedDict()
+        #priortypes = OrderedDict()
         with open(colors_and_types) as inp:
             for line in inp:
                 spline = line.split()
@@ -132,20 +130,17 @@ def make_figures(
                                      '"rate", or "bottleneck"')
                 colors[param] = color
                 types[param] = paramtype
-                try:
-                    priortype, priormin, priormax = spline[3:6]
-                    priortypes[param] = priortype
-                    priormins[param] = priormin
-                    priormaxs[param] = priormax
-                except ValueError:
-                    continue
-        priors_found = (len(priortypes) > 0)
-        for param, ptype in list(priortypes.items()):
-            if ptype not in validpriortypes:
-                raise ValueError('Invalid prior type: {}. must be "uniform" or '
-                                 '"loguniform".'.format(ptype))
-            if priormins[param] >= priormaxes[param]:
-                raise ValueError('prior minima must be less than maxima')
+                #try:
+                #    priortype1, priortype2 = spline[3:5]
+                #    priortypes[param] = (priortype1, priortype2)
+                #except ValueError:
+                #    continue
+        #priors_found = (len(priortypes) > 0)
+        #validpriortypes = ('loguniform', 'uniform')
+        #for params in priortypes.keys():
+        #    if ptype not in validpriortypes:
+        #        raise ValueError('Invalid prior type: {}. must be "uniform" or '
+        #                         '"loguniform".'.format(ptype))
 
     ###################
     # loading the data
@@ -165,8 +160,10 @@ def make_figures(
     except ValueError:
         dat_m1 = pd.read_csv(results,
                 sep = '\t', header = 0, names = cols, dtype = np.float64)
+    # drift parameters are output in natural scale
     dat_m1.loc[:,dat_m1.columns.str.contains('_l')] = np.log10(np.abs(
             dat_m1.loc[:,dat_m1.columns.str.contains('_l')]))
+    # mutation parameters are given in log-10 scale
     dat_m1.loc[:,dat_m1.columns.str.contains('_m')] = -np.abs(
             dat_m1.loc[:,dat_m1.columns.str.contains('_m')])
     dat_m1.loc[:,'root'] = -np.abs(dat_m1.loc[:,'root'])
@@ -182,8 +179,6 @@ def make_figures(
         lower_l = 10**float(lower_l)
         upper_l = 10**float(upper_l)
         length_limits = get_len_limits(tree, ages_file, lower_l, upper_l)
-
-
 
     # getting true parameters
     if true_parameters is not None:
@@ -286,7 +281,10 @@ def make_figures(
 
             if length_prior_limits is not None:
                 x = np.linspace(minv, maxv, 1000)
-                y = 10**x * np.log(10) / (10**maxv - 10**minv)
+                if log_uniform_drift_priors:
+                    y = 1.0/(maxv-minv)
+                else:
+                    y = 10**x * np.log(10) / (10**maxv - 10**minv)
                 ax.fill_between(x, 0, y, alpha = 0.3, color = 'gray')
 
             ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch,
@@ -406,5 +404,6 @@ def _run_make_figures(args):
             do_traces = args.plot_traces,
             trace_burnin_steps = args.trace_burnin_steps,
             posterior_burnin_steps = args.posterior_burnin_steps,
-            add_title = args.add_title)
+            add_title = args.add_title,
+            log_uniform_drift_priors = args.log_uniform_drift_priors)
 

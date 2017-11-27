@@ -43,7 +43,9 @@ def run_mcmc(args):
     if args.start_from_map and (args.prev_chain is not None):
         raise ValueError('--start-from-map and --prev-chain are mutually '
                          'exclusive')
-
+    if args.debug and args.mpi:
+        errmsg='--debug and --mpi cannot be simultaneously specified'
+        raise ValueError(errmsg)
 
     inf_data = inf.Inference(
             data_file = args.data,
