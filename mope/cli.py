@@ -63,6 +63,8 @@ def main():
     parser_run.add_argument('--start-from-map', action = 'store_true',
             help = 'start MCMC chain from MAP estimate. this improves '
                    'convergence')
+    parser_run.add_argument('--start-from-prior', action = 'store_true',
+            help = 'start MCMC chain with random sample from prior.')
     parser_run.add_argument('--data-are-frequencies', action = 'store_true',
             help = 'data are frequencies rather than allele counts')
     parser_run.add_argument('--genome-size', type = ut.positive_int,

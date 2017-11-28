@@ -40,19 +40,33 @@ def run_mcmc(args):
     =========================
     '''
 
+    start_from_bool = (args.start_from_map, args.start_from_true,
+            args.start_from_prior)
+    if sum(start_from_bool) > 1:
+        err = ('--start-from-map, --start-from-true, and --start-from-prior '
+               'are mutually exclusive')
+        raise ValueError(err)
     if args.start_from_map and (args.prev_chain is not None):
         raise ValueError('--start-from-map and --prev-chain are mutually '
                          'exclusive')
     if args.debug and args.mpi:
         errmsg='--debug and --mpi cannot be simultaneously specified'
         raise ValueError(errmsg)
+    # (valid values are 'initguess', 'true', 'map', 'prior')
+    start_from = 'initguess'
+    if args.start_from_true:
+        start_from = 'true'
+    elif args.start_from_map:
+        start_from = 'map'
+    elif args.start_from_prior:
+        start_from = 'prior'
 
     inf_data = inf.Inference(
             data_file = args.data,
             transitions_file = args.drift,
             tree_file = args.tree,
             true_parameters = args.true_parameters,
-            start_from_true = args.start_from_true,
+            start_from = start_from,
             data_are_freqs = args.data_are_frequencies,
             genome_size = args.genome_size,
             bottleneck_file = args.bottlenecks,
@@ -65,13 +79,13 @@ def run_mcmc(args):
     if (not args.num_temperatures > 1) and (not args.evidence_integral):
         inf_data.run_mcmc(
                 args.numiter, args.num_walkers, args.num_processes, args.mpi,
-                args.prev_chain, args.start_from_map, args.init_norm_sd,
+                args.prev_chain, start_from, args.init_norm_sd,
                 args.chain_alpha)
 
 
     else:
         inf_data.run_parallel_temper_mcmc(args.numiter, args.num_walkers,
-                args.prev_chain, args.start_from_map, args.init_norm_sd,
+                args.prev_chain, start_from, args.init_norm_sd,
                 do_evidence = args.evidence_integral,
                 num_processes = args.num_processes,
                 mpi = args.mpi,
