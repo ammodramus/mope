@@ -23,6 +23,7 @@ from functools import partial
 import multiprocessing as mp
 import numpy.random as npr
 import emcee
+import warnings
 
 from . import newick
 from . import util as ut
@@ -111,11 +112,19 @@ def optimize_posterior(inf_data, pool):
 
     return x
 
+def _get_valid_start_from(sf_str):
+    valid_sfs = ('initguess', 'true', 'map', 'prior')
+    for v in valid_sfs:
+        if sf_str == v:
+            return v
+    warnings.warn('getting starting position from heuristic guess')
+    return 'initguess'
+
 
 class Inference(object):
     def __init__(self,
             data_file, transitions_file, tree_file, true_parameters,
-            start_from_true, data_are_freqs, genome_size, 
+            start_from, data_are_freqs, genome_size, 
             ages_data_fn, bottleneck_file = None, poisson_like_penalty = 1.0,
             min_freq = 0.001, transition_copy = None, transition_buf = None,
             transition_shape = None, print_debug = False,
@@ -139,7 +148,7 @@ class Inference(object):
         self.tree_file = tree_file
         self.transitions_file = transitions_file
         self.data_file = data_file
-        self.start_from_true = start_from_true
+        self.start_from = _get_valid_start_from(start_from)
         self.bottleneck_file = bottleneck_file
         self.poisson_like_penalty = poisson_like_penalty
         self.min_freq = min_freq
@@ -472,7 +481,7 @@ class Inference(object):
         #####################################################
         # setting initial parameters
         #####################################################
-        if self.start_from_true:
+        if self.start_from == 'true':
             self.init_params = self.true_params
         else:
             self.init_params = igs.estimate_initial_parameters(self)
@@ -699,7 +708,7 @@ class Inference(object):
 
         def initializer(
             data_file, transitions_file, tree_file, true_parameters,
-            start_from_true, data_are_freqs, genome_size,
+            start_from, data_are_freqs, genome_size,
             bottleneck_file, min_freq, ages_data_fn,
             poisson_like_penalty, print_debug, log_unif_drift):
 
@@ -709,7 +718,7 @@ class Inference(object):
                     transitions_file = transitions_file,
                     tree_file = tree_file,
                     true_parameters = true_parameters,
-                    start_from_true = start_from_true,
+                    start_from = start_from,
                     data_are_freqs = data_are_freqs,
                     genome_size = genome_size,
                     bottleneck_file = bottleneck_file,
@@ -734,7 +743,7 @@ class Inference(object):
                         self.transitions_file,
                         self.tree_file,
                         self.true_params,
-                        self.start_from_true,
+                        self.start_from,
                         not self.data_are_counts,
                         self.genome_size,
                         self.bottleneck_file,
@@ -753,7 +762,7 @@ class Inference(object):
 
 
     def _get_initial_mcmc_position(
-            self, num_walkers, prev_chain, start_from_map, init_norm_sd, pool):
+            self, num_walkers, prev_chain, start_from, init_norm_sd, pool):
 
         ndim = 2*len(self.varnames) + 2
 
@@ -767,8 +776,10 @@ class Inference(object):
             prev_chains.loc[:,prev_chains.columns.str.endswith('_l')] = (
                     prev_chains.loc[:,prev_chains.columns.str.endswith('_l')].abs())        
             init_pos = prev_chains.values
-        elif start_from_map:
+        elif start_from == 'map':
             # start from MAP
+            if self.print_debug:
+                print('! starting MAP optimization for initial MCMC params')
             init_params = optimize_posterior(self, pool)
             rx = (1+init_norm_sd*npr.randn(ndim*num_walkers))
             rx = rx.reshape((num_walkers, ndim))
@@ -782,6 +793,30 @@ class Inference(object):
                     axis = 1, 
                     arr = proposed_init_pos)
             init_pos = proposed_init_pos
+        elif start_from == 'prior':
+            # start from random points
+            if self.print_debug:
+                print('! starting MCMC from random point')
+            nvarnames = len(self.varnames)
+            nparams = self.lower.shape[0]
+            rstart = np.zeros((num_walkers, nparams))
+            # the mutation and the root parameters will be uniform across their
+            # ranges (both are log10 scaled)
+            low = np.tile(self.lower[nvarnames:], num_walkers)
+            high = np.tile(self.upper[nvarnames:], num_walkers)
+            rstart[:, nvarnames:] = npr.uniform(low,
+                    high).reshape(num_walkers,-1)
+            if self.log_unif_drift:
+                low = np.tile(np.log(self.lower[:nvarnames]), num_walkers)
+                high = np.tile(np.log(self.upper[:nvarnames]), num_walkers)
+                rstart[:,:nvarnames] = np.exp(npr.uniform(low, high)).reshape(
+                        num_walkers, -1)
+            else:
+                low = np.tile(self.lower[:nvarnames], num_walkers)
+                high = np.tile(self.upper[:nvarnames], num_walkers)
+                rstart[:, :nvarnames] = npr.uniform(low,high).reshape(
+                        num_walkers,-1)
+            init_pos = rstart
         else:
             # use initial guess
             rx = (1+init_norm_sd*npr.randn(ndim*num_walkers))
@@ -802,7 +837,7 @@ class Inference(object):
 
     def run_mcmc(
             self, num_iter, num_walkers, num_processes = 1, mpi = False,
-            prev_chain = None, start_from_map = False, init_norm_sd = 0.2,
+            prev_chain = None, start_from = 'initguess', init_norm_sd = 0.2,
             chain_alpha = 2.0, init_pos = None, pool = None):
         global inf_data
         inf_data = self
@@ -822,7 +857,7 @@ class Inference(object):
 
         if init_pos is None:
             init_pos = self._get_initial_mcmc_position(num_walkers, prev_chain,
-                    start_from_map, init_norm_sd, pool)
+                    start_from, init_norm_sd, pool)
 
         ##############################################################
         # running normal MCMC   
@@ -836,7 +871,7 @@ class Inference(object):
             self.transition_data.clear_cache()
 
     def run_parallel_temper_mcmc(
-            self, num_iter, num_walkers, prev_chain, start_from_map,
+            self, num_iter, num_walkers, prev_chain, start_from,
             init_norm_sd, pool = None, mpi = False, ntemps = None,
             do_evidence = False, num_processes = 1, init_pos = None,
             num_temperatures = 5):
@@ -864,7 +899,7 @@ class Inference(object):
 
         if init_pos is None:
             init_pos = self._get_initial_mcmc_position(num_walkers, prev_chain,
-                    start_from_map, init_norm_sd, pool)
+                    start_from, init_norm_sd, pool)
 
 
         ndim = 2*len(self.varnames)+2
