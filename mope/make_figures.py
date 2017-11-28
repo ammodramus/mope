@@ -155,9 +155,11 @@ def make_figures(
     cols = get_parameter_names(tree_file)
     varnames = [col[:-2] for col in cols if col.endswith('_l')]
     try:
+        # first try no header
         dat_m1 = pd.read_csv(results,
                 sep = '\t', header = None, names = cols, dtype = np.float64)
     except ValueError:
+        # then with header
         dat_m1 = pd.read_csv(results,
                 sep = '\t', header = 0, names = cols, dtype = np.float64)
     # drift parameters are output in natural scale
