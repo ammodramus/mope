@@ -105,6 +105,11 @@ def main():
             action = 'store_true',
             help = 'use log-uniform prior distributions for drift parameters,'
                    'rather than the default uniform priors')
+    parser_run.add_argument('--inverse-bottleneck-priors',
+            action = 'store_true',
+            help = 'make the prior for bottlenecks reflect the drift caused '
+                   'by the bottleneck, which is inversely proportional to '
+                   'the bottleneck size')
     parser_run.set_defaults(func = run_mcmc)
 
 

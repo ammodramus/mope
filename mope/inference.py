@@ -128,7 +128,7 @@ class Inference(object):
             ages_data_fn, bottleneck_file = None, poisson_like_penalty = 1.0,
             min_freq = 0.001, transition_copy = None, transition_buf = None,
             transition_shape = None, print_debug = False,
-            log_unif_drift = False):
+            log_unif_drift = False, inverse_bot_priors = False):
 
         self.asc_tree = None
         self.asc_num_loci = None
@@ -155,6 +155,7 @@ class Inference(object):
         self.ages_data_fn = ages_data_fn
         self.print_debug = print_debug
         self.log_unif_drift = log_unif_drift
+        self.inverse_bot_priors = inverse_bot_priors
 
         ############################################################
         # read in data
@@ -623,8 +624,16 @@ class Inference(object):
             # rather than specify drift in actual log units, just calculate
             # prior this way.
             logp = -1.0*np.sum(x[:num_varnames])
+            # note that specifying the bottleneck size as log-uniform is the
+            # same as specifying the drift as log-uniform, since
+            # log D = log 2 - log B, and log B is uniform.
         else:
-            logp = 1.0
+            if self.inverse_bot_priors:
+                # if D = 2/B is uniform, f_B(x) \propto x^{-2}, and 
+                # log f_B(x) \propto -log(x)
+                logp = -1.0*np.sum(np.log(x[self.is_bottleneck_arr]))
+            else:
+                logp = 1.0
         return logp
 
 
