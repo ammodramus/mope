@@ -157,11 +157,13 @@ def make_figures(
     try:
         # first try no header
         dat_m1 = pd.read_csv(results,
-                sep = '\t', header = None, names = cols, dtype = np.float64)
+                sep = '\t', header = None, names = cols, dtype = np.float64,
+                comment = '#')
     except ValueError:
         # then with header
         dat_m1 = pd.read_csv(results,
-                sep = '\t', header = 0, names = cols, dtype = np.float64)
+                sep = '\t', header = 0, names = cols, dtype = np.float64,
+                comment = '#')
     # drift parameters are output in natural scale
     dat_m1.loc[:,dat_m1.columns.str.contains('_l')] = np.log10(np.abs(
             dat_m1.loc[:,dat_m1.columns.str.contains('_l')]))
