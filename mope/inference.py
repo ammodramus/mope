@@ -878,6 +878,8 @@ class Inference(object):
                 iterations = num_iter, storechain = False):
             _util.print_csv_lines(ps, lnprobs)
             self.transition_data.clear_cache()
+        if mpi:
+            pool.close()
 
     def run_parallel_temper_mcmc(
             self, num_iter, num_walkers, prev_chain, start_from,
