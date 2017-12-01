@@ -59,7 +59,7 @@ def inf_bound_target(x):
     return val
 
 
-def optimize_posterior(inf_data, pool):
+def optimize_posterior(inf_data, pool, print_debug):
     '''
     maximizes posterior
 
@@ -85,7 +85,8 @@ def optimize_posterior(inf_data, pool):
             init_params_weight = swarm_init_weight,
             pool = pool, processes = num_processes)
 
-    print('! pso:', x, f)
+    if inf_data.print_debug:
+        print('! pso:', x, f)
 
     bounds = [[l,u] for l, u in zip(inf_data.lower, inf_data.upper)]
     epsilon = 1e-10
@@ -97,7 +98,8 @@ def optimize_posterior(inf_data, pool):
             bounds = bounds,
             epsilon = epsilon)
 
-    print('! lbfgsb:', x, f)
+    if inf_data.print_debug:
+        print('! lbfgsb:', x, f)
 
     options = {'maxfev': 1000000}
     res = opt.minimize(inf_bound_target,
@@ -107,7 +109,8 @@ def optimize_posterior(inf_data, pool):
     x = res.x
     f = res.fun
 
-    print('! nelder-mead:', x, f)
+    if inf_data.print_debug:
+        print('! nelder-mead:', x, f)
 
 
     return x
@@ -563,10 +566,10 @@ class Inference(object):
 
 
     def inf_bound_like_obj(self, x):
-        if np.any(x < self.lower):
+        if self.print_debug and np.any(x < self.lower):
             print('inf:', x)
             return np.inf
-        if np.any(x > self.upper):
+        if self.print_debug and np.any(x > self.upper):
             print('inf:', x)
             return np.inf
         return self.like_obj(x)
