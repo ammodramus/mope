@@ -128,7 +128,8 @@ class Inference(object):
             ages_data_fn, bottleneck_file = None, poisson_like_penalty = 1.0,
             min_freq = 0.001, transition_copy = None, transition_buf = None,
             transition_shape = None, print_debug = False,
-            log_unif_drift = False, inverse_bot_priors = False):
+            log_unif_drift = False, inverse_bot_priors = False,
+            post_is_prior = False):
 
         self.asc_tree = None
         self.asc_num_loci = None
@@ -156,6 +157,7 @@ class Inference(object):
         self.print_debug = print_debug
         self.log_unif_drift = log_unif_drift
         self.inverse_bot_priors = inverse_bot_priors
+        self.post_is_prior = post_is_prior
 
         ############################################################
         # read in data
@@ -669,11 +671,14 @@ class Inference(object):
         # make the last two non-positive
         x[-2:] = -np.abs(x[-2:])
         pr = self.logprior(x)
-        if not np.isfinite(pr):
-            like = -np.inf
+        if not self.post_is_prior:
+            if not np.isfinite(pr):
+                like = -np.inf
+            else:
+                like = -1.0*self.inf_bound_like_obj(x)
+            v = pr + like
         else:
-            like = -1.0*self.inf_bound_like_obj(x)
-        v = pr + like
+            v = pr
         if np.isnan(v):
             v = -np.inf
 
