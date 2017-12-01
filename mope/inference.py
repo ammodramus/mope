@@ -59,7 +59,7 @@ def inf_bound_target(x):
     return val
 
 
-def optimize_posterior(inf_data, pool, print_debug):
+def optimize_posterior(inf_data, pool):
     '''
     maximizes posterior
 
@@ -666,6 +666,8 @@ class Inference(object):
         '''
         # wrapping parameters as their absolute values
         num_varnames = self.num_varnames
+        # make x variables a copy to avoid changing state
+        x = x.copy()
         # make the branch lengths positive
         x[:num_varnames] = np.abs(x[:num_varnames])
         # make the mutation rates negative
