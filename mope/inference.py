@@ -628,7 +628,7 @@ class Inference(object):
             # first num_varnames are drift parameters
             # rather than specify drift in actual log units, just calculate
             # prior this way.
-            logp = -1.0*np.sum(x[:num_varnames])
+            logp = -1.0*np.sum(np.log(x[:num_varnames]))
             # note that specifying the bottleneck size as log-uniform is the
             # same as specifying the drift as log-uniform, since
             # log D = log 2 - log B, and log B is uniform.
