@@ -936,3 +936,6 @@ class Inference(object):
                 evidence = sampler.thermodynamic_integration_log_evidence(
                         fburnin=fburnin)
                 print('# evidence (fburnin = {}):'.format(fburnin), evidence)
+
+        if mpi:
+            pool.close()
