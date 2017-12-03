@@ -454,6 +454,9 @@ class Inference(object):
         lower_len[is_bottleneck_arr] = min_allowed_bottleneck
         upper_len[is_bottleneck_arr] = max_allowed_bottleneck
 
+        lower_len = np.log10(lower_len)
+        upper_len = np.log10(upper_len)
+
         lower_mut = np.repeat(min_mut, num_varnames)
         upper_mut = np.repeat(max_mut, num_varnames)
         lower = np.concatenate((lower_len, lower_mut, (min_ab,min_polyprob)))
@@ -462,6 +465,16 @@ class Inference(object):
         # self.lower and .upper give the bounds for prior distributions
         self.lower = lower
         self.upper = upper
+
+        if self.print_debug:
+            print(self.min_mults)
+            print(self.max_mults)
+            print('! self.lower:')
+            for el in self.lower:
+                print('! ', el)
+            print('! self.upper:')
+            for el in self.upper:
+                print('! ', el)
 
         #####################################################
         # true parameters, if specified (for sim. data)
@@ -473,7 +486,7 @@ class Inference(object):
             log10_true_ppoly = np.log10(true_ppoly)
             true_params = []
             for vn in self.varnames:
-                true_params.append(true_bls[vn])
+                true_params.append(np.log10(true_bls[vn]))
             for vn in self.varnames:
                 true_params.append(np.log10(true_mrs[vn]))
             true_params.append(log10_true_ab)
@@ -502,7 +515,7 @@ class Inference(object):
         params = varparams[self.translate_indices]
 
         num_branches = self.num_branches
-        branch_lengths = params[:num_branches]
+        branch_lengths = 10**params[:num_branches]
         mutation_rates = 10**params[num_branches:]
         alphabeta = 10**params[2*num_branches]
         polyprob = 10**params[2*num_branches+1]
@@ -618,7 +631,6 @@ class Inference(object):
         x is in varnames space
         '''
         num_varnames = self.num_varnames
-        mutation_rates = x[num_varnames:2*num_varnames]
         if np.any(x < self.lower):
             return -np.inf
         if np.any(x > self.upper):
@@ -628,17 +640,25 @@ class Inference(object):
             # first num_varnames are drift parameters
             # rather than specify drift in actual log units, just calculate
             # prior this way.
-            logp = -1.0*np.sum(np.log(x[:num_varnames]))
+            #logp = -1.0*np.sum(np.log(x[:num_varnames])
+            # this from natural-scale drift params
             # note that specifying the bottleneck size as log-uniform is the
             # same as specifying the drift as log-uniform, since
             # log D = log 2 - log B, and log B is uniform.
+            # drift now in log-units
+            logp = 1.0
         else:
             if self.inverse_bot_priors:
                 # if D = 2/B is uniform, f_B(x) \propto x^{-2}, and 
                 # log f_B(x) \propto -log(x)
-                logp = -1.0*np.sum(np.log(x[self.is_bottleneck_arr]))
+                #
+                # update: if D = 2/B is uniform, the log-density of log B is
+                # \propto -x
+                logp = -1.0*np.sum(x[self.is_bottleneck_arr])
             else:
-                logp = 1.0
+                # if D ~ Unif, the density of log D is \propto e^x and thus
+                # the log-density of log D is \propto x.
+                logp = np.sum(x[:num_varnames])
         return logp
 
 
@@ -668,8 +688,6 @@ class Inference(object):
         num_varnames = self.num_varnames
         # make x variables a copy to avoid changing state
         x = x.copy()
-        # make the branch lengths positive
-        x[:num_varnames] = np.abs(x[:num_varnames])
         # make the mutation rates negative
         x[num_varnames:2*num_varnames] = (
                 -1.0*np.abs(x[num_varnames:2*num_varnames]))
