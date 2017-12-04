@@ -165,8 +165,8 @@ def make_figures(
                 sep = '\t', header = 0, names = cols, dtype = np.float64,
                 comment = '#')
     # drift parameters are output in natural scale
-    dat_m1.loc[:,dat_m1.columns.str.contains('_l')] = np.log10(np.abs(
-            dat_m1.loc[:,dat_m1.columns.str.contains('_l')]))
+    #dat_m1.loc[:,dat_m1.columns.str.contains('_l')] = np.log10(np.abs(
+    #        dat_m1.loc[:,dat_m1.columns.str.contains('_l')]))
     # mutation parameters are given in log-10 scale
     dat_m1.loc[:,dat_m1.columns.str.contains('_m')] = -np.abs(
             dat_m1.loc[:,dat_m1.columns.str.contains('_m')])
@@ -220,131 +220,45 @@ def make_figures(
         plt.savefig(trace_file)
 
     # posterior histograms
-    if colors_and_types is None:
-        final = False  # not a 'final', publication plot
-        num_plots = dat_m1.shape[1]
-        nrows = 4
-        ncols = int(np.ceil(num_plots / nrows))
-        f, axes = plt.subplots(nrows,ncols, figsize = (12,12*nrows/ncols))
+    if not do_traces:
+        if colors_and_types is None:
+            final = False  # not a 'final', publication plot
+            num_plots = dat_m1.shape[1]
+            nrows = 4
+            ncols = int(np.ceil(num_plots / nrows))
+            f, axes = plt.subplots(nrows,ncols, figsize = (12,12*nrows/ncols))
 
-    else:
-        final = True   # a 'final', publication plot
-        nrows = 2
-        ncols = len(varnames)
-        num_plots = (dat_m1.shape[1]-3)*2  # (no loglike, or the two root params)
-        f, axes = plt.subplots(nrows,ncols, figsize = (2*ncols,4))
-        mpl.rcParams.update({'font.size': 5})
-        mpl.rcParams.update({'axes.labelsize': 'small'})
+        else:
+            final = True   # a 'final', publication plot
+            nrows = 2
+            ncols = len(varnames)
+            num_plots = (dat_m1.shape[1]-3)*2  # (no loglike, or the two root params)
+            f, axes = plt.subplots(nrows,ncols, figsize = (2*ncols,4))
+            mpl.rcParams.update({'font.size': 5})
+            mpl.rcParams.update({'axes.labelsize': 'small'})
 
-    burnin_steps = posterior_burnin_steps
-    burnin = num_walkers * burnin_steps
-    if burnin > dat_m1.shape[0]:
-        burnin = 0
-    plotted = np.tile([False], nrows*ncols)
-    plotted.shape = (nrows,ncols)
+        burnin_steps = posterior_burnin_steps
+        burnin = num_walkers * burnin_steps
+        if burnin > dat_m1.shape[0]:
+            burnin = 0
+        plotted = np.tile([False], nrows*ncols)
+        plotted.shape = (nrows,ncols)
 
-    if burnin > dat_m1.shape[0]:
-        raise ValueError('burnin exceeds number of samples')
-
-
-    if final:
-        if not add_title:
-            mpl.rc('text', usetex = False)
-        #mpl.rcParams.update({'font.family': 'Arial'})
-        colornames = list(colors.keys())
-        for counter, var in enumerate(colornames):
-            if true_parameters is not None:
-                true_l = np.log10(true_bls[var])
-                true_m = np.log10(true_mrs[var])
-            # length
-            if colors_and_types is not None:
-                try:
-                    c = colors[var]
-                    t = types[var]
-                except KeyError:
-                    c = 'gray'
-                    t = 'fixed'
-            else:
-                c = 'gray'
-                t = 'fixed'
-            hatch = get_hatch(t)
-
-            ax = axes[0][counter]
-            col = var + '_l'
-            if length_prior_limits is not None:
-                minv, maxv = length_limits[var]
-            else:
-                minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
-
-            lower = np.floor(minv)
-            upper = np.ceil(maxv)
-            bins = np.linspace(lower, upper, 50)
-            ticks = np.arange(lower, upper+1).astype(np.int)
-            if ticks.shape[0] > 5:
-                ticks = np.arange(lower, upper+1, 2).astype(np.int)
-
-            if length_prior_limits is not None:
-                x = np.linspace(minv, maxv, 1000)
-                if log_uniform_drift_priors:
-                    y = 1.0/(maxv-minv)
-                else:
-                    y = 10**x * np.log(10) / (10**maxv - 10**minv)
-                ax.fill_between(x, 0, y, alpha = 0.3, color = 'gray')
-
-            ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch,
-                    normed = True)
-            ax.set_xticks(ticks)
-            #ax.set_xscale('log')
-            ax.get_yaxis().set_visible(False)
-            if true_parameters is not None:
-                ax.axvline(true_l, ls = '--', c = 'black', lw = 2)
-            if add_title:
-                ax.set_title(col)
-
-            ax = axes[1][counter]
-            col = var + '_m'
-            if mutation_prior_limits is None:
-                minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
-            else:
-                minv, maxv = mutation_prior_limits
-                minv = float(minv)
-                maxv = float(maxv)
-            lower = np.floor(minv)
-            upper = np.ceil(maxv)
-            ticks = np.arange(lower, upper+1).astype(np.int)
-            if ticks.shape[0] > 5:
-                ticks = np.arange(lower, upper+1, 2).astype(np.int)
-            bins = np.linspace(lower, upper, 50)
-
-            if mutation_prior_limits is not None:
-                x = np.linspace(minv, maxv, 1000)
-                y = 1.0/(maxv-minv)
-                ax.fill_between(x, 0, y, alpha = 0.3, color = 'gray')
-
-            ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch,
-                    normed = True)
-            ax.set_xticks(ticks)
-            ax.get_yaxis().set_visible(False)
-            if true_parameters is not None:
-                ax.axvline(true_m, ls = '--', c = 'black', lw = 2)
-            if add_title:
-                ax.set_title(col)
+        if burnin > dat_m1.shape[0]:
+            raise ValueError('burnin exceeds number of samples')
 
 
-    else:  # not final
-        counter = 0
-        for row_idx in range(nrows):
-            for col_idx in range(ncols):
-                ax = axes[row_idx][col_idx]
-                try:
-                    col = cols[counter]
-                except IndexError:
-                    break
-                if true_parameters is not None and counter > 0:
-                    true_p = true_params[counter-1]
-                minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
+        if final:
+            if not add_title:
+                mpl.rc('text', usetex = False)
+            #mpl.rcParams.update({'font.family': 'Arial'})
+            colornames = list(colors.keys())
+            for counter, var in enumerate(colornames):
+                if true_parameters is not None:
+                    true_l = np.log10(true_bls[var])
+                    true_m = np.log10(true_mrs[var])
+                # length
                 if colors_and_types is not None:
-                    var = col[:-2]
                     try:
                         c = colors[var]
                         t = types[var]
@@ -355,40 +269,127 @@ def make_figures(
                     c = 'gray'
                     t = 'fixed'
                 hatch = get_hatch(t)
-                if minv >= 0:
-                    lower = np.floor(np.log10(minv))
-                    upper = np.ceil(np.log10(maxv))
-                    bins = np.logspace(lower, upper, 50)
-                    ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch)
-                    ax.set_xscale('log')
+
+                ax = axes[0][counter]
+                col = var + '_l'
+                if length_prior_limits is not None:
+                    minv, maxv = length_limits[var]
                 else:
-                    if col != 'loglike':
-                        lower = np.floor(minv)
-                        upper = np.ceil(maxv)
+                    minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
+
+                lower = np.floor(minv)
+                upper = np.ceil(maxv)
+                bins = np.linspace(lower, upper, 50)
+                ticks = np.arange(lower, upper+1).astype(np.int)
+                if ticks.shape[0] > 5:
+                    ticks = np.arange(lower, upper+1, 2).astype(np.int)
+
+                if length_prior_limits is not None:
+                    x = np.linspace(minv, maxv, 1000)
+                    if log_uniform_drift_priors:
+                        y = 1.0/(maxv-minv)
+                    else:
+                        y = 10**x * np.log(10) / (10**maxv - 10**minv)
+                    ax.fill_between(x, 0, y, alpha = 0.3, color = 'gray')
+
+                ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch,
+                        normed = True)
+                ax.set_xticks(ticks)
+                #ax.set_xscale('log')
+                ax.get_yaxis().set_visible(False)
+                if true_parameters is not None:
+                    ax.axvline(true_l, ls = '--', c = 'black', lw = 2)
+                if add_title:
+                    ax.set_title(col)
+
+                ax = axes[1][counter]
+                col = var + '_m'
+                if mutation_prior_limits is None:
+                    minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
+                else:
+                    minv, maxv = mutation_prior_limits
+                    minv = float(minv)
+                    maxv = float(maxv)
+                lower = np.floor(minv)
+                upper = np.ceil(maxv)
+                ticks = np.arange(lower, upper+1).astype(np.int)
+                if ticks.shape[0] > 5:
+                    ticks = np.arange(lower, upper+1, 2).astype(np.int)
+                bins = np.linspace(lower, upper, 50)
+
+                if mutation_prior_limits is not None:
+                    x = np.linspace(minv, maxv, 1000)
+                    y = 1.0/(maxv-minv)
+                    ax.fill_between(x, 0, y, alpha = 0.3, color = 'gray')
+
+                ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch,
+                        normed = True)
+                ax.set_xticks(ticks)
+                ax.get_yaxis().set_visible(False)
+                if true_parameters is not None:
+                    ax.axvline(true_m, ls = '--', c = 'black', lw = 2)
+                if add_title:
+                    ax.set_title(col)
+
+
+        else:  # not final
+            counter = 0
+            for row_idx in range(nrows):
+                for col_idx in range(ncols):
+                    ax = axes[row_idx][col_idx]
+                    try:
+                        col = cols[counter]
+                    except IndexError:
+                        break
+                    if true_parameters is not None and counter > 0:
+                        true_p = true_params[counter-1]
+                    minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
+                    if colors_and_types is not None:
+                        var = col[:-2]
+                        try:
+                            c = colors[var]
+                            t = types[var]
+                        except KeyError:
+                            c = 'gray'
+                            t = 'fixed'
+                    else:
+                        c = 'gray'
+                        t = 'fixed'
+                    hatch = get_hatch(t)
+                    if minv >= 0:
+                        lower = np.floor(np.log10(minv))
+                        upper = np.ceil(np.log10(maxv))
                         bins = np.logspace(lower, upper, 50)
-                        datp = 10**dat_m1[col].iloc[burnin:]
-                        ax.hist(datp, bins, color = 'gray')
+                        ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch)
                         ax.set_xscale('log')
                     else:
-                        lower = np.floor(minv)
-                        upper = np.ceil(maxv)
-                        bins = np.linspace(lower, upper, 50)
-                        ax.hist(dat_m1[col][burnin:], bins, color = 'gray')
-                if true_parameters is not None and counter > 0:
-                    ax.axvline(true_p)
-                ax.set_title(col)
-                ax.get_yaxis().set_visible(False)
-                counter += 1
-                plotted[row_idx][col_idx] = True
+                        if col != 'loglike':
+                            lower = np.floor(minv)
+                            upper = np.ceil(maxv)
+                            bins = np.logspace(lower, upper, 50)
+                            datp = 10**dat_m1[col].iloc[burnin:]
+                            ax.hist(datp, bins, color = 'gray')
+                            ax.set_xscale('log')
+                        else:
+                            lower = np.floor(minv)
+                            upper = np.ceil(maxv)
+                            bins = np.linspace(lower, upper, 50)
+                            ax.hist(dat_m1[col][burnin:], bins, color = 'gray')
+                    if true_parameters is not None and counter > 0:
+                        ax.axvline(true_p)
+                    ax.set_title(col)
+                    ax.get_yaxis().set_visible(False)
+                    counter += 1
+                    plotted[row_idx][col_idx] = True
 
-        for row_idx in range(nrows):
-            for col_idx in range(ncols):
-                if not plotted[row_idx][col_idx]:
-                    ax = axes[row_idx][col_idx]
-                    f.delaxes(ax)
-            
-    f.tight_layout()
-    plt.savefig(posterior_histograms_file, dpi = dpi)
+            for row_idx in range(nrows):
+                for col_idx in range(ncols):
+                    if not plotted[row_idx][col_idx]:
+                        ax = axes[row_idx][col_idx]
+                        f.delaxes(ax)
+                
+        f.tight_layout()
+        plt.savefig(posterior_histograms_file, dpi = dpi)
 
 
 def _run_make_figures(args):
