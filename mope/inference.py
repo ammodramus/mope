@@ -85,7 +85,8 @@ def optimize_posterior(inf_data, pool):
             init_params_weight = swarm_init_weight,
             pool = pool, processes = num_processes)
 
-    print('! pso:', x, f)
+    if inf_data.print_debug:
+        print('! pso:', x, f)
 
     bounds = [[l,u] for l, u in zip(inf_data.lower, inf_data.upper)]
     epsilon = 1e-10
@@ -97,7 +98,8 @@ def optimize_posterior(inf_data, pool):
             bounds = bounds,
             epsilon = epsilon)
 
-    print('! lbfgsb:', x, f)
+    if inf_data.print_debug:
+        print('! lbfgsb:', x, f)
 
     options = {'maxfev': 1000000}
     res = opt.minimize(inf_bound_target,
@@ -107,7 +109,8 @@ def optimize_posterior(inf_data, pool):
     x = res.x
     f = res.fun
 
-    print('! nelder-mead:', x, f)
+    if inf_data.print_debug:
+        print('! nelder-mead:', x, f)
 
 
     return x
@@ -128,7 +131,8 @@ class Inference(object):
             ages_data_fn, bottleneck_file = None, poisson_like_penalty = 1.0,
             min_freq = 0.001, transition_copy = None, transition_buf = None,
             transition_shape = None, print_debug = False,
-            log_unif_drift = False, inverse_bot_priors = False):
+            log_unif_drift = False, inverse_bot_priors = False,
+            post_is_prior = False):
 
         self.asc_tree = None
         self.asc_num_loci = None
@@ -156,6 +160,7 @@ class Inference(object):
         self.print_debug = print_debug
         self.log_unif_drift = log_unif_drift
         self.inverse_bot_priors = inverse_bot_priors
+        self.post_is_prior = post_is_prior
 
         ############################################################
         # read in data
@@ -449,6 +454,9 @@ class Inference(object):
         lower_len[is_bottleneck_arr] = min_allowed_bottleneck
         upper_len[is_bottleneck_arr] = max_allowed_bottleneck
 
+        lower_len = np.log10(lower_len)
+        upper_len = np.log10(upper_len)
+
         lower_mut = np.repeat(min_mut, num_varnames)
         upper_mut = np.repeat(max_mut, num_varnames)
         lower = np.concatenate((lower_len, lower_mut, (min_ab,min_polyprob)))
@@ -457,6 +465,16 @@ class Inference(object):
         # self.lower and .upper give the bounds for prior distributions
         self.lower = lower
         self.upper = upper
+
+        if self.print_debug:
+            print(self.min_mults)
+            print(self.max_mults)
+            print('! self.lower:')
+            for el in self.lower:
+                print('! ', el)
+            print('! self.upper:')
+            for el in self.upper:
+                print('! ', el)
 
         #####################################################
         # true parameters, if specified (for sim. data)
@@ -468,7 +486,7 @@ class Inference(object):
             log10_true_ppoly = np.log10(true_ppoly)
             true_params = []
             for vn in self.varnames:
-                true_params.append(true_bls[vn])
+                true_params.append(np.log10(true_bls[vn]))
             for vn in self.varnames:
                 true_params.append(np.log10(true_mrs[vn]))
             true_params.append(log10_true_ab)
@@ -497,7 +515,7 @@ class Inference(object):
         params = varparams[self.translate_indices]
 
         num_branches = self.num_branches
-        branch_lengths = params[:num_branches]
+        branch_lengths = 10**params[:num_branches]
         mutation_rates = 10**params[num_branches:]
         alphabeta = 10**params[2*num_branches]
         polyprob = 10**params[2*num_branches+1]
@@ -561,10 +579,10 @@ class Inference(object):
 
 
     def inf_bound_like_obj(self, x):
-        if np.any(x < self.lower):
+        if self.print_debug and np.any(x < self.lower):
             print('inf:', x)
             return np.inf
-        if np.any(x > self.upper):
+        if self.print_debug and np.any(x > self.upper):
             print('inf:', x)
             return np.inf
         return self.like_obj(x)
@@ -613,7 +631,6 @@ class Inference(object):
         x is in varnames space
         '''
         num_varnames = self.num_varnames
-        mutation_rates = x[num_varnames:2*num_varnames]
         if np.any(x < self.lower):
             return -np.inf
         if np.any(x > self.upper):
@@ -623,17 +640,28 @@ class Inference(object):
             # first num_varnames are drift parameters
             # rather than specify drift in actual log units, just calculate
             # prior this way.
-            logp = -1.0*np.sum(x[:num_varnames])
+            #logp = -1.0*np.sum(np.log(x[:num_varnames])
+            # this from natural-scale drift params
             # note that specifying the bottleneck size as log-uniform is the
             # same as specifying the drift as log-uniform, since
             # log D = log 2 - log B, and log B is uniform.
+            # drift now in log-units
+            logp = 1.0
         else:
             if self.inverse_bot_priors:
                 # if D = 2/B is uniform, f_B(x) \propto x^{-2}, and 
-                # log f_B(x) \propto -log(x)
-                logp = -1.0*np.sum(np.log(x[self.is_bottleneck_arr]))
+                # log f_B(x) \propto -2log(x)
+                #
+                # update: if D = 2/B is uniform, the log-density of log B is
+                # \propto -x
+                pv = np.zeros(x.shape[0])
+                pv[self.is_bottleneck_arr] = -1.0*x[self.is_bottleneck_arr]
+                pv[~self.is_bottleneck_arr] = x[~self.is_bottleneck_arr]
+                logp = np.sum(pv)
             else:
-                logp = 1.0
+                # if D ~ Unif, the density of log D is \propto e^x and thus
+                # the log-density of log D is \propto x.
+                logp = np.sum(x[:num_varnames])
         return logp
 
 
@@ -661,19 +689,22 @@ class Inference(object):
         '''
         # wrapping parameters as their absolute values
         num_varnames = self.num_varnames
-        # make the branch lengths positive
-        x[:num_varnames] = np.abs(x[:num_varnames])
+        # make x variables a copy to avoid changing state
+        x = x.copy()
         # make the mutation rates negative
         x[num_varnames:2*num_varnames] = (
                 -1.0*np.abs(x[num_varnames:2*num_varnames]))
         # make the last two non-positive
         x[-2:] = -np.abs(x[-2:])
         pr = self.logprior(x)
-        if not np.isfinite(pr):
-            like = -np.inf
+        if not self.post_is_prior:
+            if not np.isfinite(pr):
+                like = -np.inf
+            else:
+                like = -1.0*self.inf_bound_like_obj(x)
+            v = pr + like
         else:
-            like = -1.0*self.inf_bound_like_obj(x)
-        v = pr + like
+            v = pr
         if np.isnan(v):
             v = -np.inf
 
