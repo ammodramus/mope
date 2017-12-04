@@ -656,7 +656,7 @@ class Inference(object):
                 # \propto -x
                 pv = np.zeros(x.shape[0])
                 pv[self.is_bottleneck_arr] = -1.0*x[self.is_bottleneck_arr]
-                pv[!self.is_bottleneck_arr] = x[!self.is_bottleneck_arr]
+                pv[~self.is_bottleneck_arr] = x[~self.is_bottleneck_arr]
                 logp = np.sum(pv)
             else:
                 # if D ~ Unif, the density of log D is \propto e^x and thus
