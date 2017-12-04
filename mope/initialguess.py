@@ -46,12 +46,14 @@ def estimate_initial_parameters(inf):
             #init_branch_params[i] = 2/l
             init_branch_params[i] = 100
 
+    init_branch_params = np.log10(init_branch_params)
+
     init_params = np.concatenate((init_branch_params,
         init_mrs, (ab_init,pp_init)))
     if inf.lower is not None:
-        init_params = np.maximum(init_params, 1.01*inf.lower)
+        init_params = np.maximum(init_params, inf.lower+np.abs(0.01*inf.lower))
     if inf.upper is not None:
-        init_params = np.minimum(init_params, 0.99*inf.upper)
+        init_params = np.minimum(init_params, inf.upper-np.abs(0.01*inf.upper))
     return init_params
 
 def estimate_fst_som(counts_i, counts_j, n):

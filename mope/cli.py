@@ -110,6 +110,8 @@ def main():
             help = 'make the prior for bottlenecks reflect the drift caused '
                    'by the bottleneck, which is inversely proportional to '
                    'the bottleneck size')
+    parser_run.add_argument('--just-prior-debug', action = 'store_true',
+            help = 'let the posterior be the prior, for debugging')
     parser_run.set_defaults(func = run_mcmc)
 
 
