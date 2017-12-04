@@ -847,14 +847,15 @@ class Inference(object):
             rstart[:, nvarnames:] = npr.uniform(low,
                     high).reshape(num_walkers,-1)
             if self.log_unif_drift:
-                low = np.tile(np.log(self.lower[:nvarnames]), num_walkers)
-                high = np.tile(np.log(self.upper[:nvarnames]), num_walkers)
-                rstart[:,:nvarnames] = np.exp(npr.uniform(low, high)).reshape(
-                        num_walkers, -1)
-            else:
+                # drift parameters now in log10 units
                 low = np.tile(self.lower[:nvarnames], num_walkers)
                 high = np.tile(self.upper[:nvarnames], num_walkers)
-                rstart[:, :nvarnames] = npr.uniform(low,high).reshape(
+                rstart[:,:nvarnames] = npr.uniform(low, high).reshape(
+                        num_walkers, -1)
+            else:
+                low = np.tile(10**self.lower[:nvarnames], num_walkers)
+                high = np.tile(10**self.upper[:nvarnames], num_walkers)
+                rstart[:, :nvarnames] = np.log10(npr.uniform(low,high)).reshape(
                         num_walkers,-1)
             init_pos = rstart
         else:
