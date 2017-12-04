@@ -650,11 +650,14 @@ class Inference(object):
         else:
             if self.inverse_bot_priors:
                 # if D = 2/B is uniform, f_B(x) \propto x^{-2}, and 
-                # log f_B(x) \propto -log(x)
+                # log f_B(x) \propto -2log(x)
                 #
                 # update: if D = 2/B is uniform, the log-density of log B is
                 # \propto -x
-                logp = -1.0*np.sum(x[self.is_bottleneck_arr])
+                pv = np.zeros(x.shape[0])
+                pv[self.is_bottleneck_arr] = -1.0*x[self.is_bottleneck_arr]
+                pv[!self.is_bottleneck_arr] = x[!self.is_bottleneck_arr]
+                logp = np.sum(pv)
             else:
                 # if D ~ Unif, the density of log D is \propto e^x and thus
                 # the log-density of log D is \propto x.
