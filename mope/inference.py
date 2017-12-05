@@ -816,8 +816,6 @@ class Inference(object):
             vnames = self.varnames
             prev_chains.columns = ([el+'_l' for el in vnames] +
                     [el+'_m' for el in vnames] + ['root', 'ppoly'])
-            prev_chains.loc[:,prev_chains.columns.str.endswith('_l')] = (
-                    prev_chains.loc[:,prev_chains.columns.str.endswith('_l')].abs())        
             init_pos = prev_chains.values
         elif start_from == 'map':
             # start from MAP
