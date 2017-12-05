@@ -808,7 +808,10 @@ class Inference(object):
 
         if prev_chain is not None:
             # start from previous state
-            prev_chains = pd.read_csv(prev_chain, sep = '\t', header = None)
+            try:
+                prev_chains = pd.read_csv(prev_chain, sep = '\t', header = None, dtype = np.float64)
+            except:
+                prev_chains = pd.read_csv(prev_chain, sep = '\t', header = 0, dtype = np.float64, comment = '#')
             prev_chains = prev_chains.iloc[-num_walkers:,1:]
             vnames = self.varnames
             prev_chains.columns = ([el+'_l' for el in vnames] +
