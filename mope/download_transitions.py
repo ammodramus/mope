@@ -11,7 +11,7 @@ def _run_download(args):
             raise
         pass
     filepath = args.directory + '/transitions.tar.gz'
-    url = 'https://berkeley.box.com/shared/static/91mcjv2kdk6iho6lgn5w3patnw3vrzs8.gz'
+    url = 'https://berkeley.box.com/shared/static/f4q47bthoe88zk23zvd0x7sb454u543z.gz'
     urllib.urlretrieve(url, filepath)
 
     try:
