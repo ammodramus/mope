@@ -913,6 +913,8 @@ class Inference(object):
             self.transition_data.clear_cache()
         if mpi:
             pool.close()
+        print('# mean acceptance across chains:', np.mean(sampler.acceptance_fraction))
+
 
     def run_parallel_temper_mcmc(
             self, num_iter, num_walkers, prev_chain, start_from,
