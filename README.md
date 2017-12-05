@@ -94,9 +94,9 @@ mope download-transitions
 ```
 
 Transition distributions can also downloaded
-[here](https://berkeley.box.com/shared/static/91mcjv2kdk6iho6lgn5w3patnw3vrzs8.gz)
+[here](https://berkeley.box.com/shared/static/f4q47bthoe88zk23zvd0x7sb454u543z.gz)
 (495 MB,
-[md5](https://berkeley.box.com/shared/static/4x803wghu7ycrdyxcxtb50dam5piyoa6.md5)).
+[md5](https://berkeley.box.com/shared/static/a5ksur0w7w1uh3lteqm553vywom924z7.md5)).
 Note that if you are downloading programatically (e.g., using wget or curl),
 you will need to rename the downloaded file to `transitions.tar.gz`, due to
 limitations of our filehosting service.
