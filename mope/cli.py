@@ -19,6 +19,7 @@ from .simulate_msprime import run_sim_ms
 from .make_figures import _run_make_figures
 from .download_transitions import _run_download
 from .generate_transitions import _run_generate, _run_master, _run_gencmd
+from .acceptance import _run_acceptance
 
 
 def main():
@@ -354,9 +355,22 @@ def main():
                           'need to be run after completion of all others '
                           'in order to make the master files containing '
                           'all transitions.')
-                           
     parser_gencmd.set_defaults(
             func = _run_gencmd)
+
+    parser_accept = subparsers.add_parser('acceptance',
+            description = 'get acceptance fractions')
+    parser_accept.add_argument('datafile',
+            help = 'data file produced with mope run')
+    parser_accept.add_argument('numwalkers',
+            help = 'number of walkers (chains) in mope run',
+            type = int)
+    parser_accept.add_argument('--burnin-steps', '-b',
+            help = 'number of burnin steps', default = 10000)
+    parser_accept.add_argument('--all', '-a',
+            help = 'print acceptance for each chain / walker individually')
+    parser_accept.set_defaults(
+            func = _run_acceptance)
 
 
     ############################################
