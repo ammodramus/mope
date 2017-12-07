@@ -535,9 +535,10 @@ class Inference(object):
                 self.asc_ages['count'].values).sum()
         ll -= log_asc_prob
 
-        logmeanascprob, logpoissonlike = self.poisson_log_like(
-                log_asc_probs)
-        ll += logpoissonlike * self.poisson_like_penalty
+        if self.poisson_like_penalty > 0:
+            logmeanascprob, logpoissonlike = self.poisson_log_like(
+                    log_asc_probs)
+            ll += logpoissonlike * self.poisson_like_penalty
         if self.print_debug:
             print('@@ {:15}'.format(str(ll)), logmeanascprob, ' ', end=' ')
             _util.print_csv_line(varparams)
@@ -659,9 +660,10 @@ class Inference(object):
                 pv[~self.is_bottleneck_arr] = x[~self.is_bottleneck_arr]
                 logp = np.sum(pv)
             else:
-                # if D ~ Unif, the density of log D is \propto e^x and thus
-                # the log-density of log D is \propto x.
-                logp = np.sum(x[:num_varnames])
+                # if D ~ Unif, the density of log_10 D is \propto 10^x and thus
+                # the log-density of log_10 D is \propto log(10) * x.
+                # log(10) = 2.3025850929940459
+                logp = 2.3025850929940459*np.sum(x[:num_varnames])
         return logp
 
 
