@@ -249,8 +249,9 @@ def main():
     parser_fig.add_argument('results', type = str, help = 'file containing results '
             'table from mope (can be gzipped)')
     parser_fig.add_argument('tree', help = 'tree file', type = str)
-    parser_fig.add_argument('--plot-traces', action = 'store_true',
-            help = 'also make traces plot')
+    parser_fig.add_argument('--plot', default = 'histograms',
+            choices = ('histograms', 'traces', 'both'),
+            help = 'which plots to make (histograms, traces, both)')
     parser_fig.add_argument('--num-walkers', type = ut.positive_int,
             default = 500,
             help = 'number of chains in MCMC ensemble [%(default)s]')

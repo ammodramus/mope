@@ -99,8 +99,16 @@ def make_figures(
         results, tree, num_walkers, ages_file, prefix = None,
         img_format = 'png', dpi = 300, colors_and_types = None,
         length_prior_limits = (-6,0.477), mutation_prior_limits = (-8,-1),
-        true_parameters = None, do_traces = False, trace_burnin_steps = 500,
+        true_parameters = None, which_plot = 'histograms', trace_burnin_steps = 500,
         posterior_burnin_steps = 2500, add_title = True, log_uniform_drift_priors = False):
+
+    do_histograms = False
+    if which_plot in ('histograms', 'both'):
+        do_histograms = True
+
+    do_traces = False
+    if which_plot in ('traces', 'both'):
+        do_traces = True
 
     validparamtypes = ('fixed', 'rate', 'bottleneck')
 
@@ -117,30 +125,20 @@ def make_figures(
             img_format)
 
     # loading colors and (drift) parameter types
-    if colors_and_types is not None:
-        colors = OrderedDict()
-        types = OrderedDict()
-        #priortypes = OrderedDict()
-        with open(colors_and_types) as inp:
-            for line in inp:
-                spline = line.split()
-                param, color, paramtype = spline[:3]
-                if paramtype not in validparamtypes:
-                    raise ValueError('invalid parameter type: must be "fixed", '
-                                     '"rate", or "bottleneck"')
-                colors[param] = color
-                types[param] = paramtype
-                #try:
-                #    priortype1, priortype2 = spline[3:5]
-                #    priortypes[param] = (priortype1, priortype2)
-                #except ValueError:
-                #    continue
-        #priors_found = (len(priortypes) > 0)
-        #validpriortypes = ('loguniform', 'uniform')
-        #for params in priortypes.keys():
-        #    if ptype not in validpriortypes:
-        #        raise ValueError('Invalid prior type: {}. must be "uniform" or '
-        #                         '"loguniform".'.format(ptype))
+    if do_histograms:
+        if colors_and_types is not None:
+            colors = OrderedDict()
+            types = OrderedDict()
+            #priortypes = OrderedDict()
+            with open(colors_and_types) as inp:
+                for line in inp:
+                    spline = line.split()
+                    param, color, paramtype = spline[:3]
+                    if paramtype not in validparamtypes:
+                        raise ValueError('invalid parameter type: must be "fixed", '
+                                         '"rate", or "bottleneck"')
+                    colors[param] = color
+                    types[param] = paramtype
 
     ###################
     # loading the data
@@ -178,11 +176,12 @@ def make_figures(
             num_walkers)
 
     # getting (optional) length prior limits
-    if length_prior_limits is not None:
-        lower_l, upper_l = length_prior_limits
-        lower_l = 10**float(lower_l)
-        upper_l = 10**float(upper_l)
-        length_limits = get_len_limits(tree, ages_file, lower_l, upper_l)
+    if do_histograms:
+        if length_prior_limits is not None:
+            lower_l, upper_l = length_prior_limits
+            lower_l = 10**float(lower_l)
+            upper_l = 10**float(upper_l)
+            length_limits = get_len_limits(tree, ages_file, lower_l, upper_l)
 
     # getting true parameters
     if true_parameters is not None:
@@ -192,7 +191,6 @@ def make_figures(
         true_params += [true_mrs[v] for v in varnames]
         true_params += [true_ab, true_ppoly]
 
-    # do_traces
     if do_traces:
         f, axes = plt.subplots(
                 dat_m1.shape[1], 1, figsize = (10, 2.5*dat_m1.shape[1]))
@@ -220,7 +218,7 @@ def make_figures(
         plt.savefig(trace_file)
 
     # posterior histograms
-    if not do_traces:
+    if do_histograms:
         if colors_and_types is None:
             final = False  # not a 'final', publication plot
             num_plots = dat_m1.shape[1]
@@ -406,7 +404,7 @@ def _run_make_figures(args):
             length_prior_limits = args.length_prior_limits,
             mutation_prior_limits = args.mutation_prior_limits,
             true_parameters = args.true_parameters,
-            do_traces = args.plot_traces,
+            which_plot = args.plot,
             trace_burnin_steps = args.trace_burnin_steps,
             posterior_burnin_steps = args.posterior_burnin_steps,
             add_title = args.add_title,
