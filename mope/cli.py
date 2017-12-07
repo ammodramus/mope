@@ -96,7 +96,7 @@ def main():
     parser_run.add_argument('--prev-chain',
             help = 'tab-separated table of previous chain positions, with \
                     the first column giving the logposterior values')
-    parser_run.add_argument('--chain-alpha', '-a', type = float, default = 2.0,
+    parser_run.add_argument('--chain-alpha', '-a', type = float, default = 1.4,
             help = 'scale value for emcee ensemble chain proposals')
     parser_run.add_argument('--mpi', action = 'store_true', 
             help = 'use MPI for distribution of chain posterior calculations')
