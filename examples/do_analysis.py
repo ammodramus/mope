@@ -67,6 +67,8 @@ parser.add_argument('--frac-burnin', '-b', type = float,
 args = parser.parse_args()
 
 dat = pd.read_csv(args.datafile, sep = '\t', header = 0, comment = '#')
+# convert drift back to natural units
+dat.loc[:,dat.columns.str.contains('_l')] = 10**dat.loc[:,dat.columns.str.contains('_l')]
 burn_idx = int(dat.shape[0] * args.frac_burnin)
 dat_burn = dat.iloc[burn_idx:,:]
 
