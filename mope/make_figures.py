@@ -99,8 +99,9 @@ def make_figures(
         results, tree, num_walkers, ages_file, prefix = None,
         img_format = 'png', dpi = 300, colors_and_types = None,
         length_prior_limits = (-6,0.477), mutation_prior_limits = (-8,-1),
-        true_parameters = None, which_plot = 'histograms', trace_burnin_steps = 500,
-        posterior_burnin_steps = 2500, add_title = True, log_uniform_drift_priors = False):
+        true_parameters = None, which_plot = 'histograms',
+        trace_burnin_steps = 500, posterior_burnin_steps = 2500,
+        add_title = True, log_uniform_drift_priors = False):
 
     do_histograms = False
     if which_plot in ('histograms', 'both'):
@@ -109,6 +110,10 @@ def make_figures(
     do_traces = False
     if which_plot in ('traces', 'both'):
         do_traces = True
+
+    do_corner = False
+    if which_plot == 'corner':
+        do_corner = True
 
     validparamtypes = ('fixed', 'rate', 'bottleneck')
 
@@ -123,6 +128,7 @@ def make_figures(
     trace_file = 'traces_' + prefix + '.' + img_format
     posterior_histograms_file = ('posterior_histograms_' + prefix + '.' +
             img_format)
+    corner_file = ('corner_' + prefix + '.' + img_format)
 
     # loading colors and (drift) parameter types
     if do_histograms:
@@ -388,6 +394,35 @@ def make_figures(
                 
         f.tight_layout()
         plt.savefig(posterior_histograms_file, dpi = dpi)
+
+    if do_corner:
+        try:
+            import corner
+        except ImportError:
+            err = 'plotting corner plots requires installing corner'
+            raise ImportError(err)
+
+        try:
+            import numpy.random as npr
+        except ImportError:
+            err = 'corner plots require numpy'
+            raise ImportError(err)
+
+
+        burnin_steps = posterior_burnin_steps
+        burnin = burnin_steps * num_walkers
+        if burnin > dat_m1.shape[0]:
+            raise ValueError('too much burnin in corner plot')
+        dat_burn = dat_m1.iloc[burnin:,:]
+        sample_size = min(500000, dat_burn.shape[0])
+        idxs = np.sort(npr.choice(dat_burn.shape[0], size = sample_size,
+            replace = False))
+        dat_samp = dat_burn.iloc[idxs,:]
+        corner.corner(dat_samp)
+        plt.savefig(corner_file)
+
+
+
 
 
 def _run_make_figures(args):
