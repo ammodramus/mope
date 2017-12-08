@@ -922,7 +922,7 @@ class Inference(object):
             self, num_iter, num_walkers, prev_chain, start_from,
             init_norm_sd, pool = None, mpi = False,
             do_evidence = False, num_processes = 1, init_pos = None,
-            ntemps = None, parallel_print_all = False):
+            ntemps = None, parallel_print_all = False, chain_alpha = 2.0):
 
         '''
         not compatible with make_figures
@@ -950,7 +950,7 @@ class Inference(object):
         ndim = 2*len(self.varnames)+2
         sampler = emcee.PTSampler(ntemps, nwalkers = num_walkers,
                 dim = ndim, logl = logl, logp = logp,
-                threads = num_processes, pool = pool)
+                threads = num_processes, pool = pool, a = chain_alpha)
 
         print('# betas:')
         for beta in sampler.betas:

@@ -99,5 +99,5 @@ def run_mcmc(args):
                 mpi = args.mpi,
                 ntemps = nt,
                 parallel_print_all = args.parallel_print_all,
-                a = args.chain_alpha)
+                chain_alpha = args.chain_alpha)
 
