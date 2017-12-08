@@ -72,6 +72,9 @@ dat = pd.read_csv(args.datafile, sep = '\t', header = 0, comment = '#')
 # convert drift back to natural units
 if not args.old:
     dat.loc[:,dat.columns.str.contains('_l')] = 10**dat.loc[:,dat.columns.str.contains('_l')]
+else:
+    dat.loc[:,dat.columns.str.contains('_l')] = dat.loc[:,dat.columns.str.contains('_l')].abs()
+    dat.loc[:,dat.columns.str.contains('_m')] = -1.0*dat.loc[:,dat.columns.str.contains('_m')].abs()
 burn_idx = int(dat.shape[0] * args.frac_burnin)
 dat_burn = dat.iloc[burn_idx:,:]
 
