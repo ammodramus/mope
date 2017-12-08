@@ -64,11 +64,14 @@ parser.add_argument('datafile', help = 'data filename, from mope run')
 parser.add_argument('--frac-burnin', '-b', type = float,
         help = 'fraction of data to consider burnin [0.3]',
         default = 0.3)
+parser.add_argument('--old', action ='store_true',
+        help = 'specify for old data, drift in natural scale')
 args = parser.parse_args()
 
 dat = pd.read_csv(args.datafile, sep = '\t', header = 0, comment = '#')
 # convert drift back to natural units
-dat.loc[:,dat.columns.str.contains('_l')] = 10**dat.loc[:,dat.columns.str.contains('_l')]
+if not args.old:
+    dat.loc[:,dat.columns.str.contains('_l')] = 10**dat.loc[:,dat.columns.str.contains('_l')]
 burn_idx = int(dat.shape[0] * args.frac_burnin)
 dat_burn = dat.iloc[burn_idx:,:]
 
