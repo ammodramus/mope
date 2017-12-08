@@ -920,9 +920,9 @@ class Inference(object):
 
     def run_parallel_temper_mcmc(
             self, num_iter, num_walkers, prev_chain, start_from,
-            init_norm_sd, pool = None, mpi = False, ntemps = None,
+            init_norm_sd, pool = None, mpi = False,
             do_evidence = False, num_processes = 1, init_pos = None,
-            num_temperatures = 5):
+            ntemps = None, parallel_print_all = False):
 
         '''
         not compatible with make_figures
@@ -936,11 +936,8 @@ class Inference(object):
         ##############################################################
         # use parallel-tempering
         ##############################################################
-        if ntemps is None:
-            if do_evidence:
-                ntemps = 25
-            else:  # regular parallel tempering MCMC
-                ntemps = 5
+        if do_evidence:
+            ntemps = 25
 
         if pool is None and (num_processes > 1 or mpi):
             pool = self._get_pool(num_processes, mpi)
@@ -964,9 +961,14 @@ class Inference(object):
         for i in range(ntemps):
             init_pos_new[i,:,:] = init_pos.copy()
 
+        print(self.header)
         for p, lnprob, lnlike in sampler.sample(init_pos_new,
                 iterations=num_iter, storechain = True):
-            _util.print_parallel_csv_lines(p, lnprob)
+            if parallel_print_all:
+                _util.print_parallel_csv_lines(p, lnprob)
+            else:
+                # first chain is chain with temperature 1
+                _util.print_csv_lines(p[0], lnprob[0])
 
         if do_evidence:
             for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:

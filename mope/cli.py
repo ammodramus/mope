@@ -88,10 +88,16 @@ def main():
     parser_run.add_argument('--min-het-freq', type = ut.probability,
             help = 'minimum heteroplasmy frequency considered [%(default)s]',
             default = 0.001)
-    parser_run.add_argument('--num-temperatures', default = 1,
+    parser_run.add_argument('--num-temperatures',
             type = ut.positive_int,
             help = 'number of temperatures for parallel-tempering MCMC. '
                    'specifying > 1 will enable paralle-tempering MCMC.')
+    parser_run.add_argument('--parallel-print-all', action = 'store_true',
+            help = 'if specifying --num-temperatures > 1, or '
+                   '--evidence-integral, use this option to print states and '
+                   'log-posterior values for all temperatures. otherwise just '
+                   'the chain with temperature 1 (the original posterior) is '
+                   'printed. ignored if not doing parallel-tempering MCMC')
     parser_run.add_argument('--evidence-integral', action = 'store_true')
     parser_run.add_argument('--prev-chain',
             help = 'tab-separated table of previous chain positions, with \

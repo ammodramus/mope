@@ -78,18 +78,25 @@ def run_mcmc(args):
             inverse_bot_priors = args.inverse_bottleneck_priors,
             post_is_prior = args.just_prior_debug)
 
-    if (not args.num_temperatures > 1) and (not args.evidence_integral):
+    # for parallel tempering
+    nt = args.num_temperatures
+    ei = args.evidence_integral
+
+    do_parallel = ((nt is not None) and nt > 1) or ei
+
+    if not do_parallel:
         inf_data.run_mcmc(
                 args.numiter, args.num_walkers, args.num_processes, args.mpi,
                 args.prev_chain, start_from, args.init_norm_sd,
                 args.chain_alpha)
 
 
-    else:
+    else:  # num_temperatures is specified 
         inf_data.run_parallel_temper_mcmc(args.numiter, args.num_walkers,
                 args.prev_chain, start_from, args.init_norm_sd,
-                do_evidence = args.evidence_integral,
+                do_evidence = ei,
                 num_processes = args.num_processes,
                 mpi = args.mpi,
-                num_temperatures = args.num_temperatures)
+                ntemps = nt,
+                parallel_print_all = args.parallel_print_all)
 
