@@ -53,10 +53,11 @@ def hpd(trace, mass_frac):
 
 def get_summary(d, lls, cifrac = 0.95):
     med = np.median(d)
+    mean = np.mean(d)
     max_idx = np.argmax(lls)
     mapest = d[max_idx]
     hpdl, hpdh = hpd(d, cifrac)
-    return mapest, med, hpdl, hpdh
+    return mapest, mean, med, hpdl, hpdh
 
 parser = argparse.ArgumentParser(
         description='do some analyses of paper example data')
@@ -102,11 +103,12 @@ bots_fbuc = 2.0/dat_burn['fbuc_l'].values
 # frac post-fert
 fracpf = dat_burn['som_l'].values / (2.0/bots_mean)
 
-columns = ['map', 'median', 'ci05', 'ci95']
+columns = ['map', 'mean', 'median', 'ci05', 'ci95']
 
 lls = dat_burn['ll'].values
 dat_dict = OrderedDict()
 
+# now get summaries
 for col in list(dat.columns):
     if col == 'll':
         continue
@@ -119,6 +121,7 @@ dat_dict['bot_fbuc'] = get_summary(bots_fbuc, lls)
 dat_dict['loo_rate'] = get_summary(rates, lls)
 dat_dict['fracpf'] = get_summary(fracpf, lls)
 
+# print output
 outdat = pd.DataFrame.from_dict(dat_dict, orient = 'index')
 outdat.columns = columns
 
