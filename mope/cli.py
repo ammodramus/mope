@@ -263,9 +263,9 @@ def main():
             help = 'number of chains in MCMC ensemble [%(default)s]')
     parser_fig.add_argument('--trace-burnin-steps', type = int, default = 500,
             help = 'number of burnin stems for trace plot [%(default)s]')
-    parser_fig.add_argument('--posterior-burnin-steps', type = ut.positive_int,
-            default = 2500,
-            help = 'number of burnin stems for posterior histograms '
+    parser_fig.add_argument('--posterior-burnin-frac', type = ut.probability,
+            default = 0.3,
+            help = 'fraction of data that is burnin, for posterior histograms '
                    '[%(default)s]')
     parser_fig.add_argument('--prefix', type = str,
             help = 'prefix for image names, if not provided then taken from '

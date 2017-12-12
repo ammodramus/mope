@@ -100,7 +100,7 @@ def make_figures(
         img_format = 'png', dpi = 300, colors_and_types = None,
         length_prior_limits = (-6,0.477), mutation_prior_limits = (-8,-1),
         true_parameters = None, which_plot = 'histograms',
-        trace_burnin_steps = 500, posterior_burnin_steps = 2500,
+        trace_burnin_steps = 500, posterior_burnin_frac = 0.3,
         add_title = True, log_uniform_drift_priors = False):
 
     do_histograms = False
@@ -241,16 +241,10 @@ def make_figures(
             mpl.rcParams.update({'font.size': 5})
             mpl.rcParams.update({'axes.labelsize': 'small'})
 
-        burnin_steps = posterior_burnin_steps
-        burnin = num_walkers * burnin_steps
-        if burnin > dat_m1.shape[0]:
-            burnin = 0
+        burnin = int(np.floor(dat_m1.shape[0] * posterior_burnin_frac))
+        dat_burn = dat_m1.iloc[burnin:,:]
         plotted = np.tile([False], nrows*ncols)
         plotted.shape = (nrows,ncols)
-
-        if burnin > dat_m1.shape[0]:
-            raise ValueError('burnin exceeds number of samples')
-
 
         if final:
             if not add_title:
@@ -279,7 +273,7 @@ def make_figures(
                 if length_prior_limits is not None:
                     minv, maxv = length_limits[var]
                 else:
-                    minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
+                    minv, maxv = dat_burn[col].min(), dat_burn[col].max()
 
                 lower = np.floor(minv)
                 upper = np.ceil(maxv)
@@ -296,7 +290,7 @@ def make_figures(
                         y = 10**x * np.log(10) / (10**maxv - 10**minv)
                     ax.fill_between(x, 0, y, alpha = 0.3, color = 'gray')
 
-                ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch,
+                ax.hist(dat_burn[col], bins, color = c, hatch = hatch,
                         normed = True)
                 ax.set_xticks(ticks)
                 #ax.set_xscale('log')
@@ -309,7 +303,7 @@ def make_figures(
                 ax = axes[1][counter]
                 col = var + '_m'
                 if mutation_prior_limits is None:
-                    minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
+                    minv, maxv = dat_burn[col].min(), dat_burn[col].max()
                 else:
                     minv, maxv = mutation_prior_limits
                     minv = float(minv)
@@ -326,7 +320,7 @@ def make_figures(
                     y = 1.0/(maxv-minv)
                     ax.fill_between(x, 0, y, alpha = 0.3, color = 'gray')
 
-                ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch,
+                ax.hist(dat_burn[col], bins, color = c, hatch = hatch,
                         normed = True)
                 ax.set_xticks(ticks)
                 ax.get_yaxis().set_visible(False)
@@ -347,7 +341,7 @@ def make_figures(
                         break
                     if true_parameters is not None and counter > 0:
                         true_p = true_params[counter-1]
-                    minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
+                    minv, maxv = dat_burn[col].min(), dat_burn[col].max()
                     if colors_and_types is not None:
                         var = col[:-2]
                         try:
@@ -364,21 +358,21 @@ def make_figures(
                         lower = np.floor(np.log10(minv))
                         upper = np.ceil(np.log10(maxv))
                         bins = np.logspace(lower, upper, 50)
-                        ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch)
+                        ax.hist(dat_burn[col], bins, color = c, hatch = hatch)
                         ax.set_xscale('log')
                     else:
                         if col != 'loglike':
                             lower = np.floor(minv)
                             upper = np.ceil(maxv)
                             bins = np.logspace(lower, upper, 50)
-                            datp = 10**dat_m1[col].iloc[burnin:]
+                            datp = 10**dat_burn[col]
                             ax.hist(datp, bins, color = 'gray')
                             ax.set_xscale('log')
                         else:
                             lower = np.floor(minv)
                             upper = np.ceil(maxv)
                             bins = np.linspace(lower, upper, 50)
-                            ax.hist(dat_m1[col][burnin:], bins, color = 'gray')
+                            ax.hist(dat_burn[col], bins, color = 'gray')
                     if true_parameters is not None and counter > 0:
                         ax.axvline(true_p)
                     ax.set_title(col)
@@ -410,9 +404,7 @@ def make_figures(
 
 
         burnin_steps = posterior_burnin_steps
-        burnin = burnin_steps * num_walkers
-        if burnin > dat_m1.shape[0]:
-            raise ValueError('too much burnin in corner plot')
+        burnin = int(np.floor(posterior_burnin_frac * dat_m1.shape[0]))
         dat_burn = dat_m1.iloc[burnin:,:]
         sample_size = min(500000, dat_burn.shape[0])
         idxs = np.sort(npr.choice(dat_burn.shape[0], size = sample_size,
@@ -441,7 +433,7 @@ def _run_make_figures(args):
             true_parameters = args.true_parameters,
             which_plot = args.plot,
             trace_burnin_steps = args.trace_burnin_steps,
-            posterior_burnin_steps = args.posterior_burnin_steps,
+            posterior_burnin_frac = args.posterior_burnin_frac,
             add_title = args.add_title,
             log_uniform_drift_priors = args.log_uniform_drift_priors)
 
