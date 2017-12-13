@@ -984,7 +984,7 @@ class Inference(object):
 
         if do_evidence:
             for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
-                evidence = sampler.thermodynamic_integration_log_evidence(
+                evidence = sampler.log_evidence_estimate(
                         fburnin=fburnin)
                 print('# evidence (fburnin = {}):'.format(fburnin), evidence)
 
