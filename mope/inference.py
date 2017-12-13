@@ -23,6 +23,7 @@ from functools import partial
 import multiprocessing as mp
 import numpy.random as npr
 import emcee
+import ptemcee
 import warnings
 
 from . import newick
@@ -423,6 +424,7 @@ class Inference(object):
         mut_names = [el+'_m' for el in self.varnames]
         header_list = (['ll'] + length_names + mut_names +
                 ['log10ab', 'log10polyprob'])
+        self.header_list = header_list
         self.header = '\t'.join(header_list)
 
 
@@ -937,7 +939,7 @@ class Inference(object):
         # use parallel-tempering
         ##############################################################
         if do_evidence:
-            ntemps = 25
+            ntemps = 10
 
         if pool is None and (num_processes > 1 or mpi):
             pool = self._get_pool(num_processes, mpi)
@@ -948,9 +950,17 @@ class Inference(object):
 
 
         ndim = 2*len(self.varnames)+2
-        sampler = emcee.PTSampler(ntemps, nwalkers = num_walkers,
-                dim = ndim, logl = logl, logp = logp,
-                threads = num_processes, pool = pool, a = chain_alpha)
+        max_temp = np.float('inf') if do_evidence else None
+        sampler = ptemcee.Sampler(
+                nwalkers = num_walkers,
+                dim = ndim,
+                logl = logl,
+                logp = logp,
+                ntemps = ntemps,
+                threads = num_processes,
+                pool = pool,
+                a = chain_alpha,
+                Tmax = max_temp)
 
         print('# betas:')
         for beta in sampler.betas:
@@ -962,7 +972,7 @@ class Inference(object):
             init_pos_new[i,:,:] = init_pos.copy()
 
         if parallel_print_all:
-            self.header += ['chain']
+            self.header = '\t'.join(['chain'] + self.header_list)
         print(self.header)
         for p, lnprob, lnlike in sampler.sample(init_pos_new,
                 iterations=num_iter, storechain = True):

@@ -2636,7 +2636,7 @@ static PyObject *__pyx_pf_4mope_5_util_4print_parallel_csv_lines(CYTHON_UNUSED P
  *     ndim = pos.shape[2]
  *     for i in range(nchains):             # <<<<<<<<<<<<<<
  *         for j in range(nwalkers):
- *             printf("%.11f\t", lnprobs[i,j])
+ *             printf("%i\t%.11f\t", i, lnprobs[i,j])
  */
   __pyx_t_3 = __pyx_v_nchains;
   for (__pyx_t_4 = 0; __pyx_t_4 < __pyx_t_3; __pyx_t_4+=1) {
@@ -2646,7 +2646,7 @@ static PyObject *__pyx_pf_4mope_5_util_4print_parallel_csv_lines(CYTHON_UNUSED P
  *     ndim = pos.shape[2]
  *     for i in range(nchains):
  *         for j in range(nwalkers):             # <<<<<<<<<<<<<<
- *             printf("%.11f\t", lnprobs[i,j])
+ *             printf("%i\t%.11f\t", i, lnprobs[i,j])
  *             for k in range(ndim-1):
  */
     __pyx_t_5 = __pyx_v_nwalkers;
@@ -2656,7 +2656,7 @@ static PyObject *__pyx_pf_4mope_5_util_4print_parallel_csv_lines(CYTHON_UNUSED P
       /* "mope/_util.pyx":34
  *     for i in range(nchains):
  *         for j in range(nwalkers):
- *             printf("%.11f\t", lnprobs[i,j])             # <<<<<<<<<<<<<<
+ *             printf("%i\t%.11f\t", i, lnprobs[i,j])             # <<<<<<<<<<<<<<
  *             for k in range(ndim-1):
  *                 printf("%.11e\t", pos[i,j,k])
  */
@@ -2675,11 +2675,11 @@ static PyObject *__pyx_pf_4mope_5_util_4print_parallel_csv_lines(CYTHON_UNUSED P
         __Pyx_RaiseBufferIndexError(__pyx_t_9);
         __PYX_ERR(0, 34, __pyx_L1_error)
       }
-      printf(((char const *)"%.11f\t"), (*((double *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_lnprobs.data + __pyx_t_7 * __pyx_v_lnprobs.strides[0]) ) + __pyx_t_8 * __pyx_v_lnprobs.strides[1]) ))));
+      printf(((char const *)"%i\t%.11f\t"), __pyx_v_i, (*((double *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_lnprobs.data + __pyx_t_7 * __pyx_v_lnprobs.strides[0]) ) + __pyx_t_8 * __pyx_v_lnprobs.strides[1]) ))));
 
       /* "mope/_util.pyx":35
  *         for j in range(nwalkers):
- *             printf("%.11f\t", lnprobs[i,j])
+ *             printf("%i\t%.11f\t", i, lnprobs[i,j])
  *             for k in range(ndim-1):             # <<<<<<<<<<<<<<
  *                 printf("%.11e\t", pos[i,j,k])
  *             printf("%.11e\n", pos[i,j,ndim-1])
@@ -2689,7 +2689,7 @@ static PyObject *__pyx_pf_4mope_5_util_4print_parallel_csv_lines(CYTHON_UNUSED P
         __pyx_v_k = __pyx_t_9;
 
         /* "mope/_util.pyx":36
- *             printf("%.11f\t", lnprobs[i,j])
+ *             printf("%i\t%.11f\t", i, lnprobs[i,j])
  *             for k in range(ndim-1):
  *                 printf("%.11e\t", pos[i,j,k])             # <<<<<<<<<<<<<<
  *             printf("%.11e\n", pos[i,j,ndim-1])

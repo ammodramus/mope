@@ -30,9 +30,8 @@ def print_parallel_csv_lines(np.ndarray[np.float64_t,ndim=3] pos_np,
     nwalkers = pos.shape[1]
     ndim = pos.shape[2]
     for i in range(nchains):
-        printf("%i\t", i)
         for j in range(nwalkers):
-            printf("%.11f\t", lnprobs[i,j])
+            printf("%i\t%.11f\t", i, lnprobs[i,j])
             for k in range(ndim-1):
                 printf("%.11e\t", pos[i,j,k])
             printf("%.11e\n", pos[i,j,ndim-1])
