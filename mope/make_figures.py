@@ -403,8 +403,7 @@ def make_figures(
             raise ImportError(err)
 
 
-        burnin_steps = posterior_burnin_steps
-        burnin = int(np.floor(posterior_burnin_frac * dat_m1.shape[0]))
+        burnin = int(posterior_burnin_frac * dat_m1.shape[0] + 0.5)
         dat_burn = dat_m1.iloc[burnin:,:]
         sample_size = min(500000, dat_burn.shape[0])
         idxs = np.sort(npr.choice(dat_burn.shape[0], size = sample_size,
