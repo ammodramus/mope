@@ -22,16 +22,18 @@ def print_csv_lines(np.ndarray[np.float64_t, ndim = 2] arr,
         print(arr[i,ncols-1])
 
 def print_parallel_csv_lines(np.ndarray[np.float64_t,ndim=3] pos_np,
-        np.ndarray[np.float64_t,ndim=2] lnprobs_np):
+        np.ndarray[np.float64_t,ndim=2] lnprobs_np,
+        np.ndarray[np.float64_t,ndim=2] lnlikes_np):
     cdef int i, j, k, nchains, nwalkers, ndim
     cdef double [:,:,:] pos = pos_np
     cdef double [:,:] lnprobs = lnprobs_np
+    cdef double [:,:] lnlikes = lnlikes_np
     nchains = pos.shape[0]
     nwalkers = pos.shape[1]
     ndim = pos.shape[2]
     for i in range(nchains):
         for j in range(nwalkers):
-            printf("%i\t%.11f\t", i, lnprobs[i,j])
+            printf("%i\t%.11f\t%.11f\t", i, lnprobs[i,j], lnlikes[i,j])
             for k in range(ndim-1):
                 printf("%.11e\t", pos[i,j,k])
             printf("%.11e\n", pos[i,j,ndim-1])

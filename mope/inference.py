@@ -977,7 +977,7 @@ class Inference(object):
         for p, lnprob, lnlike in sampler.sample(init_pos_new,
                 iterations=num_iter, storechain = True):
             if parallel_print_all:
-                _util.print_parallel_csv_lines(p, lnprob)
+                _util.print_parallel_csv_lines(p, lnprob, lnlike)
             else:
                 # first chain is chain with temperature 1
                 _util.print_csv_lines(p[0], lnprob[0])
