@@ -972,7 +972,7 @@ class Inference(object):
             init_pos_new[i,:,:] = init_pos.copy()
 
         if parallel_print_all:
-            self.header = '\t'.join(['chain'] + self.header_list)
+            self.header = '\t'.join(['chain', 'lnpost'] + self.header_list)
         print(self.header)
         for p, lnprob, lnlike in sampler.sample(init_pos_new,
                 iterations=num_iter, storechain = True):
