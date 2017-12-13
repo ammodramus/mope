@@ -961,6 +961,8 @@ class Inference(object):
         for i in range(ntemps):
             init_pos_new[i,:,:] = init_pos.copy()
 
+        if parallel_print_all:
+            self.header += ['chain']
         print(self.header)
         for p, lnprob, lnlike in sampler.sample(init_pos_new,
                 iterations=num_iter, storechain = True):
