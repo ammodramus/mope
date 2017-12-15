@@ -119,6 +119,10 @@ def main():
                    'the bottleneck size')
     parser_run.add_argument('--just-prior-debug', action = 'store_true',
             help = 'let the posterior be the prior, for debugging')
+    parser_run.add_argument('--drift-limits', type = float, nargs = 2,
+            default = (1e-3, 3),
+            help = 'lower and upper length limits for drift variables, in '
+                   'natural scale')
     parser_run.set_defaults(func = run_mcmc)
 
 

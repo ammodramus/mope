@@ -61,6 +61,8 @@ def run_mcmc(args):
     elif args.start_from_prior:
         start_from = 'prior'
 
+    lower_dr, upper_dr = args.drift_limits
+
     inf_data = inf.Inference(
             data_file = args.data,
             transitions_file = args.drift,
@@ -76,7 +78,9 @@ def run_mcmc(args):
             print_debug = args.debug,
             log_unif_drift = args.log_uniform_drift_priors,
             inverse_bot_priors = args.inverse_bottleneck_priors,
-            post_is_prior = args.just_prior_debug)
+            post_is_prior = args.just_prior_debug,
+            lower_drift_limit = lower_dr,
+            upper_drift_limit = upper_dr)
 
     # for parallel tempering
     nt = args.num_temperatures

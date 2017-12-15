@@ -126,13 +126,26 @@ def _get_valid_start_from(sf_str):
 
 class Inference(object):
     def __init__(self,
-            data_file, transitions_file, tree_file, true_parameters,
-            start_from, data_are_freqs, genome_size, 
-            ages_data_fn, bottleneck_file = None, poisson_like_penalty = 1.0,
-            min_freq = 0.001, transition_copy = None, transition_buf = None,
-            transition_shape = None, print_debug = False,
-            log_unif_drift = False, inverse_bot_priors = False,
-            post_is_prior = False):
+            data_file,
+            transitions_file,
+            tree_file,
+            true_parameters,
+            start_from,
+            data_are_freqs,
+            genome_size,
+            ages_data_fn,
+            bottleneck_file = None,
+            poisson_like_penalty = 1.0,
+            min_freq = 0.001,
+            transition_copy = None,
+            transition_buf = None,
+            transition_shape = None,
+            print_debug = False,
+            log_unif_drift = False,
+            inverse_bot_priors = False,
+            post_is_prior = False,
+            lower_drift_limit = 1e-3,
+            upper_drift_limit = 3):
 
         self.asc_tree = None
         self.asc_num_loci = None
@@ -147,20 +160,26 @@ class Inference(object):
         self.transition_data = None
         self.bottleneck_data = None
 
-        self.data_are_counts = (not data_are_freqs)
+        self.data_are_freqs = data_are_freqs
         self.genome_size = genome_size
         self.tree_file = tree_file
         self.transitions_file = transitions_file
         self.data_file = data_file
         self.start_from = _get_valid_start_from(start_from)
+        self.init_true_params = true_parameters
         self.bottleneck_file = bottleneck_file
         self.poisson_like_penalty = poisson_like_penalty
         self.min_freq = min_freq
+        self.transition_copy = transition_copy
+        self.transition_buf = transition_buf
+        self.transition_shape = transition_shape
         self.ages_data_fn = ages_data_fn
         self.print_debug = print_debug
         self.log_unif_drift = log_unif_drift
         self.inverse_bot_priors = inverse_bot_priors
         self.post_is_prior = post_is_prior
+        self.lower_drift_limit = lower_drift_limit,
+        self.upper_drift_limit = upper_drift_limit
 
         ############################################################
         # read in data
@@ -253,10 +272,10 @@ class Inference(object):
         self.multipliernames = list(multipliernames_set)
         self.varnames = sorted(list(varnames_set))
 
-        if self.data_are_counts:
-            self.coverage_names = [el + '_n' for el in self.leaf_names]
-        else:
+        if self.data_are_freqs:
             self.coverage_names = None
+        else:
+            self.coverage_names = [el + '_n' for el in self.leaf_names]
 
         # number of branches having a length
         self.num_branches = len(self.branch_names)
@@ -317,7 +336,7 @@ class Inference(object):
         #####################################################
 
         # round down if allele frequencies are taken as true
-        if not self.data_are_counts:
+        if self.data_are_freqs:
             for ln in self.leaf_names:
                 needs_rounding0 = (self.data[ln] < self.min_freq)
                 needs_rounding1 = (self.data[ln] > 1-self.min_freq)
@@ -330,7 +349,7 @@ class Inference(object):
         # MLE is less than 0.005? Could round down to zero, essentially
         # discarding those. That is a good first thing to try.
 
-        else:   # self.data_are_counts == True
+        else:   # self.data_are_freqs == False
             for ln, nn in zip(self.leaf_names, self.coverage_names):
                 freqs = self.data[ln].astype(np.float64)/self.data[nn]
                 needs_rounding0 = (freqs < self.min_freq)
@@ -343,7 +362,7 @@ class Inference(object):
         # remove any fixed loci
         ##################################################### 
         fixed = da.is_fixed(self.data, self.leaf_names,
-                self.data_are_counts)
+                not self.data_are_freqs)
         self.data = self.data.loc[~fixed,:]
         self.data = self.data.reset_index(drop = True)
 
@@ -387,7 +406,7 @@ class Inference(object):
         #####################################################
         # leaf allele frequency likelihoods
         #####################################################
-        if self.data_are_counts:
+        if not self.data_are_freqs:
             n_names = self.coverage_names
             count_dat = self.data.loc[:,self.leaf_names].values.astype(
                     np.float64)
@@ -435,8 +454,10 @@ class Inference(object):
         ndim = 2*num_varnames + 2
 
         # (hard-coded bounds)
-        min_allowed_len = max(self.transition_data.get_min_coal_time(), 1e-6)
-        max_allowed_len = 3
+        min_allowed_len = max(self.transition_data.get_min_coal_time(),
+                lower_drift_limit)
+        max_allowed_len = min(self.transition_data.get_max_coal_time(),
+                upper_drift_limit)
         min_allowed_bottleneck = 2
         max_allowed_bottleneck = 500
         min_mut = -8
@@ -455,6 +476,7 @@ class Inference(object):
         lower_len[is_bottleneck_arr] = min_allowed_bottleneck
         upper_len[is_bottleneck_arr] = max_allowed_bottleneck
 
+        # convert len limits to log10... above they should be natural scale
         lower_len = np.log10(lower_len)
         upper_len = np.log10(upper_len)
 
@@ -749,27 +771,10 @@ class Inference(object):
 
     def _get_pool(self, num_processes, mpi):
 
-        def initializer(
-            data_file, transitions_file, tree_file, true_parameters,
-            start_from, data_are_freqs, genome_size,
-            bottleneck_file, min_freq, ages_data_fn,
-            poisson_like_penalty, print_debug, log_unif_drift):
+        def initializer(*args):
 
             global inf_data
-            inf_data = Inference(
-                    data_file = data_file,
-                    transitions_file = transitions_file,
-                    tree_file = tree_file,
-                    true_parameters = true_parameters,
-                    start_from = start_from,
-                    data_are_freqs = data_are_freqs,
-                    genome_size = genome_size,
-                    bottleneck_file = bottleneck_file,
-                    min_freq = min_freq,
-                    ages_data_fn = ages_data_fn,
-                    poisson_like_penalty = poisson_like_penalty,
-                    print_debug = print_debug,
-                    log_unif_drift = log_unif_drift)
+            inf_data = Inference(*args)
 
         # MPI takes priority
         if mpi:
@@ -780,22 +785,32 @@ class Inference(object):
                 sys.exit(0)
 
         elif num_processes > 1:
+            init_args = [
+                    # order important here because of *args above
+                    self.data_file,
+                    self.transitions_file,
+                    self.tree_file,
+                    self.init_true_params,
+                    self.start_from,
+                    self.data_are_freqs,
+                    self.genome_size,
+                    self.ages_data_fn,
+                    self.bottleneck_file,
+                    self.poisson_like_penalty,
+                    self.min_freq,
+                    self.transition_copy,
+                    self.transition_buf,
+                    self.transition_shape,
+                    self.print_debug,
+                    self.log_unif_drift,
+                    self.inverse_bot_priors,
+                    self.post_is_prior,
+                    self.lower_drift_limit,
+                    self.upper_drift_limit
+                    ]
+
             pool = mp.Pool(num_processes, initializer = initializer,
-                    initargs = [
-                        self.data_file,
-                        self.transitions_file,
-                        self.tree_file,
-                        self.true_params,
-                        self.start_from,
-                        not self.data_are_counts,
-                        self.genome_size,
-                        self.bottleneck_file,
-                        self.min_freq,
-                        self.ages_data_fn,
-                        self.poisson_like_penalty,
-                        self.print_debug,
-                        self.log_unif_drift
-                        ])
+                    initargs = init_args)
 
         else:
             pool = None
