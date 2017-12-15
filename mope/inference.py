@@ -23,7 +23,6 @@ from functools import partial
 import multiprocessing as mp
 import numpy.random as npr
 import emcee
-import ptemcee
 import warnings
 
 from . import newick
@@ -951,6 +950,10 @@ class Inference(object):
 
         ndim = 2*len(self.varnames)+2
         max_temp = np.float('inf') if do_evidence else None
+        try:
+            import ptemcee
+        except ImportError:
+            raise ImportError("parallel-tempering MCMC requires ptemcee")
         sampler = ptemcee.Sampler(
                 nwalkers = num_walkers,
                 dim = ndim,
