@@ -11,7 +11,8 @@ from . import util as ut
 
 from .mcmc import run_mcmc
 from .simulate import run_simulate
-from .make_transition_matrices import run_make_transition_matrices
+from .make_transition_matrices import _run_make_transition_matrices
+from .make_transition_matrices import _run_make_gauss
 from .make_bottleneck_matrices import run_make_bot
 from .get_ages_from_sims import run_ages
 from .count_heteroplasmies import count_hets
@@ -194,7 +195,7 @@ def main():
     parser_trans.add_argument('--asymmetric', action = 'store_true',
             help = 'bin the frequencies asymmetrically around the middle '
                     'frequency')
-    parser_trans.set_defaults(func = run_make_transition_matrices)
+    parser_trans.set_defaults(func = _run_make_transition_matrices)
 
     #############################
     # make bottleneck matrices
@@ -382,6 +383,25 @@ def main():
             help = 'print acceptance for each chain / walker individually')
     parser_accept.set_defaults(
             func = _run_acceptance)
+
+    parser_gauss = subparsers.add_parser('make-gauss',
+            description = 'make Gaussian allele frequency transition matrices')
+    parser_gauss.add_argument('gensfile',
+            help = 'filename containing list of generations')
+    parser_gauss.add_argument('N', help = 'population size',
+            type = ut.positive_int)
+    parser_gauss.add_argument('uv', help = 'symmetric mutation parameter',
+            type = ut.probability)
+    parser_gauss.add_argument('outfile', help = 'output filename')
+    parser_gauss.add_argument('--unif-weight', type = ut.probability,
+            default = 0.5)
+    parser_gauss.add_argument('--min-bin-size', type = ut.positive_float,
+            default = 0.01,
+            help = 'unifweight and minbinsize are two parameters to control '
+                   'the heuristic used for deciding where to bin matrices. '
+                   'defaults are recommended')
+    parser_gauss.set_defaults(
+            func = _run_make_gauss)
 
 
     ############################################
