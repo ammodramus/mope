@@ -460,10 +460,10 @@ def _run_gencmd(args):
     print('# run these after everything has completed')
     print("#########################################")
     cmd = ('# cd transitions/ && mope make-master-transitions '
-           'bottleneck_matrices/*.h5 --out-file bottleneck_transitions.h5 '
-           '&& cd ..')
+           'drift_matrices/*.h5 --out-file drift_transitions.h5; '
+           'cd ..')
     print(cmd)
     cmd = ('# cd transitions/ && mope make-master-transitions '
-           'drift_matrices/*.h5 --out-file drift_transitions.h5 '
-           '&& cd ..')
+           'bottleneck_matrices/*.h5 --out-file bottleneck_transitions.h5; '
+           'cd ..')
     print(cmd)
