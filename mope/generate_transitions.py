@@ -369,8 +369,8 @@ def _run_master(args):
             freqs = f_freqs
         else:
             if not np.array_equal(f_freqs, freqs):
-                raise ValueError("found distinct sets of frequencies in \
-                        target datasets")
+                raise ValueError("found distinct sets of frequencies in "
+                        "target datasets")
         if breaks is None:
             breaks = f_breaks
         else:
@@ -390,7 +390,7 @@ def _run_master(args):
     mf.close()
 
 def _run_gencmd(args):
-    default_gens = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 24,
+    default_gens = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 24,
             26, 28, 30, 32, 34, 36, 38, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90,
             100, 125, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800,
             900, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800,
@@ -398,6 +398,13 @@ def _run_gencmd(args):
             5200, 5400, 5600, 5800, 6000, 6200, 6400, 6600, 6800, 7000, 7200,
             7400, 7600, 7800, 8000, 8200, 8400, 8600, 8800, 9000, 9200, 9400,
             9600, 9800, 10000]
+    # 19 gens, geometrically spaced between 10^-5 and 10^-3, minus the 10^-3
+    default_gauss_gens = [
+                1.000000e-05, 1.274275e-05, 1.623777e-05, 2.069138e-05,
+                2.636651e-05, 3.359818e-05, 4.281332e-05, 5.455595e-05,
+                6.951928e-05, 8.858668e-05, 1.128838e-04, 1.438450e-04,
+                1.832981e-04, 2.335721e-04, 2.976351e-04, 3.792690e-04,
+                4.832930e-04, 6.158482e-04, 7.847600e-04]
     default_bots = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45, 50,
             55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 110, 120, 130, 140, 150,
             160, 180, 200, 220, 240, 260, 280, 300, 320, 340, 360, 380, 400,
@@ -411,6 +418,9 @@ def _run_gencmd(args):
     # write to gens and bots files
     with open('gens.txt', 'w') as fout:
         for gen in default_gens:
+            fout.write(str(gen) + '\n')
+    with open('gens_gauss.txt', 'w') as fout:
+        for gen in default_gauss_gens:
             fout.write(str(gen) + '\n')
     with open('bots.txt', 'w') as fout:
         for bot in default_bots:
@@ -426,6 +436,13 @@ def _run_gencmd(args):
                       output = outfile, fin = 'gens.txt'))
         print(prefix + cmd)
 
+    # print out gauss commands (same directory)
+    for mut in default_muts:
+        outfile = 'transitions/drift_matrices/gaussian_drift_matrices_mut_{}.h5'.format(mut)
+        cmd = ('mope make-gauss {fin} {N} {uv} {output}'.format(
+                      N = 1000, uv = mut, output = outfile, fin = 'gens_gauss.txt'))
+        print(prefix + cmd)
+
     # print out bottleneck commands
     prefix = 'mkdir -p transitions/bottleneck_matrices && '
     for mut in default_muts:
@@ -436,6 +453,7 @@ def _run_gencmd(args):
                       N = 1000, s = 0, u = mut, start = 1, every = 1, end = 2,
                       output = outfile, fin = 'bots.txt'))
         print(prefix + cmd)
+
 
     # print out master-file generation command
     print("#########################################")
