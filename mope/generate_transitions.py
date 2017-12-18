@@ -390,6 +390,13 @@ def _run_master(args):
     mf.close()
 
 def _run_gencmd(args):
+
+    if args.big:
+        N = 10000
+    else:
+        N = 1000
+
+
     default_gens = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 24,
             26, 28, 30, 32, 34, 36, 38, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90,
             100, 125, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800,
@@ -398,13 +405,11 @@ def _run_gencmd(args):
             5200, 5400, 5600, 5800, 6000, 6200, 6400, 6600, 6800, 7000, 7200,
             7400, 7600, 7800, 8000, 8200, 8400, 8600, 8800, 9000, 9200, 9400,
             9600, 9800, 10000]
-    # 19 gens, geometrically spaced between 10^-5 and 10^-3, minus the 10^-3
-    default_gauss_gens = [
-                1.000000e-05, 1.274275e-05, 1.623777e-05, 2.069138e-05,
-                2.636651e-05, 3.359818e-05, 4.281332e-05, 5.455595e-05,
-                6.951928e-05, 8.858668e-05, 1.128838e-04, 1.438450e-04,
-                1.832981e-04, 2.335721e-04, 2.976351e-04, 3.792690e-04,
-                4.832930e-04, 6.158482e-04, 7.847600e-04]
+    if args.gauss:
+        log10_smallest_t = -np.log10(N)
+        log10_smallest_gauss_t = log10_smallest_t - 2
+        default_gauss_gens = 10**np.linspace(log10_smallest_gauss_t,
+                log10_smallest_t, num = 20)[:-1]
     default_bots = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45, 50,
             55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 110, 120, 130, 140, 150,
             160, 180, 200, 220, 240, 260, 280, 300, 320, 340, 360, 380, 400,
@@ -414,34 +419,63 @@ def _run_gencmd(args):
             7.5e-8, 1.0e-7, 2.5e-7, 5e-7, 7.5e-7, 1.0e-6, 2.5e-6, 5e-6, 7.5e-6,
             1.0e-5, 2.5e-5, 5e-5, 7.5e-5, 1.0e-4, 2.5e-4, 5e-4, 7.5e-4, 1.0e-3,
             2.5e-3, 5e-3, 7.5e-3, 1.0e-2, 2.5e-2, 5e-2, 7.5e-2]
+    default_big_gens = np.array([ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+        14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+        32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 44, 45, 46, 48, 49, 50, 52,
+        54, 55, 57, 59, 60, 62, 64, 66, 68, 70, 73, 75, 77, 80, 82, 85, 87, 90,
+        93, 96, 99, 103, 106, 109, 113, 117, 120, 124, 129, 133, 137, 142, 147,
+        152, 157, 162, 168, 173, 179, 185, 192, 198, 205, 212, 220, 227, 235,
+        244, 252, 261, 270, 280, 290, 300, 311, 322, 334, 346, 359, 372, 385,
+        399, 414, 429, 445, 462, 479, 497, 515, 534, 554, 575, 597, 620, 643,
+        668, 693, 720, 747, 776, 806, 837, 869, 903, 939, 975, 1013, 1053,
+        1095, 1138, 1183, 1230, 1279, 1330, 1383, 1439, 1497, 1557, 1620, 1686,
+        1754, 1826, 1901, 1978, 2060, 2144, 2233, 2325, 2422, 2523, 2628, 2738,
+        2852, 2972, 3097, 3228, 3365, 3507, 3656, 3812, 3975, 4146, 4324, 4510,
+        4704, 4908, 5121, 5343, 5576, 5820, 6074, 6341, 6620, 6912, 7217, 7537,
+        7872, 8222, 8589, 8973, 9375, 9796, 10238, 10700, 11184, 11691, 12222,
+        12779, 13363, 13974, 14615, 15287, 15991, 16730, 17504, 18316, 19168,
+        20061, 20998, 21981, 23013, 24095, 25230, 26422, 27672, 28985, 30363,
+        31810, 33329, 34924, 36599, 38358, 40206, 42147, 44187, 46329, 48580,
+        50946, 53432, 56045, 58792, 61680, 64716, 67908, 71265, 74795, 78508,
+        82414, 86522, 90844, 95392, 100177])
 
-    # write to gens and bots files
-    with open('gens.txt', 'w') as fout:
-        for gen in default_gens:
-            fout.write(str(gen) + '\n')
-    with open('gens_gauss.txt', 'w') as fout:
-        for gen in default_gauss_gens:
-            fout.write(str(gen) + '\n')
+    # write to gens file
+    if not args.big:
+        with open('gens.txt', 'w') as fout:
+            for gen in default_gens:
+                fout.write(str(gen) + '\n')
+    else:
+        with open('gens.txt', 'w') as fout:
+            for gen in default_big_gens:
+                fout.write(str(gen) + '\n')
+    if args.gauss:
+        with open('gens_gauss.txt', 'w') as fout:
+            for gen in default_gauss_gens:
+                fout.write(str(gen) + '\n')
+
+    # write out bottlenecks
     with open('bots.txt', 'w') as fout:
-        for bot in default_bots:
+        for bot in default_big_gens:
             fout.write(str(bot) + '\n')
 
     # print out W-F drift commands
+    infile = 'gens.txt'
     prefix = 'mkdir -p transitions/drift_matrices && '
     for mut in default_muts:
         outfile = 'transitions/drift_matrices/drift_matrices_mut_{}.h5'.format(mut)
         cmd = ('mope generate-transitions {N} {s} {u} {u} {start} {every} '
                '{end} {output} --breaks 0.5 0.01 --input-file {fin}'.format(
-                      N = 1000, s = 0, u = mut, start = 1, every = 1, end = 2,
+                      N = N, s = 0, u = mut, start = 1, every = 1, end = 2,
                       output = outfile, fin = 'gens.txt'))
         print(prefix + cmd)
 
-    # print out gauss commands (same directory)
-    for mut in default_muts:
-        outfile = 'transitions/drift_matrices/gaussian_drift_matrices_mut_{}.h5'.format(mut)
-        cmd = ('mope make-gauss {fin} {N} {uv} {output}'.format(
-                      N = 1000, uv = mut, output = outfile, fin = 'gens_gauss.txt'))
-        print(prefix + cmd)
+    if args.gauss:
+        # print out gauss commands (same directory)
+        for mut in default_muts:
+            outfile = 'transitions/drift_matrices/gaussian_drift_matrices_mut_{}.h5'.format(mut)
+            cmd = ('mope make-gauss {fin} {N} {uv} {output}'.format(
+                          N = N, uv = mut, output = outfile, fin = 'gens_gauss.txt'))
+            print(prefix + cmd)
 
     # print out bottleneck commands
     prefix = 'mkdir -p transitions/bottleneck_matrices && '
@@ -450,7 +484,7 @@ def _run_gencmd(args):
         cmd = ('mope generate-transitions {N} {s} {u} {u} {start} {every} '
                '{end} {output} --breaks 0.5 0.01 --input-file {fin} '
                '--bottlenecks'.format(
-                      N = 1000, s = 0, u = mut, start = 1, every = 1, end = 2,
+                      N = N, s = 0, u = mut, start = 1, every = 1, end = 2,
                       output = outfile, fin = 'bots.txt'))
         print(prefix + cmd)
 
