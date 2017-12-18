@@ -431,7 +431,7 @@ def _run_gencmd(args):
     for mut in default_muts:
         outfile = 'transitions/drift_matrices/drift_matrices_mut_{}.h5'.format(mut)
         cmd = ('mope generate-transitions {N} {s} {u} {u} {start} {every} '
-               '{end} {output} --breaks 0.05 0.01 --input-file {fin}'.format(
+               '{end} {output} --breaks 0.5 0.01 --input-file {fin}'.format(
                       N = 1000, s = 0, u = mut, start = 1, every = 1, end = 2,
                       output = outfile, fin = 'gens.txt'))
         print(prefix + cmd)
@@ -448,7 +448,7 @@ def _run_gencmd(args):
     for mut in default_muts:
         outfile = 'transitions/bottleneck_matrices/bottleneck_matrices_mut_{}.h5'.format(mut)
         cmd = ('mope generate-transitions {N} {s} {u} {u} {start} {every} '
-               '{end} {output} --breaks 0.05 0.01 --input-file {fin} '
+               '{end} {output} --breaks 0.5 0.01 --input-file {fin} '
                '--bottlenecks'.format(
                       N = 1000, s = 0, u = mut, start = 1, every = 1, end = 2,
                       output = outfile, fin = 'bots.txt'))
