@@ -303,7 +303,7 @@ def _run_generate(args):
                         Nbs.append(Nb)
             for Nb in Nbs:
                 logger.debug('getting bottleneck P, Nb = {}, {} of {}'.format(
-                    Nb, Nb.index()+1, len(Nbs)))
+                    Nb, Nbs.index(Nb)+1, len(Nbs)))
                 P = get_bottleneck_transition_matrix(args.N, Nb, args.u)
                 logger.debug('obtained P, adding matrix with index {}'.format(
                     dataset_idx))
