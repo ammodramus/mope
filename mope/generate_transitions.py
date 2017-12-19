@@ -260,12 +260,11 @@ def add_matrix_bot(h5file, P, N, Nb, u, idx, breaks = None):
 
 def _run_generate(args):
 
-    if args.debug:
-        logging.basicConfig(level=logging.DEBUG,
-                            format='%(asctime)-15s %(name)-5s %(levelname)-8s MEM: %(memusg)-15s %(message)s')
-        logger = logging.getLogger('gendrift')
-        f = ut.MemoryFilter()
-        logger.addFilter(f)
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)-15s %(name)-5s %(levelname)-8s MEM: %(memusg)-15s %(message)s')
+    logger = logging.getLogger('gendrift')
+    f = ut.MemoryFilter()
+    logger.addFilter(f)
 
     logger.debug('opening output file {}'.format(args.output))
     with h5py.File(args.output, 'w') as h5file:
