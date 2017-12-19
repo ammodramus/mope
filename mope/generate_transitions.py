@@ -302,7 +302,11 @@ def _run_generate(args):
                                     file")
                         Nbs.append(Nb)
             for Nb in Nbs:
+                logger.debug('getting bottleneck P, Nb = {}, {} of {}'.format(
+                    Nb, Nb.index()+1, len(Nbs))
                 P = get_bottleneck_transition_matrix(args.N, Nb, args.u)
+                logger.debug('obtained P, adding matrix with index {}'.format(
+                    dataset_idx))
                 add_matrix_bot(h5file, P, args.N, Nb, args.u, dataset_idx,
                         breaks)
                 dataset_idx += 1
