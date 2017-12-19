@@ -12,6 +12,7 @@ import numpy as np
 import sys
 import numpy.linalg as npl
 import logging
+import gc
 from . import util as ut
 from . import _transition as trans
 
@@ -354,12 +355,14 @@ def _run_generate(args):
                     logger.debug('calculating P prime')
                     P_prime = get_next_matrix_with_prev(
                             P_prime, prev_gen, gen, P)
-                    logger.debug('P_prime calculated, adding matrix')
+                    logger.debug('P_prime calculated for gen {}, '
+                                 'adding matrix'.format(gen))
                     add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
                             gen, dataset_idx, breaks)
                     logger.debug('matrix added')
                     dataset_idx += 1
                     prev_gen = gen
+                    gc.collect()   # explicit memory management
 
 def _run_master(args):
     if args.out_file in args.files:
