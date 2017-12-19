@@ -479,7 +479,7 @@ def _run_gencmd(args):
 
     # write out bottlenecks
     with open('bots.txt', 'w') as fout:
-        for bot in default_big_gens:
+        for bot in default_bots:
             fout.write(str(bot) + '\n')
 
     # print out W-F drift commands
