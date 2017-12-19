@@ -11,7 +11,6 @@ from . import util as ut
 
 from .mcmc import run_mcmc
 from .simulate import run_simulate
-from .make_transition_matrices import _run_make_transition_matrices
 from .make_transition_matrices import _run_make_gauss
 from .make_bottleneck_matrices import run_make_bot
 from .get_ages_from_sims import run_ages
@@ -162,40 +161,6 @@ def main():
             help = 'only output heteroplasmic sites')
     parser_sim.set_defaults(func = run_simulate)
 
-
-    #############################
-    # make transition matrices
-    #############################
-    parser_trans = subparsers.add_parser('make-drift')
-    parser_trans.add_argument('N', help='haploid population size',
-            type = ut.positive_int)
-    parser_trans.add_argument('s', help='selection coefficient',
-            type = ut.probability)
-    parser_trans.add_argument('u', help='mutation probability away from the '
-            'focal allele', type = ut.probability)
-    parser_trans.add_argument('v', help='mutation probability towards from '
-            'the focal allele', type = ut.probability)
-    parser_trans.add_argument('start', help='first generation to record '
-            '(generation 1 is first generation after the present '
-            'generation)', type = ut.nonneg_int)
-    parser_trans.add_argument('every', help='how often to record a generation',
-            type = ut.positive_int)
-    parser_trans.add_argument('end', help='final generation to record '
-            '(generation 1 is first generation after the present generation)',
-            type = ut.nonneg_int)
-    parser_trans.add_argument('output', help='filename for output hdf5 file. '
-            'overwrites if exists.')
-    parser_trans.add_argument('--breaks', help = 'uniform weight and '
-            'minimum bin size for binning of larger matrix into smaller '
-            'matrix', nargs = 2, metavar = ('uniform_weight', 'min_bin_size'),
-            type = float)
-    parser_trans.add_argument('--gens-file', '-g', type = str,
-            help = 'file containing generations to produce, one per line. '
-            'overrides start, every, and end.')
-    parser_trans.add_argument('--asymmetric', action = 'store_true',
-            help = 'bin the frequencies asymmetrically around the middle '
-                    'frequency')
-    parser_trans.set_defaults(func = _run_make_transition_matrices)
 
     #############################
     # make bottleneck matrices
@@ -354,6 +319,8 @@ def main():
             help = 'file containing generations or bottleneck sizes to '
                    'produce, one per line. ' 'overrides start, every, and '
                    'end.')
+    parser_gendrift.add_argument('--debug', action = 'store_true',
+            help = 'print debug messages')
     parser_gendrift.set_defaults(
             func = _run_generate)
 

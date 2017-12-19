@@ -11,7 +11,8 @@ import h5py
 import numpy as np
 import sys
 import numpy.linalg as npl
-
+import logging
+from . import util as ut
 from . import _transition as trans
 
 def get_bottleneck_transition_matrix(N, Nb, mu):
@@ -259,6 +260,14 @@ def add_matrix_bot(h5file, P, N, Nb, u, idx, breaks = None):
 
 def _run_generate(args):
 
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG,
+                            format='%(asctime)-15s %(name)-5s %(levelname)-8s MEM: %(memusg)-15s %(message)s')
+        logger = logging.getLogger('gendrift')
+        f = ut.MemoryFilter()
+        logger.addFilter(f)
+
+    logger.debug('opening output file {}'.format(args.output))
     with h5py.File(args.output, 'w') as h5file:
 
         h5file.attrs['N'] = args.N
@@ -298,7 +307,9 @@ def _run_generate(args):
                 dataset_idx += 1
 
         else:  # not bottlenecks
+            logger.debug('calculating Wright-Fisher matrix P')
             P = get_wright_fisher_transition_matrix(args.N, args.s, args.u, args.v)
+            logger.debug('Wright-Fisher matrix P obtained')
             dataset_idx = 0
             if args.input_file is None:
                 step_matrix = npl.matrix_power(P, args.every)
@@ -332,16 +343,22 @@ def _run_generate(args):
                         except ValueError:
                             raise ValueError("invalid integer in generations file")
                         gens.append(gen)
+                logger.debug('calculating P_prime')
                 P_prime = npl.matrix_power(P, gens[0])
+                logger.debug('P_prime obtained, adding matrix')
                 add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
                         gens[0], dataset_idx, breaks)
+                logger.debug('adding matrix')
                 dataset_idx += 1
                 prev_gen = gens[0]
                 for gen in gens[1:]:
+                    logger.debug('calculating P prime')
                     P_prime = get_next_matrix_with_prev(
                             P_prime, prev_gen, gen, P)
+                    logger.debug('P_prime calculated, adding matrix')
                     add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
                             gen, dataset_idx, breaks)
+                    logger.debug('matrix added')
                     dataset_idx += 1
                     prev_gen = gen
 
