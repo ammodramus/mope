@@ -86,7 +86,8 @@ class TransitionData(object):
             self._frequencies = mf.attrs['frequencies']
             self._breaks = mf.attrs['breaks']
         self._sorted_us = np.array(sorted(list(self._us)), dtype = np.float64)
-        self._sorted_gens = np.array(sorted(list(self._gens)), dtype = np.int)
+        #self._sorted_gens = np.array(sorted(list(self._gens)), dtype = np.int)
+        self._sorted_gens = np.array(sorted(list(self._gens)), dtype = np.float)
         # check missing members of grid
         missings = []
         for g in self._sorted_gens:
