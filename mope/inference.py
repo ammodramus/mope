@@ -460,8 +460,10 @@ class Inference(object):
                 upper_drift_limit)
         min_allowed_bottleneck = 2
         max_allowed_bottleneck = 500
-        min_mut = -8
-        max_mut = -1
+        min_mut = max(-8,
+                np.log10(self.transition_data.get_min_mutation_rate()))
+        max_mut = min(-1,
+                np.log10(self.transition_data.get_max_mutation_rate()))
         min_ab = -9
         max_ab = 0
         min_polyprob = -9

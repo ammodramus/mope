@@ -150,12 +150,18 @@ class TransitionData(object):
                       population size
         '''
 
-        if (scaled_time < self._min_coal_time or
-                scaled_time > self._max_coal_time):
-            return None
-        if (scaled_mut < self._min_mutation_rate or
-                scaled_mut > self._max_mutation_rate):
-            return None
+        if scaled_time < self._min_coal_time:
+            raise ValueError('drift time too small: {} < {} (min)'.format(
+                scaled_time, self._min_coal_time))
+        if scaled_time > self._max_coal_time:
+            raise ValueError('drift time too large: {} > {} (max)'.format(
+                scaled_time, self._max_coal_time))
+        if scaled_mut < self._min_mutation_rate:
+            raise ValueError('mutation rate too small: {} < {} (min)'.format(
+                scaled_mut, self._min_mutation_rate))
+        if scaled_mut > self._max_mutation_rate:
+            raise ValueError('mutation rate too large: {} > {} (max)'.format(
+                scaled_mut, self._max_mutation_rate))
 
         '''
         searchsorted behavior:
