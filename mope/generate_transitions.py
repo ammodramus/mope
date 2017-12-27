@@ -12,6 +12,7 @@ import numpy as np
 import sys
 import numpy.linalg as npl
 import logging
+import warnings
 import gc
 from . import util as ut
 from . import _transition as trans
@@ -225,6 +226,9 @@ def add_matrix(h5file, P, N, s, u, v, gen, idx, breaks = None):
     idx      index of the dataset in the hdf5 file
     breaks   tuple of uniform_weight and min_bin_size (see get_breaks())
     '''
+    if np.any(np.isnan(P)):
+        warnings.warn('converting NaNs to zeros in add_matrix')
+        P[np.isnan(P)] = 0.0
     if breaks is not None:
         P = bin_matrix(P, breaks)
     group_name = "P" + str(idx)
@@ -249,6 +253,9 @@ def add_matrix_bot(h5file, P, N, Nb, u, idx, breaks = None):
     idx      index of the dataset in the hdf5 file
     breaks   tuple of uniform_weight and min_bin_size (see get_breaks())
     '''
+    if np.any(np.isnan(P)):
+        warnings.warn('converting NaNs to zeros in add_matrix_bot')
+        P[np.isnan(P)] = 0.0
     if breaks is not None:
         P = bin_matrix(P, breaks)
     group_name = "P" + str(idx)
