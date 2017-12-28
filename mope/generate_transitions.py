@@ -8,12 +8,20 @@ from builtins import range
 from builtins import object
 import argparse
 import h5py
+import os 
+os.environ['OPENBLAS_NUM_THREADS'] = '1' 
+os.environ['MKL_NUM_THREADS'] = '1' 
 import numpy as np
 import sys
 import numpy.linalg as npl
 import logging
 import warnings
 import gc
+import scipy.stats
+from numpy.core.numeric import binary_repr, asanyarray
+from numpy.core.numerictypes import issubdtype
+from .generate_transitions_util import log_matrix_power, logdot
+
 from . import util as ut
 from . import _transition as trans
 
@@ -44,6 +52,7 @@ def get_bottleneck_transition_matrix(N, Nb, mu):
         P = np.dot(P, Pp)
     return P
 
+
 def get_wright_fisher_transition_matrix(N, s, u, v):
     try:
         from scipy.misc import comb
@@ -58,6 +67,19 @@ def get_wright_fisher_transition_matrix(N, s, u, v):
         pstar = pmut*(1+s) / (pmut*(1+s) + 1-pmut)
         P[i,:] = comb(N, js)*(pstar**js)*((1-pstar)**(N-js))
     return P
+
+
+def get_log_wright_fisher_transition_matrix(N, s, u, v):
+    assert 3/2 == 1.5  # check for __future__ division
+    lP = np.matrix(np.zeros((N+1, N+1), dtype = np.float64))
+    js = np.arange(0,N+1)
+    for i in xrange(N+1):
+        p = i/N
+        pmut = (1-u)*p + v*(1-p) # first mutation, then selection
+        pstar = pmut*(1+s) / (pmut*(1+s) + 1-pmut)
+        lP[i,:] = scipy.stats.binom.logpmf(js, N, pstar)
+    return lP
+
 
 def get_breaks(N, uniform_weight, min_bin_size):
     '''
@@ -194,11 +216,12 @@ def get_binned_frequencies(N, breaks):
     vals = np.add.reduceat(full_val, breaks) / bin_lengths
     return vals
 
-def get_next_matrix_with_prev(cur_matrix, cur_power, next_power, P):
+
+def get_next_matrix_with_prev(cur_matrix, cur_power, next_power, lP):
     step_power = next_power - cur_power
-    P_step = npl.matrix_power(P, step_power)
-    next_P = np.matmul(cur_matrix, P_step)
-    return next_P
+    lP_step = log_matrix_power(lP, step_power)
+    lnext_P = logdot(cur_matrix, lP_step)
+    return lnext_P
 
 def get_identity_matrix(N, u, breaks):
     # N+1 x N+1 identity matrix, plus 
@@ -231,6 +254,8 @@ def add_matrix(h5file, P, N, s, u, v, gen, idx, breaks = None):
         P[np.isnan(P)] = 0.0
     if breaks is not None:
         P = bin_matrix(P, breaks)
+    print('colsums:', P.sum(1).tolist())
+    #assert np.all(np.isfinite(P)), "not all elements of P are finite"
     group_name = "P" + str(idx)
     dset = h5file.create_dataset(group_name,
             data = np.array(P, dtype = np.float64))
@@ -320,21 +345,24 @@ def _run_generate(args):
 
         else:  # not bottlenecks
             logger.debug('calculating Wright-Fisher matrix P')
-            P = get_wright_fisher_transition_matrix(args.N, args.s, args.u, args.v)
-            logger.debug('Wright-Fisher matrix P obtained')
+            lP = get_log_wright_fisher_transition_matrix(args.N, args.s, args.u, args.v)
+            if np.any(np.isnan(lP)):
+                warnings.warn('log WF transition matrix P contains nans')
+                warnings.warn('number of nans: {} out of {}'.format(
+                    np.isnan(P).sum(),
+                    P.shape[0] * P.shape[1]))
+            logger.debug('log Wright-Fisher matrix P obtained')
             dataset_idx = 0
             if args.input_file is None:
-                step_matrix = npl.matrix_power(P, args.every)
+                lstep_matrix = log_matrix_power(lP, args.every)
 
                 gen = args.start
                 if gen > 0:
-                    P_prime = npl.matrix_power(P, args.start)
+                    lP_prime = log_matrix_power(lP, args.start)
+                    P_prime = np.exp(lP_prime) 
                     add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
                             gen, dataset_idx, breaks)
                 elif gen == 0:
-                    # for now, not taking into account mutation in the zero-gen
-                    # matrix
-                    #P_prime = get_identity_matrix(args.N, args.u, breaks)
                     P_prime = np.diag(np.repeat(1.0, args.N+1))
                     add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
                             gen, dataset_idx, breaks)
@@ -356,20 +384,20 @@ def _run_generate(args):
                             raise ValueError("invalid integer in generations file")
                         gens.append(gen)
                 logger.debug('calculating P_prime')
-                P_prime = npl.matrix_power(P, gens[0])
+                lP_prime = log_matrix_power(lP, gens[0])
                 logger.debug('P_prime obtained, adding matrix')
-                add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
+                add_matrix(h5file, np.exp(lP_prime), args.N, args.s, args.u, args.v,
                         gens[0], dataset_idx, breaks)
                 logger.debug('adding matrix')
                 dataset_idx += 1
                 prev_gen = gens[0]
                 for gen in gens[1:]:
                     logger.debug('calculating P prime')
-                    P_prime = get_next_matrix_with_prev(
-                            P_prime, prev_gen, gen, P)
+                    lP_prime = get_next_matrix_with_prev(
+                            lP_prime, prev_gen, gen, lP)
                     logger.debug('P_prime calculated for gen {}, '
                                  'adding matrix'.format(gen))
-                    add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
+                    add_matrix(h5file, np.exp(lP_prime), args.N, args.s, args.u, args.v,
                             gen, dataset_idx, breaks)
                     logger.debug('matrix added')
                     dataset_idx += 1
