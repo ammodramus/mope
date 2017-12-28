@@ -7,6 +7,7 @@ import transition_data_mut as tdm
 from libc.math cimport log
 from libc.string cimport memset
 cimport cython
+from scipy.linalg.cython_blas cimport dgemv
 
 
 cdef int ONE = 1
@@ -17,6 +18,45 @@ cdef double DZERO = 0
 #################
 # resetting
 #################
+
+cdef void fast_dgemv(
+        np.ndarray[np.float64_t,ndim=2] P,
+        double [:] v,
+        double [:] buf):
+    '''
+    performs
+
+    np.dot(P,v)
+    '''
+    cdef:
+        char *trans = 'n'
+        int m, n, k, ldP, incv, incy
+        double *P0
+        double *v0
+        double *y0
+        double alpha, beta
+    m = P.shape[0]
+    n = P.shape[1]
+    alpha = 1.0
+    beta = 0.0
+    P0 = &(P[0,0])
+    ldP = &(P[0,1]) - P0
+    v0 = &(v[0])
+    incv = &(v[1])-v0
+    y0 = &(buf[0])
+    incy = &(buf[1]) - y0
+    dgemv(trans, &m, &n, &alpha, P0, &ldP, v0, &incv, &beta, y0, &incy)
+
+@cython.wraparound(False)
+@cython.boundscheck(False)
+cdef void times_equal(
+        double [:] a,
+        double [:] b,
+        int n):
+    cdef int i
+    n = a.shape[0]
+    for i in range(n):
+        a[i] *= b[i]
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -40,6 +80,8 @@ def reset_likes_zeros(np.ndarray[np.float64_t, ndim=2] likes):
 # newick functions
 #####################
 
+@cython.wraparound(False)
+@cython.boundscheck(False)
 def compute_leaf_transition_likelihood(
         np.ndarray[np.float64_t,ndim=2] leaf_likes,
         np.ndarray[np.float64_t,ndim=2] ancestor_likes,
@@ -47,16 +89,34 @@ def compute_leaf_transition_likelihood(
         double mut_rate,
         transitions):
 
-    cdef int num_loci = leaf_likes.shape[0]
-    cdef int i
-    cdef double time
+    cdef:
+        int i, num_loci, num_freqs
+        double time
+        double [:,:] P_c
+        np.ndarray[np.float64_t,ndim=2] P
+        np.ndarray[np.float64_t,ndim=1] buf
+        double [:] buf_c
+        double [:] leaf_likes_c
+        double [:] anc_likes_c
+
+    num_loci = leaf_likes.shape[0]
+    num_freqs = leaf_likes.shape[1]
+
+    buf = np.asfortranarray(np.zeros(num_freqs))
+    buf_c = buf
+    
     for i in range(num_loci):
         time = leaf_lengths[i]
         P = transitions.get_transition_probabilities_time_mutation(
                 time, mut_rate)
-        ancestor_likes[i,:] *= np.dot(P, leaf_likes[i,:])
+        leaf_likes_c = leaf_likes[i]
+        anc_likes_c = ancestor_likes[i]
+        fast_dgemv(P, leaf_likes_c, buf_c)
+        times_equal(anc_likes_c, buf_c, num_freqs)
 
 
+@cython.wraparound(False)
+@cython.boundscheck(False)
 def compute_branch_transition_likelihood(
             np.ndarray[np.float64_t,ndim=2] node_likes,
             np.ndarray[np.float64_t,ndim=2] ancestor_likes,
@@ -64,15 +124,33 @@ def compute_branch_transition_likelihood(
             double mut_rate,
             transitions):
 
-    cdef int num_loci = node_likes.shape[0]
-    cdef int i
+    cdef:
+        int i, num_loci, num_freqs
+        double [:,:] P_c
+        np.ndarray[np.float64_t,ndim=2] P
+        np.ndarray[np.float64_t,ndim=1] buf
+        double [:] buf_c
+        double [:] node_likes_c
+        double [:] anc_likes_c
+
+    num_loci = node_likes.shape[0]
+    num_freqs = node_likes.shape[1]
+
+    buf = np.asfortranarray(np.zeros(num_freqs))
+    buf_c = buf
+
     P = transitions.get_transition_probabilities_time_mutation(
             node_length,
             mut_rate)
     for i in range(num_loci):
-        ancestor_likes[i] *= np.dot(P, node_likes[i])
+        node_likes_c = node_likes[i]
+        anc_likes_c = ancestor_likes[i]
+        fast_dgemv(P, node_likes_c, buf_c)
+        times_equal(anc_likes_c, buf_c, num_freqs)
 
 
+@cython.wraparound(False)
+@cython.boundscheck(False)
 def compute_bottleneck_transition_likelihood(
             np.ndarray[np.float64_t,ndim=2] node_likes,
             np.ndarray[np.float64_t,ndim=2] ancestor_likes,
@@ -89,7 +167,7 @@ def compute_bottleneck_transition_likelihood(
             bottleneck_size,
             mut_rate)
     for i in range(num_loci):
-        ancestor_likes[i] *= np.dot(P, node_likes[i])
+        ancestor_likes[i,:] *= np.dot(P, node_likes[i])
 
 
 @cython.boundscheck(False)

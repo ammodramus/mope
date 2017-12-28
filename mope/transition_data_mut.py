@@ -68,7 +68,7 @@ class TransitionData(object):
         if not self._memory:
             self._links[key] = dataset_name
         else:
-            self._links[key] = np.array(dataset[:,:].copy())
+            self._links[key] = np.asfortranarray(dataset[:,:].copy())
         self._gens.add(gen)
         self._us.add(u)
         
@@ -219,6 +219,7 @@ class TransitionData(object):
         weight22 = (t-t1)*(u-u1) / denom
 
         #distn = fQ11*weight11 + fQ21*weight21 + fQ12*weight12 + fQ22*weight22
+        # this doesn't require copies
         distn = _interp.bilinear_interpolate(
                 fQ11,
                 fQ12,
@@ -306,7 +307,8 @@ class TransitionData(object):
             dataset_name = self._links[key]
             transition_matrix = self._hdf5_file[dataset_name][:,:].copy()
         else:
-            transition_matrix = self._links[key].copy()
+            #transition_matrix = self._links[key].copy()
+            transition_matrix = self._links[key]
         return transition_matrix
 
     def get_identity_matrix(self, u):

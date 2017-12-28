@@ -4,6 +4,7 @@ cimport cython
 
 
 @cython.boundscheck(False)
+@cython.wraparound(False)
 def bilinear_interpolate(
         np.ndarray[np.float64_t, ndim = 2] fQ11,
         np.ndarray[np.float64_t, ndim = 2] fQ12,
@@ -19,7 +20,7 @@ def bilinear_interpolate(
     cdef int i, j
     cdef unsigned int ui, uj
 
-    cdef np.ndarray[np.float64_t, ndim = 2] distn = np.zeros((matdim, matdim))
+    cdef np.ndarray[np.float64_t, ndim = 2] distn = np.zeros((matdim, matdim), order = 'F')
     cdef double [:,:] distn_c = distn
 
     cdef double [:,:] fQ11_c = fQ11
@@ -27,8 +28,8 @@ def bilinear_interpolate(
     cdef double [:,:] fQ21_c = fQ21
     cdef double [:,:] fQ22_c = fQ22
 
-    for i in range(matdim):
-        for j in range(matdim):
+    for j in range(matdim):
+        for i in range(matdim):
             ui = <unsigned int>i
             uj = <unsigned int>j
             distn_c[ui,uj] = (fQ11_c[ui,uj]*weight11 + fQ21_c[ui,uj]*weight21 +

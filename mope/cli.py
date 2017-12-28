@@ -7,8 +7,6 @@ os.environ['MKL_NUM_THREADS'] = "1"
 
 import argparse
 from . import util as ut
-
-
 from .mcmc import run_mcmc
 from .simulate import run_simulate
 from .make_transition_matrices import _run_make_gauss
