@@ -306,7 +306,7 @@ class TransitionData(object):
             dataset_name = self._links[key]
             transition_matrix = self._hdf5_file[dataset_name][:,:].copy()
         else:
-            transition_matrix = self._links[key].copy()
+            transition_matrix = self._links[key]
         return transition_matrix
 
     def get_identity_matrix(self, u):
