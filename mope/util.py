@@ -14,6 +14,17 @@ from scipy.special import logit, expit
 import logging
 import resource
 
+
+class MemoryFilter(logging.Filter):
+    '''
+    for use in debugging memory
+    '''
+    def filter(self, record):
+        record.memusg = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss + 
+                resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss)
+        return True
+
+
 def get_debug_func(debug_opt):
     if debug_opt:
         def debug(s):
@@ -101,15 +112,3 @@ def mp_approx_fprime(x, inq, outq, eps = 1e-8):
         fprimes.append(fprime)
     return np.array(fprimes)
 
-class MemoryFilter(logging.Filter):
-    """
-    This is a filter which injects contextual information into the log.
-
-    Rather than use actual contextual information, we just use random
-    data in this demo.
-    """
-
-    def filter(self, record):
-        record.memusg = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss + 
-                resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss)
-        return True
