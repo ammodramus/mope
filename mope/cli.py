@@ -20,6 +20,7 @@ from .make_figures import _run_make_figures
 from .download_transitions import _run_download
 from .generate_transitions import _run_generate, _run_master, _run_gencmd
 from .acceptance import _run_acceptance
+from .add_detection_noise import _add_det_noise
 
 
 def main():
@@ -374,6 +375,25 @@ def main():
                    'defaults are recommended')
     parser_gauss.set_defaults(
             func = _run_make_gauss)
+
+    parser_noise = subparsers.add_parser('add-detection-noise', 
+            description='add false positives and false negatives to data',
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser_noise.add_argument('data', type = str,
+            help = 'data filename. requires data to include non-heteroplasmic '
+                   'sites.')
+    parser_noise.add_argument('--false-negative-rate',
+            help = 'false negative rate', type = float, default = 0.02)
+    parser_noise.add_argument('--false-positive-rate',
+            help = 'false positive rate', type = float, default = 1e-4)
+    parser_noise.add_argument('--min-freq', type = float, default = 0.01,
+            help = 'lower boundary of window of false positives and negatives')
+    parser_noise.add_argument('--max-freq', type = float, default = 0.02,
+            help = 'upper boundary of window of false positives and '
+                   'negatives. false negatives are taken from this window, '
+                   'and false positives are added to this frequency window.')
+    parser_noise.add_argument('--debug', action = 'store_true')
+    parser_noise.set_defaults(func = _add_det_noise)
 
 
     ############################################
