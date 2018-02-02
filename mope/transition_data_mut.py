@@ -12,7 +12,7 @@ import numpy.random as npr
 #import lru_cache as lru
 from . import _interp
 from lru import LRU
-from .make_transition_matrices import bin_matrix
+from .generate_transitions import bin_matrix
 
 def isclose(a,b, rtol = 1e-5):
     return np.abs(a-b) / np.abs(a) <= rtol
