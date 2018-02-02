@@ -88,9 +88,6 @@ def compute_bottleneck_transition_likelihood(
     P = bottlenecks.get_transition_probabilities_time_mutation(
             bottleneck_size,
             mut_rate)
-    if P is None:
-        raise ValueError('invalid bottleneck size: {} or mut rate: {}'.format(
-            bottleneck_size, mut_rate))
     for i in range(num_loci):
         ancestor_likes[i] *= np.dot(P, node_likes[i])
 

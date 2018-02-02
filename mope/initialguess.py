@@ -25,7 +25,7 @@ def estimate_initial_parameters(inf):
     init_branch_params = get_initial_params_fst_newick(inf)
     ess = 100
     heterozygosities = {}
-    if inf.data_are_counts:
+    if not inf.data_are_freqs:
         coverage = inf.data.loc[:, inf.coverage_names]
     else:
         coverage = None
@@ -177,7 +177,7 @@ def get_initial_params_fst_newick(inf):
     data = inf.data
     branch_names = inf.branch_names
     num_leaves = len(inf.leaf_names)
-    data_are_counts = inf.data_are_counts
+    data_are_counts = not inf.data_are_freqs
     leaf_names = inf.leaf_names
     branch_indices = inf.branch_indices
     leaves = []
@@ -188,7 +188,7 @@ def get_initial_params_fst_newick(inf):
     # leaf_names must be in post order
     leaf_data = inf.data.loc[:,inf.leaf_names]
 
-    if inf.data_are_counts:
+    if not inf.data_are_freqs:
         count_data = inf.data.loc[:, inf.coverage_names]
     else:
         count_data = None
@@ -308,7 +308,7 @@ def get_thetas(inf_data, heterozygosity_theta):
 
 
     freq_dat = inf_data.data.loc[:,inf_data.leaf_names].values
-    if inf_data.data_are_counts:
+    if not inf_data.data_are_freqs:
         count_dat = inf_data.data.loc[:,inf_data.coverage_names].values
         freq_dat = freq_dat / count_dat.astype(np.float64)
     is_het = (freq_dat == 0.0) | (freq_dat == 1.0)
@@ -403,7 +403,7 @@ def get_frac_stat_not_fixed(ab, freqs, breaks, N, target):
 
 def estimate_ab(inf_data):
     anc_het = is_anc_het(inf_data.data, inf_data.tree,
-            inf_data.data_are_counts)
+            not inf_data.data_are_freqs)
     num_anc_hets = anc_het.sum()
     frac_anc_het = num_anc_hets / inf_data.genome_size
     freqs = inf_data.transition_data.get_bin_frequencies()
@@ -424,7 +424,7 @@ def estimate_ab_2(inf_data,
     high.
     '''
     num_not_fixed = (~da.is_fixed(
-        inf_data.data, inf_data.leaf_names, inf_data.data_are_counts)).sum()
+        inf_data.data, inf_data.leaf_names, not inf_data.data_are_freqs)).sum()
     frac_not_fixed = num_not_fixed / inf_data.genome_size
     # make objective function that calculates ascertainment probability as a
     # function of ab

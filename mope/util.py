@@ -11,6 +11,19 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1' 
 import numpy as np
 from scipy.special import logit, expit
+import logging
+import resource
+
+
+class MemoryFilter(logging.Filter):
+    '''
+    for use in debugging memory
+    '''
+    def filter(self, record):
+        record.memusg = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss + 
+                resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss)
+        return True
+
 
 def get_debug_func(debug_opt):
     if debug_opt:
@@ -47,6 +60,13 @@ def probability(val):
 
 def nonneg_int(val):
     val = int(val)
+    if val < 0:
+        raise argparse.ArgumentTypeError(
+                "invalid non-negative integer: {}".format(val))
+    return val
+
+def nonneg_float(val):
+    val = float(val)
     if val < 0:
         raise argparse.ArgumentTypeError(
                 "invalid non-negative integer: {}".format(val))
@@ -91,3 +111,4 @@ def mp_approx_fprime(x, inq, outq, eps = 1e-8):
         fprime = old_div((fxps[i]-fx), eps)
         fprimes.append(fprime)
     return np.array(fprimes)
+

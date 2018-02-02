@@ -11,7 +11,7 @@ from . import util as ut
 
 from .mcmc import run_mcmc
 from .simulate import run_simulate
-from .make_transition_matrices import run_make_transition_matrices
+from .make_transition_matrices import _run_make_gauss
 from .make_bottleneck_matrices import run_make_bot
 from .get_ages_from_sims import run_ages
 from .count_heteroplasmies import count_hets
@@ -19,6 +19,8 @@ from .simulate_msprime import run_sim_ms
 from .make_figures import _run_make_figures
 from .download_transitions import _run_download
 from .generate_transitions import _run_generate, _run_master, _run_gencmd
+from .acceptance import _run_acceptance
+from .add_detection_noise import _add_det_noise
 
 
 def main():
@@ -87,24 +89,30 @@ def main():
     parser_run.add_argument('--min-het-freq', type = ut.probability,
             help = 'minimum heteroplasmy frequency considered [%(default)s]',
             default = 0.001)
-    parser_run.add_argument('--num-temperatures', default = 1,
+    parser_run.add_argument('--num-temperatures',
             type = ut.positive_int,
             help = 'number of temperatures for parallel-tempering MCMC. '
                    'specifying > 1 will enable paralle-tempering MCMC.')
+    parser_run.add_argument('--parallel-print-all', action = 'store_true',
+            help = 'if specifying --num-temperatures > 1, or '
+                   '--evidence-integral, use this option to print states and '
+                   'log-posterior values for all temperatures. otherwise just '
+                   'the chain with temperature 1 (the original posterior) is '
+                   'printed. ignored if not doing parallel-tempering MCMC')
     parser_run.add_argument('--evidence-integral', action = 'store_true')
     parser_run.add_argument('--prev-chain',
             help = 'tab-separated table of previous chain positions, with \
                     the first column giving the logposterior values')
-    parser_run.add_argument('--chain-alpha', '-a', type = float, default = 2.0,
+    parser_run.add_argument('--chain-alpha', '-a', type = float, default = 1.4,
             help = 'scale value for emcee ensemble chain proposals')
     parser_run.add_argument('--mpi', action = 'store_true', 
             help = 'use MPI for distribution of chain posterior calculations')
     parser_run.add_argument('--debug', action = 'store_true',
             help = 'print debug output')
-    parser_run.add_argument('--log-uniform-drift-priors',
+    parser_run.add_argument('--uniform-drift-priors',
             action = 'store_true',
-            help = 'use log-uniform prior distributions for drift parameters,'
-                   'rather than the default uniform priors')
+            help = 'use uniform prior distributions for drift parameters,'
+                   'rather than the default log-uniform priors')
     parser_run.add_argument('--inverse-bottleneck-priors',
             action = 'store_true',
             help = 'make the prior for bottlenecks reflect the drift caused '
@@ -112,6 +120,10 @@ def main():
                    'the bottleneck size')
     parser_run.add_argument('--just-prior-debug', action = 'store_true',
             help = 'let the posterior be the prior, for debugging')
+    parser_run.add_argument('--drift-limits', type = float, nargs = 2,
+            default = (1e-3, 3),
+            help = 'lower and upper length limits for drift variables, in '
+                   'natural scale')
     parser_run.set_defaults(func = run_mcmc)
 
 
@@ -150,40 +162,6 @@ def main():
             help = 'only output heteroplasmic sites')
     parser_sim.set_defaults(func = run_simulate)
 
-
-    #############################
-    # make transition matrices
-    #############################
-    parser_trans = subparsers.add_parser('make-drift')
-    parser_trans.add_argument('N', help='haploid population size',
-            type = ut.positive_int)
-    parser_trans.add_argument('s', help='selection coefficient',
-            type = ut.probability)
-    parser_trans.add_argument('u', help='mutation probability away from the '
-            'focal allele', type = ut.probability)
-    parser_trans.add_argument('v', help='mutation probability towards from '
-            'the focal allele', type = ut.probability)
-    parser_trans.add_argument('start', help='first generation to record '
-            '(generation 1 is first generation after the present '
-            'generation)', type = ut.nonneg_int)
-    parser_trans.add_argument('every', help='how often to record a generation',
-            type = ut.positive_int)
-    parser_trans.add_argument('end', help='final generation to record '
-            '(generation 1 is first generation after the present generation)',
-            type = ut.nonneg_int)
-    parser_trans.add_argument('output', help='filename for output hdf5 file. '
-            'overwrites if exists.')
-    parser_trans.add_argument('--breaks', help = 'uniform weight and '
-            'minimum bin size for binning of larger matrix into smaller '
-            'matrix', nargs = 2, metavar = ('uniform_weight', 'min_bin_size'),
-            type = float)
-    parser_trans.add_argument('--gens-file', '-g', type = str,
-            help = 'file containing generations to produce, one per line. '
-            'overrides start, every, and end.')
-    parser_trans.add_argument('--asymmetric', action = 'store_true',
-            help = 'bin the frequencies asymmetrically around the middle '
-                    'frequency')
-    parser_trans.set_defaults(func = run_make_transition_matrices)
 
     #############################
     # make bottleneck matrices
@@ -248,16 +226,17 @@ def main():
     parser_fig.add_argument('results', type = str, help = 'file containing results '
             'table from mope (can be gzipped)')
     parser_fig.add_argument('tree', help = 'tree file', type = str)
-    parser_fig.add_argument('--plot-traces', action = 'store_true',
-            help = 'also make traces plot')
+    parser_fig.add_argument('--plot', default = 'histograms',
+            choices = ('histograms', 'traces', 'both', 'corner'),
+            help = 'which plots to make (histograms, traces, both)')
     parser_fig.add_argument('--num-walkers', type = ut.positive_int,
             default = 500,
             help = 'number of chains in MCMC ensemble [%(default)s]')
     parser_fig.add_argument('--trace-burnin-steps', type = int, default = 500,
             help = 'number of burnin stems for trace plot [%(default)s]')
-    parser_fig.add_argument('--posterior-burnin-steps', type = ut.positive_int,
-            default = 2500,
-            help = 'number of burnin stems for posterior histograms '
+    parser_fig.add_argument('--posterior-burnin-frac', type = ut.probability,
+            default = 0.3,
+            help = 'fraction of data that is burnin, for posterior histograms '
                    '[%(default)s]')
     parser_fig.add_argument('--prefix', type = str,
             help = 'prefix for image names, if not provided then taken from '
@@ -341,6 +320,8 @@ def main():
             help = 'file containing generations or bottleneck sizes to '
                    'produce, one per line. ' 'overrides start, every, and '
                    'end.')
+    parser_gendrift.add_argument('--debug', action = 'store_true',
+            help = 'print debug messages')
     parser_gendrift.set_defaults(
             func = _run_generate)
 
@@ -354,9 +335,65 @@ def main():
                           'need to be run after completion of all others '
                           'in order to make the master files containing '
                           'all transitions.')
-                           
+    parser_gencmd.add_argument('--big', action = 'store_true',
+            help = 'use N = 10000 (vs 1000) for better small time-resolution')
+    parser_gencmd.add_argument('--gauss', action = 'store_true',
+            help = 'use Gaussian approximation for very small times, vs '
+                   'linearly interpolating from identity matrix (zero gen)')
     parser_gencmd.set_defaults(
             func = _run_gencmd)
+
+    parser_accept = subparsers.add_parser('acceptance',
+            description = 'get acceptance fractions')
+    parser_accept.add_argument('datafile',
+            help = 'data file produced with mope run')
+    parser_accept.add_argument('numwalkers',
+            help = 'number of walkers (chains) in mope run',
+            type = int)
+    parser_accept.add_argument('--burnin-steps', '-b',
+            help = 'number of burnin steps', default = 10000)
+    parser_accept.add_argument('--all', '-a',
+            help = 'print acceptance for each chain / walker individually')
+    parser_accept.set_defaults(
+            func = _run_acceptance)
+
+    parser_gauss = subparsers.add_parser('make-gauss',
+            description = 'make Gaussian allele frequency transition matrices')
+    parser_gauss.add_argument('gensfile',
+            help = 'filename containing list of generations')
+    parser_gauss.add_argument('N', help = 'population size',
+            type = ut.positive_int)
+    parser_gauss.add_argument('uv', help = 'symmetric mutation parameter',
+            type = ut.probability)
+    parser_gauss.add_argument('outfile', help = 'output filename')
+    parser_gauss.add_argument('--unif-weight', type = ut.probability,
+            default = 0.5)
+    parser_gauss.add_argument('--min-bin-size', type = ut.positive_float,
+            default = 0.01,
+            help = 'unifweight and minbinsize are two parameters to control '
+                   'the heuristic used for deciding where to bin matrices. '
+                   'defaults are recommended')
+    parser_gauss.set_defaults(
+            func = _run_make_gauss)
+
+    parser_noise = subparsers.add_parser('add-detection-noise', 
+            description='add false positives and false negatives to data',
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser_noise.add_argument('data', type = str,
+            help = 'data filename. requires data to include non-heteroplasmic '
+                   'sites.')
+    parser_noise.add_argument('--false-negative-rate',
+            help = 'false negative rate', type = float, default = 0.02)
+    parser_noise.add_argument('--false-positive-rate',
+            help = 'false positive rate', type = float, default = 1e-4)
+    parser_noise.add_argument('--min-freq', type = float, default = 0.01,
+            help = 'lower boundary of window of false positives and negatives')
+    parser_noise.add_argument('--max-freq', type = float, default = 0.02,
+            help = 'upper boundary of window of false positives and '
+                   'negatives. false negatives are taken from this window, '
+                   'and false positives are added to this frequency window.')
+    parser_noise.add_argument('--debug', action = 'store_true')
+    parser_noise.set_defaults(func = _add_det_noise)
 
 
     ############################################

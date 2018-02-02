@@ -99,8 +99,21 @@ def make_figures(
         results, tree, num_walkers, ages_file, prefix = None,
         img_format = 'png', dpi = 300, colors_and_types = None,
         length_prior_limits = (-6,0.477), mutation_prior_limits = (-8,-1),
-        true_parameters = None, do_traces = False, trace_burnin_steps = 500,
-        posterior_burnin_steps = 2500, add_title = True, log_uniform_drift_priors = False):
+        true_parameters = None, which_plot = 'histograms',
+        trace_burnin_steps = 500, posterior_burnin_frac = 0.3,
+        add_title = True, log_uniform_drift_priors = False):
+
+    do_histograms = False
+    if which_plot in ('histograms', 'both'):
+        do_histograms = True
+
+    do_traces = False
+    if which_plot in ('traces', 'both'):
+        do_traces = True
+
+    do_corner = False
+    if which_plot == 'corner':
+        do_corner = True
 
     validparamtypes = ('fixed', 'rate', 'bottleneck')
 
@@ -115,32 +128,23 @@ def make_figures(
     trace_file = 'traces_' + prefix + '.' + img_format
     posterior_histograms_file = ('posterior_histograms_' + prefix + '.' +
             img_format)
+    corner_file = ('corner_' + prefix + '.' + img_format)
 
     # loading colors and (drift) parameter types
-    if colors_and_types is not None:
-        colors = OrderedDict()
-        types = OrderedDict()
-        #priortypes = OrderedDict()
-        with open(colors_and_types) as inp:
-            for line in inp:
-                spline = line.split()
-                param, color, paramtype = spline[:3]
-                if paramtype not in validparamtypes:
-                    raise ValueError('invalid parameter type: must be "fixed", '
-                                     '"rate", or "bottleneck"')
-                colors[param] = color
-                types[param] = paramtype
-                #try:
-                #    priortype1, priortype2 = spline[3:5]
-                #    priortypes[param] = (priortype1, priortype2)
-                #except ValueError:
-                #    continue
-        #priors_found = (len(priortypes) > 0)
-        #validpriortypes = ('loguniform', 'uniform')
-        #for params in priortypes.keys():
-        #    if ptype not in validpriortypes:
-        #        raise ValueError('Invalid prior type: {}. must be "uniform" or '
-        #                         '"loguniform".'.format(ptype))
+    if do_histograms:
+        if colors_and_types is not None:
+            colors = OrderedDict()
+            types = OrderedDict()
+            #priortypes = OrderedDict()
+            with open(colors_and_types) as inp:
+                for line in inp:
+                    spline = line.split()
+                    param, color, paramtype = spline[:3]
+                    if paramtype not in validparamtypes:
+                        raise ValueError('invalid parameter type: must be "fixed", '
+                                         '"rate", or "bottleneck"')
+                    colors[param] = color
+                    types[param] = paramtype
 
     ###################
     # loading the data
@@ -178,11 +182,12 @@ def make_figures(
             num_walkers)
 
     # getting (optional) length prior limits
-    if length_prior_limits is not None:
-        lower_l, upper_l = length_prior_limits
-        lower_l = 10**float(lower_l)
-        upper_l = 10**float(upper_l)
-        length_limits = get_len_limits(tree, ages_file, lower_l, upper_l)
+    if do_histograms:
+        if length_prior_limits is not None:
+            lower_l, upper_l = length_prior_limits
+            lower_l = 10**float(lower_l)
+            upper_l = 10**float(upper_l)
+            length_limits = get_len_limits(tree, ages_file, lower_l, upper_l)
 
     # getting true parameters
     if true_parameters is not None:
@@ -192,7 +197,6 @@ def make_figures(
         true_params += [true_mrs[v] for v in varnames]
         true_params += [true_ab, true_ppoly]
 
-    # do_traces
     if do_traces:
         f, axes = plt.subplots(
                 dat_m1.shape[1], 1, figsize = (10, 2.5*dat_m1.shape[1]))
@@ -220,7 +224,7 @@ def make_figures(
         plt.savefig(trace_file)
 
     # posterior histograms
-    if not do_traces:
+    if do_histograms:
         if colors_and_types is None:
             final = False  # not a 'final', publication plot
             num_plots = dat_m1.shape[1]
@@ -237,16 +241,10 @@ def make_figures(
             mpl.rcParams.update({'font.size': 5})
             mpl.rcParams.update({'axes.labelsize': 'small'})
 
-        burnin_steps = posterior_burnin_steps
-        burnin = num_walkers * burnin_steps
-        if burnin > dat_m1.shape[0]:
-            burnin = 0
+        burnin = int(np.floor(dat_m1.shape[0] * posterior_burnin_frac))
+        dat_burn = dat_m1.iloc[burnin:,:]
         plotted = np.tile([False], nrows*ncols)
         plotted.shape = (nrows,ncols)
-
-        if burnin > dat_m1.shape[0]:
-            raise ValueError('burnin exceeds number of samples')
-
 
         if final:
             if not add_title:
@@ -275,7 +273,7 @@ def make_figures(
                 if length_prior_limits is not None:
                     minv, maxv = length_limits[var]
                 else:
-                    minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
+                    minv, maxv = dat_burn[col].min(), dat_burn[col].max()
 
                 lower = np.floor(minv)
                 upper = np.ceil(maxv)
@@ -292,7 +290,7 @@ def make_figures(
                         y = 10**x * np.log(10) / (10**maxv - 10**minv)
                     ax.fill_between(x, 0, y, alpha = 0.3, color = 'gray')
 
-                ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch,
+                ax.hist(dat_burn[col], bins, color = c, hatch = hatch,
                         normed = True)
                 ax.set_xticks(ticks)
                 #ax.set_xscale('log')
@@ -305,7 +303,7 @@ def make_figures(
                 ax = axes[1][counter]
                 col = var + '_m'
                 if mutation_prior_limits is None:
-                    minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
+                    minv, maxv = dat_burn[col].min(), dat_burn[col].max()
                 else:
                     minv, maxv = mutation_prior_limits
                     minv = float(minv)
@@ -322,7 +320,7 @@ def make_figures(
                     y = 1.0/(maxv-minv)
                     ax.fill_between(x, 0, y, alpha = 0.3, color = 'gray')
 
-                ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch,
+                ax.hist(dat_burn[col], bins, color = c, hatch = hatch,
                         normed = True)
                 ax.set_xticks(ticks)
                 ax.get_yaxis().set_visible(False)
@@ -343,7 +341,7 @@ def make_figures(
                         break
                     if true_parameters is not None and counter > 0:
                         true_p = true_params[counter-1]
-                    minv, maxv = dat_m1[col][burnin:].min(), dat_m1[col][burnin:].max()
+                    minv, maxv = dat_burn[col].min(), dat_burn[col].max()
                     if colors_and_types is not None:
                         var = col[:-2]
                         try:
@@ -360,21 +358,21 @@ def make_figures(
                         lower = np.floor(np.log10(minv))
                         upper = np.ceil(np.log10(maxv))
                         bins = np.logspace(lower, upper, 50)
-                        ax.hist(dat_m1[col][burnin:], bins, color = c, hatch = hatch)
+                        ax.hist(dat_burn[col], bins, color = c, hatch = hatch)
                         ax.set_xscale('log')
                     else:
                         if col != 'loglike':
                             lower = np.floor(minv)
                             upper = np.ceil(maxv)
                             bins = np.logspace(lower, upper, 50)
-                            datp = 10**dat_m1[col].iloc[burnin:]
+                            datp = 10**dat_burn[col]
                             ax.hist(datp, bins, color = 'gray')
                             ax.set_xscale('log')
                         else:
                             lower = np.floor(minv)
                             upper = np.ceil(maxv)
                             bins = np.linspace(lower, upper, 50)
-                            ax.hist(dat_m1[col][burnin:], bins, color = 'gray')
+                            ax.hist(dat_burn[col], bins, color = 'gray')
                     if true_parameters is not None and counter > 0:
                         ax.axvline(true_p)
                     ax.set_title(col)
@@ -391,6 +389,32 @@ def make_figures(
         f.tight_layout()
         plt.savefig(posterior_histograms_file, dpi = dpi)
 
+    if do_corner:
+        try:
+            import corner
+        except ImportError:
+            err = 'plotting corner plots requires installing corner'
+            raise ImportError(err)
+
+        try:
+            import numpy.random as npr
+        except ImportError:
+            err = 'corner plots require numpy'
+            raise ImportError(err)
+
+
+        burnin = int(posterior_burnin_frac * dat_m1.shape[0] + 0.5)
+        dat_burn = dat_m1.iloc[burnin:,:]
+        sample_size = min(500000, dat_burn.shape[0])
+        idxs = np.sort(npr.choice(dat_burn.shape[0], size = sample_size,
+            replace = False))
+        dat_samp = dat_burn.iloc[idxs,:]
+        corner.corner(dat_samp)
+        plt.savefig(corner_file)
+
+
+
+
 
 def _run_make_figures(args):
 
@@ -406,9 +430,9 @@ def _run_make_figures(args):
             length_prior_limits = args.length_prior_limits,
             mutation_prior_limits = args.mutation_prior_limits,
             true_parameters = args.true_parameters,
-            do_traces = args.plot_traces,
+            which_plot = args.plot,
             trace_burnin_steps = args.trace_burnin_steps,
-            posterior_burnin_steps = args.posterior_burnin_steps,
+            posterior_burnin_frac = args.posterior_burnin_frac,
             add_title = args.add_title,
             log_uniform_drift_priors = args.log_uniform_drift_priors)
 

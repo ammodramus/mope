@@ -126,13 +126,26 @@ def _get_valid_start_from(sf_str):
 
 class Inference(object):
     def __init__(self,
-            data_file, transitions_file, tree_file, true_parameters,
-            start_from, data_are_freqs, genome_size, 
-            ages_data_fn, bottleneck_file = None, poisson_like_penalty = 1.0,
-            min_freq = 0.001, transition_copy = None, transition_buf = None,
-            transition_shape = None, print_debug = False,
-            log_unif_drift = False, inverse_bot_priors = False,
-            post_is_prior = False):
+            data_file,
+            transitions_file,
+            tree_file,
+            true_parameters,
+            start_from,
+            data_are_freqs,
+            genome_size,
+            ages_data_fn,
+            bottleneck_file = None,
+            poisson_like_penalty = 1.0,
+            min_freq = 0.001,
+            transition_copy = None,
+            transition_buf = None,
+            transition_shape = None,
+            print_debug = False,
+            log_unif_drift = False,
+            inverse_bot_priors = False,
+            post_is_prior = False,
+            lower_drift_limit = 1e-3,
+            upper_drift_limit = 3):
 
         self.asc_tree = None
         self.asc_num_loci = None
@@ -147,20 +160,26 @@ class Inference(object):
         self.transition_data = None
         self.bottleneck_data = None
 
-        self.data_are_counts = (not data_are_freqs)
+        self.data_are_freqs = data_are_freqs
         self.genome_size = genome_size
         self.tree_file = tree_file
         self.transitions_file = transitions_file
         self.data_file = data_file
         self.start_from = _get_valid_start_from(start_from)
+        self.init_true_params = true_parameters
         self.bottleneck_file = bottleneck_file
         self.poisson_like_penalty = poisson_like_penalty
         self.min_freq = min_freq
+        self.transition_copy = transition_copy
+        self.transition_buf = transition_buf
+        self.transition_shape = transition_shape
         self.ages_data_fn = ages_data_fn
         self.print_debug = print_debug
         self.log_unif_drift = log_unif_drift
         self.inverse_bot_priors = inverse_bot_priors
         self.post_is_prior = post_is_prior
+        self.lower_drift_limit = lower_drift_limit,
+        self.upper_drift_limit = upper_drift_limit
 
         ############################################################
         # read in data
@@ -253,10 +272,10 @@ class Inference(object):
         self.multipliernames = list(multipliernames_set)
         self.varnames = sorted(list(varnames_set))
 
-        if self.data_are_counts:
-            self.coverage_names = [el + '_n' for el in self.leaf_names]
-        else:
+        if self.data_are_freqs:
             self.coverage_names = None
+        else:
+            self.coverage_names = [el + '_n' for el in self.leaf_names]
 
         # number of branches having a length
         self.num_branches = len(self.branch_names)
@@ -317,7 +336,7 @@ class Inference(object):
         #####################################################
 
         # round down if allele frequencies are taken as true
-        if not self.data_are_counts:
+        if self.data_are_freqs:
             for ln in self.leaf_names:
                 needs_rounding0 = (self.data[ln] < self.min_freq)
                 needs_rounding1 = (self.data[ln] > 1-self.min_freq)
@@ -330,7 +349,7 @@ class Inference(object):
         # MLE is less than 0.005? Could round down to zero, essentially
         # discarding those. That is a good first thing to try.
 
-        else:   # self.data_are_counts == True
+        else:   # self.data_are_freqs == False
             for ln, nn in zip(self.leaf_names, self.coverage_names):
                 freqs = self.data[ln].astype(np.float64)/self.data[nn]
                 needs_rounding0 = (freqs < self.min_freq)
@@ -343,7 +362,7 @@ class Inference(object):
         # remove any fixed loci
         ##################################################### 
         fixed = da.is_fixed(self.data, self.leaf_names,
-                self.data_are_counts)
+                not self.data_are_freqs)
         self.data = self.data.loc[~fixed,:]
         self.data = self.data.reset_index(drop = True)
 
@@ -387,7 +406,7 @@ class Inference(object):
         #####################################################
         # leaf allele frequency likelihoods
         #####################################################
-        if self.data_are_counts:
+        if not self.data_are_freqs:
             n_names = self.coverage_names
             count_dat = self.data.loc[:,self.leaf_names].values.astype(
                     np.float64)
@@ -423,6 +442,7 @@ class Inference(object):
         mut_names = [el+'_m' for el in self.varnames]
         header_list = (['ll'] + length_names + mut_names +
                 ['log10ab', 'log10polyprob'])
+        self.header_list = header_list
         self.header = '\t'.join(header_list)
 
 
@@ -434,12 +454,16 @@ class Inference(object):
         ndim = 2*num_varnames + 2
 
         # (hard-coded bounds)
-        min_allowed_len = max(self.transition_data.get_min_coal_time(), 1e-6)
-        max_allowed_len = 3
+        min_allowed_len = max(self.transition_data.get_min_coal_time(),
+                lower_drift_limit)
+        max_allowed_len = min(self.transition_data.get_max_coal_time(),
+                upper_drift_limit)
         min_allowed_bottleneck = 2
         max_allowed_bottleneck = 500
-        min_mut = -8
-        max_mut = -1
+        min_mut = max(-8,
+                np.log10(self.transition_data.get_min_mutation_rate()))
+        max_mut = min(-1,
+                np.log10(self.transition_data.get_max_mutation_rate()))
         min_ab = -9
         max_ab = 0
         min_polyprob = -9
@@ -454,6 +478,7 @@ class Inference(object):
         lower_len[is_bottleneck_arr] = min_allowed_bottleneck
         upper_len[is_bottleneck_arr] = max_allowed_bottleneck
 
+        # convert len limits to log10... above they should be natural scale
         lower_len = np.log10(lower_len)
         upper_len = np.log10(upper_len)
 
@@ -535,9 +560,10 @@ class Inference(object):
                 self.asc_ages['count'].values).sum()
         ll -= log_asc_prob
 
-        logmeanascprob, logpoissonlike = self.poisson_log_like(
-                log_asc_probs)
-        ll += logpoissonlike * self.poisson_like_penalty
+        if self.poisson_like_penalty > 0:
+            logmeanascprob, logpoissonlike = self.poisson_log_like(
+                    log_asc_probs)
+            ll += logpoissonlike * self.poisson_like_penalty
         if self.print_debug:
             print('@@ {:15}'.format(str(ll)), logmeanascprob, ' ', end=' ')
             _util.print_csv_line(varparams)
@@ -659,9 +685,10 @@ class Inference(object):
                 pv[~self.is_bottleneck_arr] = x[~self.is_bottleneck_arr]
                 logp = np.sum(pv)
             else:
-                # if D ~ Unif, the density of log D is \propto e^x and thus
-                # the log-density of log D is \propto x.
-                logp = np.sum(x[:num_varnames])
+                # if D ~ Unif, the density of log_10 D is \propto 10^x and thus
+                # the log-density of log_10 D is \propto log(10) * x.
+                # log(10) = 2.3025850929940459
+                logp = 2.3025850929940459*np.sum(x[:num_varnames])
         return logp
 
 
@@ -746,27 +773,10 @@ class Inference(object):
 
     def _get_pool(self, num_processes, mpi):
 
-        def initializer(
-            data_file, transitions_file, tree_file, true_parameters,
-            start_from, data_are_freqs, genome_size,
-            bottleneck_file, min_freq, ages_data_fn,
-            poisson_like_penalty, print_debug, log_unif_drift):
+        def initializer(*args):
 
             global inf_data
-            inf_data = Inference(
-                    data_file = data_file,
-                    transitions_file = transitions_file,
-                    tree_file = tree_file,
-                    true_parameters = true_parameters,
-                    start_from = start_from,
-                    data_are_freqs = data_are_freqs,
-                    genome_size = genome_size,
-                    bottleneck_file = bottleneck_file,
-                    min_freq = min_freq,
-                    ages_data_fn = ages_data_fn,
-                    poisson_like_penalty = poisson_like_penalty,
-                    print_debug = print_debug,
-                    log_unif_drift = log_unif_drift)
+            inf_data = Inference(*args)
 
         # MPI takes priority
         if mpi:
@@ -777,22 +787,32 @@ class Inference(object):
                 sys.exit(0)
 
         elif num_processes > 1:
+            init_args = [
+                    # order important here because of *args above
+                    self.data_file,
+                    self.transitions_file,
+                    self.tree_file,
+                    self.init_true_params,
+                    self.start_from,
+                    self.data_are_freqs,
+                    self.genome_size,
+                    self.ages_data_fn,
+                    self.bottleneck_file,
+                    self.poisson_like_penalty,
+                    self.min_freq,
+                    self.transition_copy,
+                    self.transition_buf,
+                    self.transition_shape,
+                    self.print_debug,
+                    self.log_unif_drift,
+                    self.inverse_bot_priors,
+                    self.post_is_prior,
+                    self.lower_drift_limit,
+                    self.upper_drift_limit
+                    ]
+
             pool = mp.Pool(num_processes, initializer = initializer,
-                    initargs = [
-                        self.data_file,
-                        self.transitions_file,
-                        self.tree_file,
-                        self.true_params,
-                        self.start_from,
-                        not self.data_are_counts,
-                        self.genome_size,
-                        self.bottleneck_file,
-                        self.min_freq,
-                        self.ages_data_fn,
-                        self.poisson_like_penalty,
-                        self.print_debug,
-                        self.log_unif_drift
-                        ])
+                    initargs = init_args)
 
         else:
             pool = None
@@ -808,13 +828,14 @@ class Inference(object):
 
         if prev_chain is not None:
             # start from previous state
-            prev_chains = pd.read_csv(prev_chain, sep = '\t', header = None)
+            try:
+                prev_chains = pd.read_csv(prev_chain, sep = '\t', header = None, dtype = np.float64)
+            except:
+                prev_chains = pd.read_csv(prev_chain, sep = '\t', header = 0, dtype = np.float64, comment = '#')
             prev_chains = prev_chains.iloc[-num_walkers:,1:]
             vnames = self.varnames
             prev_chains.columns = ([el+'_l' for el in vnames] +
                     [el+'_m' for el in vnames] + ['root', 'ppoly'])
-            prev_chains.loc[:,prev_chains.columns.str.endswith('_l')] = (
-                    prev_chains.loc[:,prev_chains.columns.str.endswith('_l')].abs())        
             init_pos = prev_chains.values
         elif start_from == 'map':
             # start from MAP
@@ -912,12 +933,14 @@ class Inference(object):
             self.transition_data.clear_cache()
         if mpi:
             pool.close()
+        print('# mean acceptance across chains:', np.mean(sampler.acceptance_fraction))
+
 
     def run_parallel_temper_mcmc(
             self, num_iter, num_walkers, prev_chain, start_from,
-            init_norm_sd, pool = None, mpi = False, ntemps = None,
+            init_norm_sd, pool = None, mpi = False,
             do_evidence = False, num_processes = 1, init_pos = None,
-            num_temperatures = 5):
+            ntemps = None, parallel_print_all = False, chain_alpha = 2.0):
 
         '''
         not compatible with make_figures
@@ -931,11 +954,8 @@ class Inference(object):
         ##############################################################
         # use parallel-tempering
         ##############################################################
-        if ntemps is None:
-            if do_evidence:
-                ntemps = 25
-            else:  # regular parallel tempering MCMC
-                ntemps = 5
+        if do_evidence:
+            ntemps = 10
 
         if pool is None and (num_processes > 1 or mpi):
             pool = self._get_pool(num_processes, mpi)
@@ -946,9 +966,21 @@ class Inference(object):
 
 
         ndim = 2*len(self.varnames)+2
-        sampler = emcee.PTSampler(ntemps, nwalkers = num_walkers,
-                dim = ndim, logl = logl, logp = logp,
-                threads = num_processes, pool = pool)
+        max_temp = np.float('inf') if do_evidence else None
+        try:
+            import ptemcee
+        except ImportError:
+            raise ImportError("parallel-tempering MCMC requires ptemcee")
+        sampler = ptemcee.Sampler(
+                nwalkers = num_walkers,
+                dim = ndim,
+                logl = logl,
+                logp = logp,
+                ntemps = ntemps,
+                threads = num_processes,
+                pool = pool,
+                a = chain_alpha,
+                Tmax = max_temp)
 
         print('# betas:')
         for beta in sampler.betas:
@@ -959,13 +991,20 @@ class Inference(object):
         for i in range(ntemps):
             init_pos_new[i,:,:] = init_pos.copy()
 
+        if parallel_print_all:
+            self.header = '\t'.join(['chain', 'lnpost'] + self.header_list)
+        print(self.header)
         for p, lnprob, lnlike in sampler.sample(init_pos_new,
                 iterations=num_iter, storechain = True):
-            _util.print_parallel_csv_lines(p, lnprob)
+            if parallel_print_all:
+                _util.print_parallel_csv_lines(p, lnprob, lnlike)
+            else:
+                # first chain is chain with temperature 1
+                _util.print_csv_lines(p[0], lnprob[0])
 
         if do_evidence:
             for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
-                evidence = sampler.thermodynamic_integration_log_evidence(
+                evidence = sampler.log_evidence_estimate(
                         fburnin=fburnin)
                 print('# evidence (fburnin = {}):'.format(fburnin), evidence)
 

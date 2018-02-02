@@ -86,7 +86,8 @@ class TransitionData(object):
             self._frequencies = mf.attrs['frequencies']
             self._breaks = mf.attrs['breaks']
         self._sorted_us = np.array(sorted(list(self._us)), dtype = np.float64)
-        self._sorted_gens = np.array(sorted(list(self._gens)), dtype = np.int)
+        #self._sorted_gens = np.array(sorted(list(self._gens)), dtype = np.int)
+        self._sorted_gens = np.array(sorted(list(self._gens)), dtype = np.float)
         # check missing members of grid
         missings = []
         for g in self._sorted_gens:
@@ -149,12 +150,18 @@ class TransitionData(object):
                       population size
         '''
 
-        if (scaled_time < self._min_coal_time or
-                scaled_time > self._max_coal_time):
-            return None
-        if (scaled_mut < self._min_mutation_rate or
-                scaled_mut > self._max_mutation_rate):
-            return None
+        if scaled_time < self._min_coal_time:
+            raise ValueError('drift time too small: {} < {} (min)'.format(
+                scaled_time, self._min_coal_time))
+        if scaled_time > self._max_coal_time:
+            raise ValueError('drift time too large: {} > {} (max)'.format(
+                scaled_time, self._max_coal_time))
+        if scaled_mut < self._min_mutation_rate:
+            raise ValueError('mutation rate too small: {} < {} (min)'.format(
+                scaled_mut, self._min_mutation_rate))
+        if scaled_mut > self._max_mutation_rate:
+            raise ValueError('mutation rate too large: {} > {} (max)'.format(
+                scaled_mut, self._max_mutation_rate))
 
         '''
         searchsorted behavior:
@@ -299,7 +306,7 @@ class TransitionData(object):
             dataset_name = self._links[key]
             transition_matrix = self._hdf5_file[dataset_name][:,:].copy()
         else:
-            transition_matrix = self._links[key].copy()
+            transition_matrix = self._links[key]
         return transition_matrix
 
     def get_identity_matrix(self, u):

@@ -114,12 +114,18 @@ class TransitionDataBottleneck(object):
                       population size
         '''
 
-        if (nb < self._min_bottleneck_size or
-                nb > self._max_bottleneck_size):
-            return None
-        if (scaled_mut < self._min_mutation_rate or
-                scaled_mut > self._max_mutation_rate):
-            return None
+        if nb < self._min_bottleneck_size:
+            raise ValueError('bottleneck size too small: {} < {} (min)'.format(
+                nb, self._min_bottleneck_size))
+        if nb > self._max_bottleneck_size:
+            raise ValueError('bottleneck size too large: {} > {} (max)'.format(
+                nb, self._max_bottleneck_size))
+        if scaled_mut < self._min_mutation_rate:
+            raise ValueError('mutation rate too small: {} < {} (min)'.format(
+                scaled_mut, self._min_mutation_rate))
+        if scaled_mut > self._max_mutation_rate:
+            raise ValueError('mutation rate too large: {} > {} (max)'.format(
+                scaled_mut, self._max_mutation_rate))
 
         '''
         searchsorted behavior:
