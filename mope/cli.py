@@ -109,10 +109,10 @@ def main():
             help = 'use MPI for distribution of chain posterior calculations')
     parser_run.add_argument('--debug', action = 'store_true',
             help = 'print debug output')
-    parser_run.add_argument('--log-uniform-drift-priors',
+    parser_run.add_argument('--uniform-drift-priors',
             action = 'store_true',
-            help = 'use log-uniform prior distributions for drift parameters,'
-                   'rather than the default uniform priors')
+            help = 'use uniform prior distributions for drift parameters,'
+                   'rather than the default log-uniform priors')
     parser_run.add_argument('--inverse-bottleneck-priors',
             action = 'store_true',
             help = 'make the prior for bottlenecks reflect the drift caused '

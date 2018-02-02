@@ -76,7 +76,7 @@ def run_mcmc(args):
             ages_data_fn = args.agesdata,
             poisson_like_penalty = args.asc_prob_penalty,
             print_debug = args.debug,
-            log_unif_drift = args.log_uniform_drift_priors,
+            log_unif_drift = not args.uniform_drift_priors,
             inverse_bot_priors = args.inverse_bottleneck_priors,
             post_is_prior = args.just_prior_debug,
             lower_drift_limit = lower_dr,
