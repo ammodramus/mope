@@ -11,7 +11,6 @@ from . import util as ut
 
 from .mcmc import run_mcmc
 from .simulate import run_simulate
-from .make_transition_matrices import _run_make_gauss
 from .make_bottleneck_matrices import run_make_bot
 from .get_ages_from_sims import run_ages
 from .count_heteroplasmies import count_hets
@@ -19,6 +18,7 @@ from .simulate_msprime import run_sim_ms
 from .make_figures import _run_make_figures
 from .download_transitions import _run_download
 from .generate_transitions import _run_generate, _run_master, _run_gencmd
+from .generate_transitions import _run_make_gauss
 from .acceptance import _run_acceptance
 from .add_detection_noise import _add_det_noise
 

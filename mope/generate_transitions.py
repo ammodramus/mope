@@ -448,6 +448,32 @@ def _run_master(args):
     mf.attrs['cmd'] = ' '.join(sys.argv)
     mf.close()
 
+
+def _run_make_gauss(args):
+    with h5py.File(args.outfile, 'w') as h5file:
+
+        h5file.attrs['N'] = args.N
+        breaks = get_breaks_symmetric(args.N, args.unif_weight,
+                args.min_bin_size)
+        h5file.attrs['breaks'] = breaks
+        h5file.attrs['min_bin_size'] = args.min_bin_size
+        h5file.attrs['uniform_weight'] = args.unif_weight
+        frequencies = get_binned_frequencies(args.N, breaks)
+        h5file.attrs['frequencies'] = frequencies
+
+        s = 0  # no selection
+
+        dataset_idx = 0
+        with open(args.gensfile, 'r') as genin:
+            for line in genin:
+                t = ut.nonneg_float(line.strip())
+                P = get_gauss_matrix_with_breaks(t, args.uv, args.N, breaks)
+                P[P<0] = 0  # just in case, for small probabilities
+                gen = args.N*t  # floating-point generation
+                add_gauss_matrix(h5file, P, args.N, s, args.uv, args.uv,
+                        gen, dataset_idx)
+                dataset_idx += 1
+
 def _run_gencmd(args):
 
     if args.big:
