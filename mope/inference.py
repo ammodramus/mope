@@ -188,7 +188,7 @@ class Inference(object):
         self.plain_trees = []
         self.trees = []
         self.ages = []
-        for dat_fn, tree_fn, ages_fn in zip(self.data_files, self.tree_files, self.age_files):
+        for dat_fn, tree_fn in zip(self.data_files, self.tree_files):
             datp = pd.read_csv(dat_fn, sep = '\t', comment = '#',
                 na_values = ['NA'], header = 0)
             for col in datp.columns:
@@ -217,135 +217,107 @@ class Inference(object):
         # a list of all of the nodes having a length
         self.branch_names = []
         # a list of the unique multiplier names
-        self.multipliernames = []
-        # a list of the varnames
-        self.varnames = []
-        # self.multiplierdict[nodename] gives the name of the multiplier for
-        # node named nodename
-        self.multiplierdict = {}
-        # a dict of varnames for each node
-        self.varnamedict = {}
+        #self.multipliernames = []   # later
+        # self.multiplierdict[treeidx][nodename] gives the name of the
+        # multiplier for node named nodename in tree indexed treeidx
+        self.multiplierdict = []
+        # a dict of varnames for each node, for each tree
+        self.varnamedict = []
         # a dict to determine whether each varname is a bottleneck
         self.is_bottleneck = {}
 
-        multipliernames_set = set([])
+
+        ######################################################################
+        # Processing trees for multipliers, var names, and branch names.
+        # Going through eash tree, collect branch names, leaf names, and
+        # multiplier dict for each tree.
+
+        # Each tree will have its own branch names, leaf names, and
+        # multiplierdict (indicates whether or not a node is to be multiplied
+        # by some multiplier). Varnames will be added to a single set shared
+        # across the different trees. Is_bottleneck must be the same across all
+        # trees.
+
+        ######################################################################
         varnames_set = set([])
-        leafnames_set = set([])
-        branchnames_set = set([])
+        multipliernames = []
         for pt in self.plain_trees:
-            tree_node_names = set([])
+            self.branch_names += [[]]
+            self.leaf_names += [[]]
+            self.multiplierdict += [{}]
+            self.varnamedict += [{}]
+            multipliernames += [set([])]
             for node in pt.walk(mode='postorder'):
                 if node == pt:
                     continue
                 if node.is_leaf:
-                    leafnames_set.add(node.name)
-                self.branch_names.append(node.name)
+                    self.leaf_names[-1].append(node.name)
+                self.branch_names[-1].append(node.name)
+                if node.name in self.multiplierdict[-1]:
+                    raise ValueError('node names must be unique in each tree')
+                self.multiplierdict[-1][node.name] = node.multipliername
                 if node.multipliername is not None:
-                    multipliernames_set.add(node.multipliername)
-                    # check to see if node.name already has a multiplier from another tree. if so, see that it's the same
-                    if node.name in self.multiplierdict:
-                        if self.multiplierdict[node.name] != node.multipliername:
-                            # must this be true? what about the approach of
-                            # redoing this whole process (more or less) once
-                            # for each input file, and then looking across
-                            # input files where it's necessary to do so
-                            import pdb; pdb.set_trace()
-                            raise ValueError('nodes of the same name in different trees must have the same multiplier variable')
-                    else:
-                        self.multiplierdict[node.name] = node.multipliername
-                else:
-                    if node.name in self.multiplierdict and self.multiplierdict[node.name] is not None:
-                        raise ValueError('nodes with the same name must have the same multiplier in every tree')
-                    self.multiplierdict[node.name] = None
+                    multipliernames[-1].add(node.multipliername)
                 varnames_set.add(node.varname)
-                if node.name in tree_node_names:
-                    raise ValueError(
-                    'the name of each node in the tree must be unique')
-                tree_node_names.add(node.name)
-                if node.name in self.varnamedict:
-                    if self.varnamedict[node.name] != node.varname:
-                        raise ValueError('nodes of the same name must have the same variable name across all trees')
-                self.varnamedict[node.name] = node.varname
+                self.varnamedict[-1][node.name] = node.varname
                 if node.varname in self.is_bottleneck:
                     if self.is_bottleneck[node.varname] != node.is_bottleneck:
                         raise ValueError('nodes with the same variable name must have the same status as bottlenecks in all trees')
-                if node.is_bottleneck:
-                    self.is_bottleneck[node.varname] = True
-                else:
-                    self.is_bottleneck[node.varname] = False
+                self.is_bottleneck[node.varname] = node.is_bottleneck
 
-        self.branch_names = list(branchnames_set)
-        self.leaf_names = list(leafnames_set)
-        self.multipliernames = list(multipliernames_set)
+        self.multipliernames = [list(multset) for multset in multipliernames]
         self.varnames = sorted(list(varnames_set))
         if self.data_are_freqs:
-            self.coverage_names = None
+            self.coverage_names = [None for ln in self.leaf_names]
         else:
-            self.coverage_names = [el + '_n' for el in self.leaf_names]
+            self.coverage_names = [[el + '_n' for el in ln] for ln in self.leaf_names]
 
         # number of branches having a length
-        self.num_branches = len(self.branch_names)
+        self.num_branches = [len(bn) for bn in self.branch_names]
         # number of leaves
-        self.num_leaves = len(self.leaf_names)
+        # self.num_leaves = len(self.leaf_names)   # this will break initialguess, but that's okay. start from prior
         # indices of the variables with lengths
-        self.branch_indices = {}
-        for i, br in enumerate(self.branch_names):
-            self.branch_indices[br] = i
-        # indices of just the leaves
-        self.leaf_indices = {}
-        for i, le in enumerate(self.leaf_names):
-            self.leaf_indices[le] = i
+        
+        # branch indices will be different for each tree. during likelihood evaluation, will have to fill branch lengths, mutation rates, etc. independently for each tree
+        self.branch_indices = [{br: i for i, br in enumerate(tbn)} for tbn in self.branch_names]
+        # indices of just the leaves.... these are apparently never used.
+        self.leaf_indices = [{br: i for i, br in enumerate(tln)} for tln in self.leaf_names]
 
+        # each varname gets its own index, since it will correspond to a single branch length and mutation rate
         self.var_indices = {vname: i for i, vname in enumerate(self.varnames)}
+        # translate_indices will translate parameters in varnames 'space' to parameters in branch 'space'
         translate_indices = []
-        num_varnames = len(self.varnames)
-        for br in self.branch_names:
-            br_vname = self.varnamedict[br]
-            vname_idx = self.var_indices[br_vname]
-            translate_indices.append(vname_idx)
-        for br in self.branch_names:
-            br_vname = self.varnamedict[br]
-            vname_idx = self.var_indices[br_vname]
-            translate_indices.append(num_varnames+vname_idx)
-        # for ab
-        translate_indices.append(2*num_varnames)
-        # for p_poly
-        translate_indices.append(2*num_varnames+1)
-        self.translate_indices = np.array(translate_indices,
-                dtype = np.int)
+        for tbn, tvnd in izip(self.branch_names, self.varnamedict):  # for each tree's branch names...
+            translate_indices += [[]]
+            for br in tbn:
+                br_vname = tvnd[br]
+                vname_idx = self.var_indices[br_vname]
+                translate_indices[-1].append(vname_idx)
+            num_varnames = len(self.varnames)
+            for br in tbn:
+                br_vname = tvnd[br]
+                vname_idx = self.var_indices[br_vname]
+                translate_indices[-1].append(num_varnames+vname_idx)
+            # for ab
+            translate_indices[-1].append(2*num_varnames)
+            # for p_poly
+            translate_indices[-1].append(2*num_varnames+1)
+        self.translate_indices = [np.array(ti, dtype = np.int32) for ti in translate_indices]
 
         ##################################################### 
         # remove any fixed loci
         ##################################################### 
-        fixed = da.is_fixed(self.data, self.leaf_names,
-                not self.data_are_freqs)
-        self.data = self.data.loc[~fixed,:]
-        self.data = self.data.reset_index(drop = True)
+        fixed = [da.is_fixed(dat, ln, not self.data_are_freqs) for dat, ln in izip(self.data, self.leaf_names)]
+        self.data = [dat.loc[~fi,:].reset_index(drop = True) for dat, fi in izip(self.data, fixed)]
 
-
-        # for each branch length parameter, need a min and a max multiplier
-        # this is 1 if it is not multiplied by any of the multipliers; this is
-        # min(mult) and max(mult) otherwise, where mult is the relevant
-        # multiplier
-        self.min_multipliers = np.ones(len(self.branch_names))
-        self.max_multipliers = np.ones(len(self.branch_names))
-        # avg_multipliers needs to be ndim in length
-        self.avg_multipliers = np.ones(2*len(self.branch_names)+2)
-        for i, br in enumerate(self.branch_names):
-            multname = self.multiplierdict[br]
-            if multname is not None:
-                self.min_multipliers[i] = self.data[multname].min(skipna = True)
-                self.max_multipliers[i] = self.data[multname].max(skipna = True)
-                self.avg_multipliers[i] = self.data[multname].mean(skipna = True)
 
         #####################################################
         # rounding down frequencies below min_freq
         #####################################################
 
-        # round down if allele frequencies are taken as true
         if self.data_are_freqs:
-            for datp in dat:
-                for ln in self.leaf_names:
+            for datp, tln in izip(self.data, self.leaf_names):
+                for ln in tln:
                     if ln in datp.columns:
                         needs_rounding0 = (datp[ln] < self.min_freq)
                         needs_rounding1 = (datp[ln] > 1-self.min_freq)
@@ -353,15 +325,14 @@ class Inference(object):
                         datp.loc[needs_rounding1, ln] = 1.0
 
         else:   # self.data_are_freqs == False
-            for datp in dat:
-                for ln, nn in zip(self.leaf_names, self.coverage_names):
-                    if ln in datp.columns:
-                        freqs = datp[ln].astype(np.float64)/datp[nn]
-                        needs_rounding0 = (freqs < self.min_freq)
-                        needs_rounding1 = (freqs > 1-self.min_freq)
-                        datp.loc[needs_rounding0, ln] = 0
-                        datp.loc[needs_rounding1, ln] = (
-                                datp.loc[needs_rounding1, nn])
+            for datp, tln, tcn in izip(self.data, self.leaf_names, self.coverage_names):
+                for ln, nn in zip(tln, tcn):
+                    freqs = datp[ln].astype(np.float64)/datp[nn]
+                    needs_rounding0 = (freqs < self.min_freq)
+                    needs_rounding1 = (freqs > 1-self.min_freq)
+                    datp.loc[needs_rounding0, ln] = 0
+                    datp.loc[needs_rounding1, ln] = (
+                            datp.loc[needs_rounding1, nn])
 
 
         #####################################################
@@ -369,7 +340,7 @@ class Inference(object):
         #####################################################
         self.asc_ages = []
         self.num_asc_combs = []
-        for age_fn, datp in izip(self.age_files, dat):
+        for age_fn, datp in izip(self.age_files, self.data):
             asc_ages = pd.read_csv(age_fn, sep = '\t', comment = '#')
             counts = []
             for fam in asc_ages['family']:
@@ -383,56 +354,45 @@ class Inference(object):
         # ascertainment
         #####################################################
         self.asc_trees = []
-        for tree_str in self.tree_strings:
+        for tree_str, n_asc_comb in izip(self.tree_strings, self.num_asc_combs):
             asc_tree = newick.loads(
                     tree_str,
                     num_freqs = self.num_freqs,
-                    num_loci = 2*self.num_asc_combs,
+                    num_loci = 2*n_asc_comb,
                     length_parser = ut.length_parser_str,
                     look_for_multiplier = True)[0]
-        self.asc_trees.append(asc_tree)
-
-        self.num_loci = []
-        for datp in self.data:
-            self.num_loci.append(datp.shape[0])
+            self.asc_trees.append(asc_tree)
+        self.num_loci = [d.shape[0] for d in self.data]
         self.trees = []
-        for tree_str in self.tree_strings:
-            self.trees.append(newick.loads(self.tree_str,
+        for tree_str, n_loc in izip(self.tree_strings, self.num_loci):
+            self.trees.append(newick.loads(tree_str,
                     num_freqs = self.num_freqs,
-                    num_loci = self.num_loci,
+                    num_loci = n_loc,
                     length_parser = ut.length_parser_str,
                     look_for_multiplier = True)[0])
 
         #####################################################
         # leaf allele frequency likelihoods
         #####################################################
-        n_names = self.coverage_names
         self.leaf_likes = []
-        for datp in self.data:
-            leaf_names = [ln for ln in self.leaf_names if ln in datp.columns]
+        for datp, n_names, ln in izip(self.data, self.coverage_names, self.leaf_names):
             if not self.data_are_freqs:
-                if len(leaf_names) > 0:
-                    count_dat = self.data.loc[:,self.leaf_names].values.astype(
-                            np.float64)
-                    ns_dat = self.data.loc[:,n_names].values.astype(
-                            np.float64)
-                    leaf_likes = _binom.get_binom_likelihoods_cython(count_dat,
-                            ns_dat, self.freqs)
-                else:
-                    raise ValueError('found no leaves for dataset {}'.format(i))
+                count_dat = datp.loc[:,ln].values.astype(
+                        np.float64)
+                ns_dat = datp.loc[:,n_names].values.astype(
+                        np.float64)
+                leaf_likes = _binom.get_binom_likelihoods_cython(count_dat,
+                        ns_dat, self.freqs)
             else:
                 freq_dat = datp.loc[:,leaf_names].values.astype(
                         np.float64)
                 leaf_likes = _binom.get_nearest_likelihoods_cython(freq_dat,
                         self.freqs)
             leaf_likes_dict = {}
-            for i, leaf in enumerate(self.leaf_names):
+            for i, leaf in enumerate(ln):
                 leaf_likes_dict[leaf] = leaf_likes[:,i,:].copy('C')
             self.leaf_likes.append(leaf_likes_dict)
 
-        #####################################################
-        # likelihood objective
-        #####################################################
         # min_mults and max_mults give the minimum and
         # maximum multipliers for each varname
         self.min_mults, self.max_mults = (
@@ -526,13 +486,9 @@ class Inference(object):
 
             self.true_loglike = self.loglike(self.true_params)
 
-        #####################################################
-        # setting initial parameters
-        #####################################################
-        if self.start_from == 'true':
-            self.init_params = self.true_params
-        else:
-            self.init_params = igs.estimate_initial_parameters(self)
+        # (no longer setting initial parameters here)
+
+        # end __init__
 
 
     def _init_transition_data(self):
@@ -564,33 +520,40 @@ class Inference(object):
 
     def loglike(self, varparams):
 
-        params = varparams[self.translate_indices]
+        ll = 0.0
 
-        num_branches = self.num_branches
-        branch_lengths = 10**params[:num_branches]
-        mutation_rates = 10**params[num_branches:]
-        alphabeta = 10**params[2*num_branches]
-        polyprob = 10**params[2*num_branches+1]
+        for i in range(len(self.data)):
+            trans_idxs = self.translate_indices[i]
+            params = varparams[trans_idxs]
+            num_branches = self.num_branches[i]
+            branch_lengths = 10**params[:num_branches]
+            mutation_rates = 10**params[num_branches:]
+            alphabeta = 10**params[2*num_branches]
+            polyprob = 10**params[2*num_branches+1]
 
-        stat_dist = lis.get_stationary_distribution_double_beta(self.freqs,
-                self.breaks, self.transition_N, alphabeta, polyprob)
+            stat_dist = lis.get_stationary_distribution_double_beta(self.freqs,
+                    self.breaks, self.transition_N, alphabeta, polyprob)
 
-        ll = lis.get_log_likelihood_somatic_newick(
-            branch_lengths,
-            mutation_rates,
-            stat_dist,
-            self)
+            tll = lis.get_log_likelihood_somatic_newick(
+                branch_lengths,
+                mutation_rates,
+                stat_dist,
+                self,
+                i)
 
-        log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
-                mutation_rates, stat_dist, self, self.min_freq)
-        log_asc_prob = (log_asc_probs *
-                self.asc_ages['count'].values).sum()
-        ll -= log_asc_prob
+            log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
+                    mutation_rates, stat_dist, self, self.min_freq)
+            log_asc_prob = (log_asc_probs *
+                    self.asc_ages['count'].values).sum()
+            tll -= log_asc_prob
 
-        if self.poisson_like_penalty > 0:
-            logmeanascprob, logpoissonlike = self.poisson_log_like(
-                    log_asc_probs)
-            ll += logpoissonlike * self.poisson_like_penalty
+            if self.poisson_like_penalty > 0:
+                logmeanascprob, logpoissonlike = self.poisson_log_like(
+                        log_asc_probs)
+                tll += logpoissonlike * self.poisson_like_penalty
+
+            ll += tll
+
         if self.print_debug:
             print('@@ {:15}'.format(str(ll)), logmeanascprob, ' ', end=' ')
             _util.print_csv_line(varparams)
@@ -654,11 +617,11 @@ class Inference(object):
         from collections import defaultdict
         mins = defaultdict(list)
         maxes = defaultdict(list)
-        for agep in self.asc_ages:
-            agep = agep.loc[:,self.multipliernames]
-            for br in self.branch_names:
-                vname = self.varnamedict[br]
-                mult = self.multiplierdict[br]
+        for agep, tmult, tbn, vnd, multdict in izip(self.asc_ages, self.multipliernames, self.branch_names, self.varnamedict, self.multiplierdict):
+            agep = agep.loc[:,tmult]
+            for br in tbn:
+                vname = vnd[br]
+                mult = multdict[br]
                 if mult:
                     mmin = np.nanmin(agep[mult].values)
                     mmax = np.nanmax(agep[mult].values)
@@ -880,8 +843,8 @@ class Inference(object):
                     axis = 1, 
                     arr = proposed_init_pos)
             init_pos = proposed_init_pos
-        elif start_from == 'prior':
-            # start from random points
+        else:
+            # prior is the new default
             if self.print_debug:
                 print('! starting MCMC from random point')
             nvarnames = len(self.varnames)
@@ -905,20 +868,6 @@ class Inference(object):
                 rstart[:, :nvarnames] = np.log10(npr.uniform(low,high)).reshape(
                         num_walkers,-1)
             init_pos = rstart
-        else:
-            # use initial guess
-            rx = (1+init_norm_sd*npr.randn(ndim*num_walkers))
-            rx = rx.reshape((num_walkers, ndim))
-            proposed_init_pos = rx*self.init_params
-            proposed_init_pos = np.apply_along_axis(
-                    func1d = lambda x: np.maximum(self.lower, x),
-                    axis = 1, 
-                    arr = proposed_init_pos)
-            proposed_init_pos = np.apply_along_axis(
-                    func1d = lambda x: np.minimum(self.upper, x),
-                    axis = 1, 
-                    arr = proposed_init_pos)
-            init_pos = proposed_init_pos
 
         return init_pos
 
