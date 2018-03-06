@@ -41,16 +41,15 @@ def main():
     #############################
     parser_run = subparsers.add_parser('run')
 
-    parser_run.add_argument('data', type = str, help = "data file")
-    parser_run.add_argument('tree', type = str, help = "file containing newick \
-            tree")
+    parser_run.add_argument('--input-file', type = str, help = 'whitespace-delimited table of input files with three columns (data file, tree file, age file)')
+    parser_run.add_argument('--data-files', type = str, help = "list of data files, comma-separate")
+    parser_run.add_argument('--tree-files', type = str, help = "list of tree files, comma-separated")
+    parser_run.add_argument('--age-files', type = str, help = "list of age files, comma-separated")
     parser_run.add_argument('drift', type = str, help = "HDF5 file for \
             pre-calculated drift transition distributions")
     parser_run.add_argument('bottlenecks', type = str,
             help = 'HDF5 file for pre-calculated bottleneck transition \
                     distributions')
-    parser_run.add_argument('agesdata', type = str,
-            help = 'tap-separated dataset containing the ages for each family')
     parser_run.add_argument('numiter', metavar='n',
             help = 'number of mcmc iterations to perform',
             type = ut.positive_int)

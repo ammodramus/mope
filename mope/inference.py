@@ -24,6 +24,7 @@ import multiprocessing as mp
 import numpy.random as npr
 import emcee
 import warnings
+from itertools import izip
 
 from . import newick
 from . import util as ut
@@ -126,14 +127,14 @@ def _get_valid_start_from(sf_str):
 
 class Inference(object):
     def __init__(self,
-            data_file,
+            data_files,
+            tree_files,
+            age_files,
             transitions_file,
-            tree_file,
             true_parameters,
             start_from,
             data_are_freqs,
             genome_size,
-            ages_data_fn,
             bottleneck_file = None,
             poisson_like_penalty = 1.0,
             min_freq = 0.001,
@@ -151,7 +152,6 @@ class Inference(object):
         self.asc_num_loci = None
         self.asc_ages = None
         self.asc_counts = None
-        self.coverage = None
         self.init_params = None
         self.true_params = None
         self.true_loglike = None
@@ -160,11 +160,12 @@ class Inference(object):
         self.transition_data = None
         self.bottleneck_data = None
 
+        self.data_files = data_files
+        self.tree_files = tree_files
+        self.age_files = age_files
         self.data_are_freqs = data_are_freqs
         self.genome_size = genome_size
-        self.tree_file = tree_file
         self.transitions_file = transitions_file
-        self.data_file = data_file
         self.start_from = _get_valid_start_from(start_from)
         self.init_true_params = true_parameters
         self.bottleneck_file = bottleneck_file
@@ -173,7 +174,6 @@ class Inference(object):
         self.transition_copy = transition_copy
         self.transition_buf = transition_buf
         self.transition_shape = transition_shape
-        self.ages_data_fn = ages_data_fn
         self.print_debug = print_debug
         self.log_unif_drift = log_unif_drift
         self.inverse_bot_priors = inverse_bot_priors
@@ -182,50 +182,33 @@ class Inference(object):
         self.upper_drift_limit = upper_drift_limit
 
         ############################################################
-        # read in data
-        dat = pd.read_csv(data_file, sep = '\t', comment = '#',
+        # for each data file, read in data, convert columns to float
+        self.data = []
+        self.tree_strings = []
+        self.plain_trees = []
+        self.trees = []
+        self.ages = []
+        for dat_fn, tree_fn, ages_fn in zip(self.data_files, self.tree_files, self.age_files):
+            datp = pd.read_csv(dat_fn, sep = '\t', comment = '#',
                 na_values = ['NA'], header = 0)
+            for col in datp.columns:
+                if col != 'family':
+                    datp[col] = datp[col].astype(np.float64)
+            datp.sort_values('family', inplace = True)
+            self.data.append(datp)
 
-        ############################################################
-        # get a count for each unique row, since each will have its own
-        # likelihood. this is useful only for called frequencies and simulated
-        # data
-        # frequencies and ages should be floats
-        for col in list(dat.columns):
-            if col != 'family':
-                dat[col] = dat[col].astype(np.float64)
-        self.original_data = dat
-        self.data = dat.copy()
+            with open(tree_fn) as fin:
+                tree_str = fin.read().strip()
+                self.tree_strings.append(tree_str)
 
-        ############################################################
-        # add transition data
-        if transition_copy is None:
-            self.transition_data = tdm.TransitionData(self.transitions_file,
-                    memory = True)
-        else:
-            self.transition_data = tdm.TransitionDataCopy(transition_copy,
-                    transition_buf, transition_shape)
-        self.freqs = self.transition_data.get_bin_frequencies()
-        self.num_freqs = self.freqs.shape[0]
-        self.breaks = self.transition_data.get_breaks()
-        self.transition_N = self.transition_data.get_N()
+            self.plain_trees.append(newick.loads(
+                    tree_str,
+                    length_parser = ut.length_parser_str,
+                    look_for_multiplier = True)[0])
 
-        ############################################################
-        # add optional bottleneck data
-        if self.bottleneck_file is not None:
-            self.bottleneck_data = tdb.TransitionDataBottleneck(
-                    self.bottleneck_file, memory = True)
-        else:
-            self.bottleneck_data = None
 
-        ############################################################
-        # read in the tree file
-        with open(tree_file) as fin:
-            self.tree_str = fin.read().strip()
-        self.plain_tree = newick.loads(
-                self.tree_str,
-                length_parser = ut.length_parser_str,
-                look_for_multiplier = True)[0]
+
+        self._init_transition_data()
 
         ############################################################
         # a list of the leaves, each corresponding to one of the observed
@@ -247,31 +230,54 @@ class Inference(object):
 
         multipliernames_set = set([])
         varnames_set = set([])
-        for node in self.plain_tree.walk(mode='postorder'):
-            if node == self.plain_tree:
-                continue
-            if node.is_leaf:
-                self.leaf_names.append(node.name)
-            self.branch_names.append(node.name)
-            if node.multipliername is not None:
-                multipliernames_set.add(node.multipliername)
-                self.multiplierdict[node.name] = node.multipliername
-            else:
-                self.multiplierdict[node.name] = None
-            # check that each node.name is unique
-            varnames_set.add(node.varname)
-            if node.name in self.varnamedict:
-                raise ValueError(
-                'the name of each node in the tree must be unique')
-            self.varnamedict[node.name] = node.varname
-            if node.is_bottleneck:
-                self.is_bottleneck[node.varname] = True
-            else:
-                self.is_bottleneck[node.varname] = False
+        leafnames_set = set([])
+        branchnames_set = set([])
+        for pt in self.plain_trees:
+            tree_node_names = set([])
+            for node in pt.walk(mode='postorder'):
+                if node == pt:
+                    continue
+                if node.is_leaf:
+                    leafnames_set.add(node.name)
+                self.branch_names.append(node.name)
+                if node.multipliername is not None:
+                    multipliernames_set.add(node.multipliername)
+                    # check to see if node.name already has a multiplier from another tree. if so, see that it's the same
+                    if node.name in self.multiplierdict:
+                        if self.multiplierdict[node.name] != node.multipliername:
+                            # must this be true? what about the approach of
+                            # redoing this whole process (more or less) once
+                            # for each input file, and then looking across
+                            # input files where it's necessary to do so
+                            import pdb; pdb.set_trace()
+                            raise ValueError('nodes of the same name in different trees must have the same multiplier variable')
+                    else:
+                        self.multiplierdict[node.name] = node.multipliername
+                else:
+                    if node.name in self.multiplierdict and self.multiplierdict[node.name] is not None:
+                        raise ValueError('nodes with the same name must have the same multiplier in every tree')
+                    self.multiplierdict[node.name] = None
+                varnames_set.add(node.varname)
+                if node.name in tree_node_names:
+                    raise ValueError(
+                    'the name of each node in the tree must be unique')
+                tree_node_names.add(node.name)
+                if node.name in self.varnamedict:
+                    if self.varnamedict[node.name] != node.varname:
+                        raise ValueError('nodes of the same name must have the same variable name across all trees')
+                self.varnamedict[node.name] = node.varname
+                if node.varname in self.is_bottleneck:
+                    if self.is_bottleneck[node.varname] != node.is_bottleneck:
+                        raise ValueError('nodes with the same variable name must have the same status as bottlenecks in all trees')
+                if node.is_bottleneck:
+                    self.is_bottleneck[node.varname] = True
+                else:
+                    self.is_bottleneck[node.varname] = False
 
+        self.branch_names = list(branchnames_set)
+        self.leaf_names = list(leafnames_set)
         self.multipliernames = list(multipliernames_set)
         self.varnames = sorted(list(varnames_set))
-
         if self.data_are_freqs:
             self.coverage_names = None
         else:
@@ -308,9 +314,17 @@ class Inference(object):
         self.translate_indices = np.array(translate_indices,
                 dtype = np.int)
 
+        ##################################################### 
+        # remove any fixed loci
+        ##################################################### 
+        fixed = da.is_fixed(self.data, self.leaf_names,
+                not self.data_are_freqs)
+        self.data = self.data.loc[~fixed,:]
+        self.data = self.data.reset_index(drop = True)
+
 
         # for each branch length parameter, need a min and a max multiplier
-        # this is 1 if it is not multiplied by any of the multipliers this is
+        # this is 1 if it is not multiplied by any of the multipliers; this is
         # min(mult) and max(mult) otherwise, where mult is the relevant
         # multiplier
         self.min_multipliers = np.ones(len(self.branch_names))
@@ -325,106 +339,96 @@ class Inference(object):
                 self.avg_multipliers[i] = self.data[multname].mean(skipna = True)
 
         #####################################################
-        # removing extraneous columns
-        # verifying all leaves present
-        
-
-        self.data.sort_values('family', inplace = True)
-
-        #####################################################
         # rounding down frequencies below min_freq
         #####################################################
 
         # round down if allele frequencies are taken as true
         if self.data_are_freqs:
-            for ln in self.leaf_names:
-                needs_rounding0 = (self.data[ln] < self.min_freq)
-                needs_rounding1 = (self.data[ln] > 1-self.min_freq)
-                self.data.loc[needs_rounding0, ln] = 0.0
-                self.data.loc[needs_rounding1, ln] = 1.0
-
-        # don't trust allele frequencies less than 0.005. this is *not* because
-        # of the lack of binomial sampling. it's because we're not really
-        # modeling error. So what should be done with allele counts when the
-        # MLE is less than 0.005? Could round down to zero, essentially
-        # discarding those. That is a good first thing to try.
+            for datp in dat:
+                for ln in self.leaf_names:
+                    if ln in datp.columns:
+                        needs_rounding0 = (datp[ln] < self.min_freq)
+                        needs_rounding1 = (datp[ln] > 1-self.min_freq)
+                        datp.loc[needs_rounding0, ln] = 0.0
+                        datp.loc[needs_rounding1, ln] = 1.0
 
         else:   # self.data_are_freqs == False
-            for ln, nn in zip(self.leaf_names, self.coverage_names):
-                freqs = self.data[ln].astype(np.float64)/self.data[nn]
-                needs_rounding0 = (freqs < self.min_freq)
-                needs_rounding1 = (freqs > 1-self.min_freq)
-                self.data.loc[needs_rounding0, ln] = 0
-                self.data.loc[needs_rounding1, ln] = (
-                        self.data.loc[needs_rounding1, nn])
+            for datp in dat:
+                for ln, nn in zip(self.leaf_names, self.coverage_names):
+                    if ln in datp.columns:
+                        freqs = datp[ln].astype(np.float64)/datp[nn]
+                        needs_rounding0 = (freqs < self.min_freq)
+                        needs_rounding1 = (freqs > 1-self.min_freq)
+                        datp.loc[needs_rounding0, ln] = 0
+                        datp.loc[needs_rounding1, ln] = (
+                                datp.loc[needs_rounding1, nn])
 
-        ##################################################### 
-        # remove any fixed loci
-        ##################################################### 
-        fixed = da.is_fixed(self.data, self.leaf_names,
-                not self.data_are_freqs)
-        self.data = self.data.loc[~fixed,:]
-        self.data = self.data.reset_index(drop = True)
 
         #####################################################
         # ages data
         #####################################################
-        self.asc_ages = pd.read_csv(ages_data_fn, sep = '\t',
-                comment = '#')
-        counts = []
-        for fam in self.asc_ages['family']:
-            count = (
-                self.data.loc[self.data['family'] == fam,:].shape[0])
-            counts.append(count)
-        self.asc_ages['count'] = counts
-        self.num_asc_combs = self.asc_ages.shape[0]
+        self.asc_ages = []
+        self.num_asc_combs = []
+        for age_fn, datp in izip(self.age_files, dat):
+            asc_ages = pd.read_csv(age_fn, sep = '\t', comment = '#')
+            counts = []
+            for fam in asc_ages['family']:
+                count = (datp['family'] == fam).sum()
+                counts.append(count)
+            asc_ages['count'] = counts
+            self.asc_ages.append(asc_ages)
+            self.num_asc_combs.append(asc_ages.shape[0])
 
         #####################################################
         # ascertainment
         #####################################################
-        asc_tree = newick.loads(
-                self.tree_str,
-                num_freqs = self.num_freqs,
-                num_loci = 2*self.num_asc_combs,
-                length_parser = ut.length_parser_str,
-                look_for_multiplier = True)[0]
-        self.asc_tree = asc_tree
+        self.asc_trees = []
+        for tree_str in self.tree_strings:
+            asc_tree = newick.loads(
+                    tree_str,
+                    num_freqs = self.num_freqs,
+                    num_loci = 2*self.num_asc_combs,
+                    length_parser = ut.length_parser_str,
+                    look_for_multiplier = True)[0]
+        self.asc_trees.append(asc_tree)
 
-        self.num_loci = self.data.shape[0]
-        self.tree = newick.loads(self.tree_str,
-                num_freqs = self.num_freqs,
-                num_loci = self.num_loci,
-                length_parser = ut.length_parser_str,
-                look_for_multiplier = True)[0]
-
-        if 'coverage' in self.data.columns:
-            # assumes that all coverages are the same, as in simulations
-            self.coverage = int(self.data['coverage'][0])
-        else:
-            self.coverage = None
+        self.num_loci = []
+        for datp in self.data:
+            self.num_loci.append(datp.shape[0])
+        self.trees = []
+        for tree_str in self.tree_strings:
+            self.trees.append(newick.loads(self.tree_str,
+                    num_freqs = self.num_freqs,
+                    num_loci = self.num_loci,
+                    length_parser = ut.length_parser_str,
+                    look_for_multiplier = True)[0])
 
         #####################################################
         # leaf allele frequency likelihoods
         #####################################################
-        if not self.data_are_freqs:
-            n_names = self.coverage_names
-            count_dat = self.data.loc[:,self.leaf_names].values.astype(
-                    np.float64)
-            ns_dat = self.data.loc[:,n_names].values.astype(
-                    np.float64)
-            leaf_likes = _binom.get_binom_likelihoods_cython(count_dat,
-                    ns_dat, self.freqs)
-        else:
-            freq_dat = self.data.loc[:,self.leaf_names].values.astype(
-                    np.float64)
-            leaf_likes = _binom.get_nearest_likelihoods_cython(freq_dat,
-                    self.freqs)
-
-        leaf_likes_dict = {}
-        for i, leaf in enumerate(self.leaf_names):
-            leaf_likes_dict[leaf] = leaf_likes[:,i,:].copy('C')
-
-        self.leaf_likes_dict = leaf_likes_dict
+        n_names = self.coverage_names
+        self.leaf_likes = []
+        for datp in self.data:
+            leaf_names = [ln for ln in self.leaf_names if ln in datp.columns]
+            if not self.data_are_freqs:
+                if len(leaf_names) > 0:
+                    count_dat = self.data.loc[:,self.leaf_names].values.astype(
+                            np.float64)
+                    ns_dat = self.data.loc[:,n_names].values.astype(
+                            np.float64)
+                    leaf_likes = _binom.get_binom_likelihoods_cython(count_dat,
+                            ns_dat, self.freqs)
+                else:
+                    raise ValueError('found no leaves for dataset {}'.format(i))
+            else:
+                freq_dat = datp.loc[:,leaf_names].values.astype(
+                        np.float64)
+                leaf_likes = _binom.get_nearest_likelihoods_cython(freq_dat,
+                        self.freqs)
+            leaf_likes_dict = {}
+            for i, leaf in enumerate(self.leaf_names):
+                leaf_likes_dict[leaf] = leaf_likes[:,i,:].copy('C')
+            self.leaf_likes.append(leaf_likes_dict)
 
         #####################################################
         # likelihood objective
@@ -531,6 +535,29 @@ class Inference(object):
             self.init_params = igs.estimate_initial_parameters(self)
 
 
+    def _init_transition_data(self):
+        ############################################################
+        # add transition data
+        if self.transition_copy is None:
+            self.transition_data = tdm.TransitionData(self.transitions_file,
+                    memory = True)
+        else:
+            self.transition_data = tdm.TransitionDataCopy(transition_copy,
+                    transition_buf, transition_shape)
+        self.freqs = self.transition_data.get_bin_frequencies()
+        self.num_freqs = self.freqs.shape[0]
+        self.breaks = self.transition_data.get_breaks()
+        self.transition_N = self.transition_data.get_N()
+
+        ############################################################
+        # add optional bottleneck data
+        if self.bottleneck_file is not None:
+            self.bottleneck_data = tdb.TransitionDataBottleneck(
+                    self.bottleneck_file, memory = True)
+        else:
+            self.bottleneck_data = None
+
+
     def like_obj(self, varparams):
         return -self.loglike(varparams)
 
@@ -624,23 +651,22 @@ class Inference(object):
         for each varname, need the min and max of all the multipliers
         associated with the varname
         '''
-        datp = self.asc_ages.loc[:,self.multipliernames]
-        mins = {}
-        maxes = {}
-        for br in self.branch_names:
-            vname = self.varnamedict[br]
-            if vname not in mins:
-                mins[vname] = set([])
-                maxes[vname] = set([])
-            mult = self.multiplierdict[br]
-            if mult:
-                mmin = np.nanmin(datp[mult].values)
-                mmax = np.nanmax(datp[mult].values)
-            else:
-                mmin = 1
-                mmax = 1
-            mins[vname].add(mmin)
-            maxes[vname].add(mmax)
+        from collections import defaultdict
+        mins = defaultdict(list)
+        maxes = defaultdict(list)
+        for agep in self.asc_ages:
+            agep = agep.loc[:,self.multipliernames]
+            for br in self.branch_names:
+                vname = self.varnamedict[br]
+                mult = self.multiplierdict[br]
+                if mult:
+                    mmin = np.nanmin(agep[mult].values)
+                    mmax = np.nanmax(agep[mult].values)
+                else:
+                    mmin = 1
+                    mmax = 1
+                mins[vname].append(mmin)
+                maxes[vname].append(mmax)
 
         min_mults = []
         max_mults = []
