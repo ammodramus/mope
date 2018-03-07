@@ -18,7 +18,6 @@ from . import likelihoods as lis
 from . import transition_data_mut as tdm
 from . import transition_data_bottleneck as tdb
 from . import params as par
-from . import initialguess as igs
 from functools import partial
 import multiprocessing as mp
 import numpy.random as npr

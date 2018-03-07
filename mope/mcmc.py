@@ -16,7 +16,6 @@ import pandas as pd
 from . import likelihoods as lis
 from . import transition_data_mut as tdm
 from . import params as par
-from . import initialguess as igs
 from functools import partial
 import multiprocessing as mp
 import numpy.random as npr
