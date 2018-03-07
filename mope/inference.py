@@ -116,7 +116,7 @@ def optimize_posterior(inf_data, pool):
     return x
 
 def _get_valid_start_from(sf_str):
-    valid_sfs = ('initguess', 'true', 'map', 'prior')
+    valid_sfs = ('prior', 'true', 'map')
     for v in valid_sfs:
         if sf_str == v:
             return v

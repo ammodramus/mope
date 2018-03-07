@@ -75,11 +75,9 @@ def run_mcmc(args):
     =========================
     '''
 
-    start_from_bool = (args.start_from_map, args.start_from_true,
-            args.start_from_prior)
+    start_from_bool = (args.start_from_map, args.start_from_true)
     if sum(start_from_bool) > 1:
-        err = ('--start-from-map, --start-from-true, and --start-from-prior '
-               'are mutually exclusive')
+        err = ('--start-from-map and --start-from-true are mutually exclusive')
         raise ValueError(err)
     if args.start_from_map and (args.prev_chain is not None):
         raise ValueError('--start-from-map and --prev-chain are mutually '
@@ -87,14 +85,12 @@ def run_mcmc(args):
     if args.debug and args.mpi:
         errmsg='--debug and --mpi cannot be simultaneously specified'
         raise ValueError(errmsg)
-    # (valid values are 'initguess', 'true', 'map', 'prior')
-    start_from = 'initguess'
+    # (valid values are 'true', 'map')
+    start_from = 'prior'
     if args.start_from_true:
         start_from = 'true'
     elif args.start_from_map:
         start_from = 'map'
-    elif args.start_from_prior:
-        start_from = 'prior'
 
     lower_dr, upper_dr = args.drift_limits
 
