@@ -94,12 +94,12 @@ mope download-transitions
 ```
 
 Transition distributions can also downloaded
-[here](https://berkeley.box.com/shared/static/f4q47bthoe88zk23zvd0x7sb454u543z.gz)
-(495 MB,
-[md5](https://berkeley.box.com/shared/static/a5ksur0w7w1uh3lteqm553vywom924z7.md5)).
-Note that if you are downloading programatically (e.g., using wget or curl),
-you will need to rename the downloaded file to `transitions.tar.gz`, due to
-limitations of our filehosting service.
+[here](https://berkeley.box.com/shared/static/27ghsfp00xa7g8470ndrp5ft49y7a47y.gz)
+(1.1 GB,
+[md5](https://berkeley.box.com/shared/static/sk4tzx5ii5a37g62rch53zpgr40gmvta.md5)).
+Note that if you are downloading this file programatically (e.g., using wget or
+curl), you will need to rename the downloaded file to `transitions.tar.gz`, due
+to limitations of our filehosting service.
 
 To generate allele frequency transition distributions locally, run
 
