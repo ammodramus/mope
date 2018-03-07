@@ -760,6 +760,7 @@ class Inference(object):
         return good_params, penalty
 
     def _get_pool(self, num_processes, mpi):
+        # TODO: update the initializer for the updated Inference API
 
         def initializer(*args):
 
@@ -777,14 +778,14 @@ class Inference(object):
         elif num_processes > 1:
             init_args = [
                     # order important here because of *args above
-                    self.data_file,
+                    self.data_files,
+                    self.tree_files,
+                    self.age_files,
                     self.transitions_file,
-                    self.tree_file,
                     self.init_true_params,
                     self.start_from,
                     self.data_are_freqs,
                     self.genome_size,
-                    self.ages_data_fn,
                     self.bottleneck_file,
                     self.poisson_like_penalty,
                     self.min_freq,
@@ -798,6 +799,7 @@ class Inference(object):
                     self.lower_drift_limit,
                     self.upper_drift_limit
                     ]
+
 
             pool = mp.Pool(num_processes, initializer = initializer,
                     initargs = init_args)
