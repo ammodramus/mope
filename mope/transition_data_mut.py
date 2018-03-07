@@ -132,13 +132,13 @@ class TransitionData(object):
             scaled_mut):
         key = (scaled_time, scaled_mut)
         if key in self._cache:
-            return self._cache[key]
+            val = self._cache[key]
         else:
             val = self.get_transition_probabilities_time_mutation_not_cached(
                     scaled_time,
                     scaled_mut)
             self._cache[key] = val
-            return val
+        return val
 
     def get_transition_probabilities_time_mutation_not_cached(self,
             scaled_time, scaled_mut):
@@ -205,7 +205,7 @@ class TransitionData(object):
         t2 = self._sorted_gens[gen_idx]
         u1 = self._sorted_us[u_idx-1]
         u2 = self._sorted_us[u_idx]
-        fQ11 = self.get_distribution(t1,u1)
+        fQ11 = self.get_distribution(t1, u1)
         fQ12 = self.get_distribution(t1, u2)
         fQ21 = self.get_distribution(t2, u1)
         fQ22 = self.get_distribution(t2, u2)

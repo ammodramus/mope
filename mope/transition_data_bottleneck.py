@@ -96,13 +96,13 @@ class TransitionDataBottleneck(object):
             scaled_mut):
         key = (nb, scaled_mut)
         if key in self._cache:
-            return self._cache[key]
+            val = self._cache[key]
         else:
             val = self.get_transition_probabilities_time_mutation_not_cached(
                     nb,
                     scaled_mut)
             self._cache[key] = val
-            return val
+        return val
 
     def get_transition_probabilities_time_mutation_not_cached(self,
             nb, scaled_mut):
@@ -179,7 +179,6 @@ class TransitionDataBottleneck(object):
                 weight12,
                 weight21,
                 weight22)
-
         return distn
     
     #@lru.lru_cache(maxsize = 10000)

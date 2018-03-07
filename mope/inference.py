@@ -521,6 +521,10 @@ class Inference(object):
     def loglike(self, varparams):
 
         ll = 0.0
+        alphabeta, polyprob = 10**varparams[-2:]
+
+        stat_dist = lis.get_stationary_distribution_double_beta(self.freqs,
+                self.breaks, self.transition_N, alphabeta, polyprob)
 
         for i in range(len(self.data)):
             trans_idxs = self.translate_indices[i]
@@ -528,11 +532,7 @@ class Inference(object):
             num_branches = self.num_branches[i]
             branch_lengths = 10**params[:num_branches]
             mutation_rates = 10**params[num_branches:]
-            alphabeta = 10**params[2*num_branches]
-            polyprob = 10**params[2*num_branches+1]
-
-            stat_dist = lis.get_stationary_distribution_double_beta(self.freqs,
-                    self.breaks, self.transition_N, alphabeta, polyprob)
+            asc_ages = self.asc_ages[i]
 
             tll = lis.get_log_likelihood_somatic_newick(
                 branch_lengths,
@@ -542,14 +542,14 @@ class Inference(object):
                 i)
 
             log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
-                    mutation_rates, stat_dist, self, self.min_freq)
+                    mutation_rates, stat_dist, self, self.min_freq, i)
             log_asc_prob = (log_asc_probs *
-                    self.asc_ages['count'].values).sum()
+                    asc_ages['count'].values).sum()
             tll -= log_asc_prob
 
             if self.poisson_like_penalty > 0:
                 logmeanascprob, logpoissonlike = self.poisson_log_like(
-                        log_asc_probs)
+                        log_asc_probs, i)
                 tll += logpoissonlike * self.poisson_like_penalty
 
             ll += tll
@@ -681,7 +681,7 @@ class Inference(object):
         return logp
 
 
-    def poisson_log_like(self, logascprobs):
+    def poisson_log_like(self, logascprobs, tree_idx):
         '''
         x is varparams, not branchparams
 
@@ -692,7 +692,7 @@ class Inference(object):
         loglams = logascprobs + np.log(self.genome_size)
         lams = np.exp(loglams)
 
-        logpoissonlikes = -lams + self.asc_ages['count'].values*loglams
+        logpoissonlikes = -lams + self.asc_ages[tree_idx]['count'].values*loglams
         logpoissonlike = logpoissonlikes.sum()
         return logmeanascprob, logpoissonlike
 

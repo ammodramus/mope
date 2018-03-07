@@ -133,7 +133,8 @@ def get_locus_asc_probs(
         mutation_rates,
         stationary_distribution,
         inf,
-        min_freq):
+        min_freq,
+        tree_idx):
     '''
     Calculate the per-locus logs of probability of ascertainment
 
@@ -165,10 +166,11 @@ def get_locus_asc_probs(
     nfreqs = stationary_distribution.shape[0]
     transitions = inf.transition_data
     bottlenecks = inf.bottleneck_data
-    asc_mrca = inf.asc_tree
-    asc_ages = inf.asc_ages
-    branch_indices = inf.branch_indices
-    counts = inf.asc_ages['count'].values
+    asc_mrca = inf.asc_trees[tree_idx]
+    asc_ages = inf.asc_ages[tree_idx]
+    branch_indices = inf.branch_indices[tree_idx]
+    counts = asc_ages['count'].values
+    num_asc_combs = inf.num_asc_combs[tree_idx]
 
     freqs = inf.freqs
 
@@ -178,7 +180,7 @@ def get_locus_asc_probs(
     eN = np.zeros(nfreqs)
     high_filt = freqs > 1-min_freq
     eN[high_filt] = 1.0
-    eboth = np.vstack((e0,eN) * inf.num_asc_combs)
+    eboth = np.vstack((e0,eN) * num_asc_combs)
 
     for node in asc_mrca.walk(mode = 'postorder'):
         _likes.reset_likes_ones(node.cond_probs)
@@ -201,7 +203,7 @@ def get_locus_asc_probs(
         if multipliername is not None:
             node_lengths = np.repeat((asc_ages[multipliername].values *
                     branch_lengths[branch_index]), 2)
-            assert node_lengths.shape[0] == 2*inf.num_asc_combs
+            assert node_lengths.shape[0] == 2*num_asc_combs
             _likes.compute_leaf_transition_likelihood(
                     node_likes,
                     ancestor_likes,
