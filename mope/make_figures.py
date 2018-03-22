@@ -96,7 +96,7 @@ def get_len_limits(tree, ages_file, lower_drift, upper_drift,
     return limits
 
 def make_figures(
-        results, tree, num_walkers, ages_file, prefix = None,
+        results, tree_files, num_walkers, ages_file, prefix = None,
         img_format = 'png', dpi = 300, colors_and_types = None,
         length_prior_limits = (-6,0.477), mutation_prior_limits = (-8,-1),
         true_parameters = None, which_plot = 'histograms',
@@ -149,15 +149,17 @@ def make_figures(
     ###################
     # loading the data
     ###################
-    tree_file = tree
-    with open(tree_file) as fin:
-        tree_str = fin.read().strip()
-    tree = newick.loads(tree_str,
-                        look_for_multiplier = True,
-                        length_parser = ut.length_parser_str)[0]
+    all_varnames = []
+    for tree_file in tree_files:
+        with open(tree_file) as fin:
+            tree_str = fin.read().strip()
+        tree = newick.loads(tree_str,
+                            look_for_multiplier = True,
+                            length_parser = ut.length_parser_str)[0]
 
-    cols = get_parameter_names(tree_file)
-    varnames = [col[:-2] for col in cols if col.endswith('_l')]
+        cols = get_parameter_names(tree_file)
+        varnames = [col[:-2] for col in cols if col.endswith('_l')]
+        all_varnames += varnames
     try:
         # first try no header
         dat_m1 = pd.read_csv(results,
@@ -434,5 +436,5 @@ def _run_make_figures(args):
             trace_burnin_steps = args.trace_burnin_steps,
             posterior_burnin_frac = args.posterior_burnin_frac,
             add_title = args.add_title,
-            log_uniform_drift_priors = args.log_uniform_drift_priors)
+            log_uniform_drift_priors = not args.uniform_drift_priors)
 

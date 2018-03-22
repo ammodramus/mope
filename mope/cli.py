@@ -258,9 +258,9 @@ def main():
             help = 'individual ages in tab-separated table')
     parser_fig.add_argument('--add-title', action = 'store_true')
     parser_fig.add_argument('--dpi', type = ut.positive_int, default = 300)
-    parser_fig.add_argument('--log-uniform-drift-priors',
+    parser_fig.add_argument('--uniform-drift-priors',
             action = 'store_true',
-            help = 'priors for drift are log-uniform instead of uniform')
+            help = 'priors for drift are uniform instead of log-uniform')
     parser_fig.set_defaults(func = _run_make_figures)
 
     parser_download = subparsers.add_parser('download-transitions',

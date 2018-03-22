@@ -241,10 +241,10 @@ class Inference(object):
         varnames_set = set([])
         multipliernames = []
         for pt in self.plain_trees:
-            self.branch_names += [[]]
             self.leaf_names += [[]]
             self.multiplierdict += [{}]
             self.varnamedict += [{}]
+            self.branch_names += [[]]
             multipliernames += [set([])]
             for node in pt.walk(mode='postorder'):
                 if node == pt:
@@ -339,7 +339,7 @@ class Inference(object):
         #####################################################
         self.asc_ages = []
         self.num_asc_combs = []
-        for age_fn, datp in izip(self.age_files, self.data):
+        for age_fn, datp, multnames in izip(self.age_files, self.data, self.multipliernames):
             asc_ages = pd.read_csv(age_fn, sep = '\t', comment = '#')
             counts = []
             for fam in asc_ages['family']:
@@ -348,6 +348,15 @@ class Inference(object):
             asc_ages['count'] = counts
             self.asc_ages.append(asc_ages)
             self.num_asc_combs.append(asc_ages.shape[0])
+            # if multipliers are not in data, add them to the data
+            for mult in multnames:
+                if mult not in datp:
+                    multvals = []
+                    for fam in datp['family']:
+                        v = asc_ages.loc[asc_ages['family'] == fam,mult].iloc[0]
+                        assert v is not None
+                        multvals.append(v)
+                    datp[mult] = multvals
 
         #####################################################
         # ascertainment
@@ -861,6 +870,8 @@ class Inference(object):
                 # drift parameters now in log10 units
                 low = np.tile(self.lower[:nvarnames], num_walkers)
                 high = np.tile(self.upper[:nvarnames], num_walkers)
+                #import pdb; pdb.set_trace()
+                #print('lower and upper uniform bounds:', low, high, file=sys.stderr)
                 rstart[:,:nvarnames] = npr.uniform(low, high).reshape(
                         num_walkers, -1)
             else:
