@@ -67,6 +67,8 @@ parser.add_argument('--frac-burnin', '-b', type = float,
         default = 0.3)
 parser.add_argument('--old', action ='store_true',
         help = 'specify for old data, drift in natural scale')
+parser.add_argument('--m2', action = 'store_true',
+        help = 'use summary statistics from newer data')
 args = parser.parse_args()
 
 dat = pd.read_csv(args.datafile, sep = '\t', header = 0, comment = '#')
@@ -81,19 +83,34 @@ dat_burn = dat.iloc[burn_idx:,:]
 
 # calculate EBSs
 
-mean_age = 29.558974
-bots_mean = (2.0/(2.0/dat_burn['eoo_l'] + 
-    dat_burn['som_l'] + mean_age*dat_burn['loo_l'])).values
-bots_18 = (2.0/(2.0/dat_burn['eoo_l'] + 
-    dat_burn['som_l'] + 18*dat_burn['loo_l'])).values
-bots_40 = (2.0/(2.0/dat_burn['eoo_l'] + 
-    dat_burn['som_l'] + 40*dat_burn['loo_l'])).values
+# update the new statistic when all of the data is included
+if args.m2:
+    mean_age = 29.192876
+else:
+    mean_age = 29.558974
+
+if args.m2:
+    bots_mean = 2.0/(dat_burn['eoo_pre_l'] + dat_burn['eoo_post_l'] + dat_burn['som_l'] + mean_age*dat_burn['loo_l']).values
+    bots_18 = 2.0/(dat_burn['eoo_pre_l'] + dat_burn['eoo_post_l'] + dat_burn['som_l'] + 18*dat_burn['loo_l']).values
+    bots_40 = 2.0/(dat_burn['eoo_pre_l'] + dat_burn['eoo_post_l'] + dat_burn['som_l'] + 40*dat_burn['loo_l']).values
+else:
+    bots_mean = (2.0/(2.0/dat_burn['eoo_l'] + 
+        dat_burn['som_l'] + mean_age*dat_burn['loo_l'])).values
+    bots_18 = (2.0/(2.0/dat_burn['eoo_l'] + 
+        dat_burn['som_l'] + 18*dat_burn['loo_l'])).values
+    bots_40 = (2.0/(2.0/dat_burn['eoo_l'] + 
+        dat_burn['som_l'] + 40*dat_burn['loo_l'])).values
+
 
 # calculate loo rates
-bots_25 = (2.0/(2.0/dat_burn['eoo_l'] + 
-    dat_burn['som_l'] + 25*dat_burn['loo_l'])).values
-bots_34 = (2.0/(2.0/dat_burn['eoo_l'] + 
-    dat_burn['som_l'] + 34*dat_burn['loo_l'])).values
+if args.m2:
+    bots_25 = 2.0/(dat_burn['eoo_pre_l'] + dat_burn['eoo_post_l'] + dat_burn['som_l'] + 25*dat_burn['loo_l']).values
+    bots_34 = 2.0/(dat_burn['eoo_pre_l'] + dat_burn['eoo_post_l'] + dat_burn['som_l'] + 34*dat_burn['loo_l']).values
+else:
+    bots_25 = (2.0/(2.0/dat_burn['eoo_l'] + 
+        dat_burn['som_l'] + 25*dat_burn['loo_l'])).values
+    bots_34 = (2.0/(2.0/dat_burn['eoo_l'] + 
+        dat_burn['som_l'] + 34*dat_burn['loo_l'])).values
 rates = (bots_34-bots_25)/(34-25)
 
 # calculate bottlenecks for fblo_l and f_buc_l
