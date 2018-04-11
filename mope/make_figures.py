@@ -92,7 +92,6 @@ def get_len_limits(tree, ages_file, lower_drift, upper_drift,
             ld, ud = lower_drift, upper_drift
         limits[varname] = [np.log10(ld / mults[0]),
                 np.log10(ud / mults[1])]
-
     return limits
 
 def make_figures(
@@ -150,16 +149,18 @@ def make_figures(
     # loading the data
     ###################
     all_varnames = []
-    for tree_file in tree_files:
-        with open(tree_file) as fin:
-            tree_str = fin.read().strip()
-        tree = newick.loads(tree_str,
-                            look_for_multiplier = True,
-                            length_parser = ut.length_parser_str)[0]
+    with open(tree_files) as trees_in:
+        for line in trees_in:
+            fn = line.strip()
+            with open(fn) as fin:
+                tree_str = fin.read().strip()
+                tree = newick.loads(tree_str,
+                                    look_for_multiplier = True,
+                                    length_parser = ut.length_parser_str)[0]
 
-        cols = get_parameter_names(tree_file)
-        varnames = [col[:-2] for col in cols if col.endswith('_l')]
-        all_varnames += varnames
+            cols = get_parameter_names(fn)
+            varnames = [col[:-2] for col in cols if col.endswith('_l')]
+            all_varnames += varnames
     try:
         # first try no header
         dat_m1 = pd.read_csv(results,
@@ -422,7 +423,7 @@ def _run_make_figures(args):
 
     make_figures(
             results = args.results,
-            tree = args.tree,
+            tree_files = args.tree,
             num_walkers = args.num_walkers,
             ages_file = args.ages_file,
             prefix = args.prefix,
