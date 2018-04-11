@@ -568,6 +568,55 @@ class Inference(object):
 
         return ll
 
+    def debug_loglike_components(self, varparams):
+
+        ll = 0.0
+        alphabeta, polyprob = 10**varparams[-2:]
+
+        stat_dist = lis.get_stationary_distribution_double_beta(self.freqs,
+                self.breaks, self.transition_N, alphabeta, polyprob)
+
+        comps = []
+        for i in range(len(self.data)):
+            trans_idxs = self.translate_indices[i]
+            params = varparams[trans_idxs]
+            num_branches = self.num_branches[i]
+            branch_lengths = 10**params[:num_branches]
+            mutation_rates = 10**params[num_branches:]
+            asc_ages = self.asc_ages[i]
+
+            tll = lis.get_log_likelihood_somatic_newick(
+                branch_lengths,
+                mutation_rates,
+                stat_dist,
+                self,
+                i)
+
+            tcomps = [tll]
+
+            log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
+                    mutation_rates, stat_dist, self, self.min_freq, i)
+            log_asc_prob = (log_asc_probs *
+                    asc_ages['count'].values).sum()
+            tll -= log_asc_prob
+
+            tcomps += [log_asc_probs, asc_ages['count'].copy().values]
+
+            if self.poisson_like_penalty > 0:
+                logmeanascprob, logpoissonlike = self.poisson_log_like(
+                        log_asc_probs, i)
+                tll += logpoissonlike * self.poisson_like_penalty
+
+                tcomps += [logmeanascprob, logpoissonlike]
+            
+
+            tcomps += [tll]
+            tcomps += [self.logprior(varparams)]
+            ll += tll
+            comps.append(tcomps)
+
+        return comps
+
 
     def locusloglikes(self, varparams, use_counts = False):
 
