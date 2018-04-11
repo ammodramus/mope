@@ -24,6 +24,7 @@ import numpy.random as npr
 import emcee
 import warnings
 from itertools import izip
+from scipy.special import gammaln
 
 from . import newick
 from . import util as ut
@@ -700,7 +701,10 @@ class Inference(object):
         loglams = logascprobs + np.log(self.genome_size)
         lams = np.exp(loglams)
 
-        logpoissonlikes = -lams + self.asc_ages[tree_idx]['count'].values*loglams
+        logpoissonlikes = (-lams +
+                self.asc_ages[tree_idx]['count'].values*loglams -
+                gammaln(self.asc_ages[tree_idx]['count'].values+1)
+
         logpoissonlike = logpoissonlikes.sum()
         return logmeanascprob, logpoissonlike
 
