@@ -752,7 +752,7 @@ class Inference(object):
 
         logpoissonlikes = (-lams +
                 self.asc_ages[tree_idx]['count'].values*loglams -
-                gammaln(self.asc_ages[tree_idx]['count'].values+1)
+                gammaln(self.asc_ages[tree_idx]['count'].values+1))
 
         logpoissonlike = logpoissonlikes.sum()
         return logmeanascprob, logpoissonlike
