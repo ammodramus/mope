@@ -49,7 +49,8 @@ cpdef log_binom_pmf(int k, double p, int n):
 def get_binom_likelihoods_cython(
         np.ndarray[np.float64_t, ndim=2] Xs,
         np.ndarray[np.float64_t, ndim=2] n,
-        np.ndarray[np.float64_t, ndim=1] freqs):
+        np.ndarray[np.float64_t, ndim=1] freqs,
+        double min_phred_score = -1):
     '''
     binomial sampling likelihoods for the leaves.
 
@@ -61,6 +62,7 @@ def get_binom_likelihoods_cython(
     returns a k x l numpy array P of binomial sampling probabilities, where
     P[i,j] is the sampling probability at locus i given true frequency j
     '''
+    cdef double p, perr
     cdef double [:,:] Xs_c = Xs
     cdef double [:,:] n_c = n
     cdef double [:] freqs_c = freqs
@@ -71,6 +73,11 @@ def get_binom_likelihoods_cython(
     cdef double [:,:,:] likes_arr = likes
     cdef int i, j, k
 
+    if min_phred_score != -1.0:
+        perr = 10.0**(-1.0*min_phred_score/10.0)
+    else:
+        perr = 0
+
     for i in range(num_loci):
         for j in range(num_samples):
             if isnan(Xs[i,j]):
@@ -79,7 +86,9 @@ def get_binom_likelihoods_cython(
                     likes_arr[i,j,k] = 1.0
             else:
                 for k in range(num_freqs):
-                    likes_arr[i,j,k] = binom_pmf(Xs_c[i,j], n_c[i,j], freqs_c[k])
+                    # assume that each base is equally likely...
+                    p = (1.0-perr)*freqs_c[k] + (perr/3.0)*(1.0-freqs_c[k])
+                    likes_arr[i,j,k] = binom_pmf(Xs_c[i,j], n_c[i,j], p)
     return likes
 
 ##########################################

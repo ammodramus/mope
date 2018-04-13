@@ -113,7 +113,8 @@ def run_mcmc(args):
             inverse_bot_priors = args.inverse_bottleneck_priors,
             post_is_prior = args.just_prior_debug,
             lower_drift_limit = lower_dr,
-            upper_drift_limit = upper_dr)
+            upper_drift_limit = upper_dr,
+            min_phred_score = args.min_phred_score)
 
     # for parallel tempering
     nt = args.num_temperatures

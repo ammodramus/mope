@@ -146,7 +146,8 @@ class Inference(object):
             inverse_bot_priors = False,
             post_is_prior = False,
             lower_drift_limit = 1e-3,
-            upper_drift_limit = 3):
+            upper_drift_limit = 3,
+            min_phred_score = None):
 
         self.asc_tree = None
         self.asc_num_loci = None
@@ -180,6 +181,7 @@ class Inference(object):
         self.post_is_prior = post_is_prior
         self.lower_drift_limit = lower_drift_limit,
         self.upper_drift_limit = upper_drift_limit
+        self.min_phred_score = min_phred_score
 
         ############################################################
         # for each data file, read in data, convert columns to float
@@ -390,8 +392,11 @@ class Inference(object):
                         np.float64)
                 ns_dat = datp.loc[:,n_names].values.astype(
                         np.float64)
+                # get_binom_like...() wants -1 for missing value / assumed perfect counts
+                phred_score_param = -1.0 if self.min_phred_score is None else self.min_phred_score
                 leaf_likes = _binom.get_binom_likelihoods_cython(count_dat,
-                        ns_dat, self.freqs)
+                        ns_dat, self.freqs, phred_score_param)
+                import pdb; pdb.set_trace()
             else:
                 freq_dat = datp.loc[:,leaf_names].values.astype(
                         np.float64)
@@ -859,7 +864,8 @@ class Inference(object):
                     self.inverse_bot_priors,
                     self.post_is_prior,
                     self.lower_drift_limit,
-                    self.upper_drift_limit
+                    self.upper_drift_limit,
+                    self.min_phred_score,
                     ]
 
 
