@@ -396,7 +396,6 @@ class Inference(object):
                 phred_score_param = -1.0 if self.min_phred_score is None else self.min_phred_score
                 leaf_likes = _binom.get_binom_likelihoods_cython(count_dat,
                         ns_dat, self.freqs, phred_score_param)
-                import pdb; pdb.set_trace()
             else:
                 freq_dat = datp.loc[:,leaf_names].values.astype(
                         np.float64)
