@@ -130,6 +130,8 @@ class TransitionData(object):
 
     def get_transition_probabilities_time_mutation(self, scaled_time,
             scaled_mut):
+        if not np.isfinite(scaled_time):
+            raise ValueError('scaled_time is not finite')
         key = (scaled_time, scaled_mut)
         if key in self._cache:
             val = self._cache[key]
@@ -150,6 +152,10 @@ class TransitionData(object):
                       population size
         '''
 
+        if not np.isfinite(scaled_time):
+            raise ValueError('scaled_time is not finite')
+        if not np.isfinite(scaled_mut):
+            raise ValueError('scaled_mut is not finite')
         if scaled_time < self._min_coal_time:
             raise ValueError('drift time too small: {} < {} (min)'.format(
                 scaled_time, self._min_coal_time))
