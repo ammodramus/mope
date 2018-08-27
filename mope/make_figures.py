@@ -64,28 +64,41 @@ def get_acceptance(chain):
     num_comparisons = rows0.shape[0]
     return num_changes / num_comparisons
 
-def get_len_limits(tree, ages_file, lower_drift, upper_drift,
+def get_len_limits(trees, ages_file, lower_drift, upper_drift,
         lower_bottleneck = 2, upper_bottleneck = 500):
     is_bottleneck = {}
     ages_dat = pd.read_csv(ages_file, sep = '\t')
-    limits = {}
-    for node in tree.walk():
-        varname = node.varname
-        is_bottleneck[varname] = node.is_bottleneck
-        mult = node.multipliername
-        if mult is None:
-            limits[varname] = [1.0, 1.0]
-        else:
-            minv, maxv = ages_dat[mult].min(), ages_dat[mult].max()
-            if varname in limits:
-                limits[varname][0] = min(limits[varname][0], minv)
-                limits[varname][1] = max(limits[varname][1], maxv)
+
+    # first, get min and max multipliers
+    mins = defaultdict(lambda: np.inf)
+    maxes = defaultdict(lambda: -np.inf)
+    for tree in trees:
+        for node in tree.walk():
+            varname = node.varname
+            is_bottleneck[varname] = node.is_bottleneck
+            mult = node.multipliername
+            if mult is None:
+                mins[varname] = 1.0
+                maxes[varname] = 1.0
             else:
-                limits[varname] = [minv, maxv]
+                minv, maxv = ages_dat[mult].min(), ages_dat[mult].max()
+                if varname in mins:
+                    mins[varname] = min(mins[varname], minv)
+                else:
+                    mins[varname] = minv
+                if varname in maxes:
+                    maxes[varname] = max(maxes[varname], maxv)
+                else:
+                    maxes[varname] = maxv
+    limits = {}
 
     # so far, it has just been the multipliers, now need to make them limits
-    for varname in list(limits.keys()):
-        mults = limits[varname]
+    assert set(mins.keys()) == set(maxes.keys())
+    for varname in list(mins.keys()):
+        minv = mins[varname]
+        maxv = maxes[varname]
+        ld = np.array([minv, maxv])
+        #mults = limits[varname]
         if is_bottleneck[varname]:
             ld, ud = lower_bottleneck, upper_bottleneck
         else:
@@ -149,6 +162,7 @@ def make_figures(
     # loading the data
     ###################
     all_varnames = []
+    trees = []
     with open(tree_files) as trees_in:
         for line in trees_in:
             fn = line.strip()
@@ -157,7 +171,7 @@ def make_figures(
                 tree = newick.loads(tree_str,
                                     look_for_multiplier = True,
                                     length_parser = ut.length_parser_str)[0]
-
+            trees.append(tree)
             cols = get_parameter_names(fn)
             varnames = [col[:-2] for col in cols if col.endswith('_l')]
             all_varnames += varnames
@@ -190,7 +204,7 @@ def make_figures(
             lower_l, upper_l = length_prior_limits
             lower_l = 10**float(lower_l)
             upper_l = 10**float(upper_l)
-            length_limits = get_len_limits(tree, ages_file, lower_l, upper_l)
+            length_limits = get_len_limits(trees, ages_file, lower_l, upper_l)
 
     # getting true parameters
     if true_parameters is not None:
