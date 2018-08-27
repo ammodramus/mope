@@ -17,7 +17,7 @@ import sys
 from .simulate import get_parameters
 from . import util as ut
 from . import newick
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 def get_hatch(paramtype):
     hatch = None
