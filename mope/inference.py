@@ -1039,19 +1039,33 @@ class Inference(object):
         if parallel_print_all:
             self.header = '\t'.join(['chain', 'lnpost'] + self.header_list)
         print(self.header)
-        for p, lnprob, lnlike in sampler.sample(init_pos_new,
-                iterations=num_iter, storechain = True):
-            if parallel_print_all:
-                _util.print_parallel_csv_lines(p, lnprob, lnlike)
-            else:
-                # first chain is chain with temperature 1
-                _util.print_csv_lines(p[0], lnprob[0])
+        if not do_evidence:
+            for p, lnprob, lnlike in sampler.sample(init_pos_new,
+                    iterations=num_iter, storechain = True):
+                if parallel_print_all:
+                    _util.print_parallel_csv_lines(p, lnprob, lnlike)
+                else:
+                    # first chain is chain with temperature 1
+                    _util.print_csv_lines(p[0], lnprob[0])
 
-        if do_evidence:
-            for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
-                evidence = sampler.log_evidence_estimate(
-                        fburnin=fburnin)
-                print('# evidence (fburnin = {}):'.format(fburnin), evidence)
+        else:
+            evidence_every = 2000
+            num_completed = 0
+            while num_completed < num_iter:
+                to_do = min(evidence_every, num_iter-num_completed)
+                for p, lnprob, lnlike in sampler.sample(init_pos_new,
+                        iterations=to_do, storechain = True):
+                    if parallel_print_all:
+                        _util.print_parallel_csv_lines(p, lnprob, lnlike)
+                    else:
+                        # first chain is chain with temperature 1
+                        _util.print_csv_lines(p[0], lnprob[0])
+                for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
+                    evidence = sampler.log_evidence_estimate(
+                            fburnin=fburnin)
+                    print('# evidence after {} iterations (fburnin = {}): {}'.format(num_completed, fburnin, evidence))
+                num_completed += to_do
+
 
         if mpi:
             pool.close()
