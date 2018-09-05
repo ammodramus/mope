@@ -103,8 +103,8 @@ def get_len_limits(trees, ages_file, lower_drift, upper_drift,
             ld, ud = lower_bottleneck, upper_bottleneck
         else:
             ld, ud = lower_drift, upper_drift
-        limits[varname] = [np.log10(ld / mults[0]),
-                np.log10(ud / mults[1])]
+        limits[varname] = [np.log10(ld / minv),
+                np.log10(ud / maxv)]
     return limits
 
 def make_figures(
