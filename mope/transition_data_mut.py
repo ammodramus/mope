@@ -325,7 +325,9 @@ class TransitionData(object):
         P = np.zeros((N+1, N+1))
         x = np.arange(N+1)
         for i in range(N+1):
-            dist = np.convolve(binom.pmf(x, i, 1-u), binom.pmf(x, N-i, u))
+            j = np.arange(i+1)
+            Nj = np.arange(N-i+1)
+            dist = np.convolve(binom.pmf(j, i, 1-u), binom.pmf(Nj, N-i, u))
             P[i,:] = dist
         P = bin_matrix(P, breaks)
         return P
