@@ -430,8 +430,8 @@ class Inference(object):
         self.num_varnames = num_varnames
         ndim = 2*num_varnames + 2
 
-        # (hard-coded bounds)
-        min_allowed_len = max(self.transition_data.get_min_coal_time(),
+        # (this multiplied by 0.01 for pointmass at zero)
+        min_allowed_len = 0.01*max(self.transition_data.get_min_coal_time(),
                 lower_drift_limit)
         max_allowed_len = min(self.transition_data.get_max_coal_time(),
                 upper_drift_limit)
@@ -468,15 +468,12 @@ class Inference(object):
         self.lower = lower
         self.upper = upper
 
-        if self.print_debug:
-            print(self.min_mults)
-            print(self.max_mults)
-            print('! self.lower:')
-            for el in self.lower:
-                print('! ', el)
-            print('! self.upper:')
-            for el in self.upper:
-                print('! ', el)
+        print('# self.lower:')
+        for el in self.lower:
+            print('# ', el)
+        print('# self.upper:')
+        for el in self.upper:
+            print('# ', el)
 
         #####################################################
         # true parameters, if specified (for sim. data)

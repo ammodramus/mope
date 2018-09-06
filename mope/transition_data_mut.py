@@ -156,9 +156,9 @@ class TransitionData(object):
             raise ValueError('scaled_time is not finite')
         if not np.isfinite(scaled_mut):
             raise ValueError('scaled_mut is not finite')
-        if scaled_time < self._min_coal_time:
-            raise ValueError('drift time too small: {} < {} (min)'.format(
-                scaled_time, self._min_coal_time))
+        #if scaled_time < self._min_coal_time:
+        #    raise ValueError('drift time too small: {} < {} (min)'.format(
+        #        scaled_time, self._min_coal_time))
         if scaled_time > self._max_coal_time:
             raise ValueError('drift time too large: {} > {} (max)'.format(
                 scaled_time, self._max_coal_time))
@@ -179,6 +179,9 @@ class TransitionData(object):
         suitable position is given.
         '''
         desired_gen_time = self._N * scaled_time
+        if desired_gen_time < self._sorted_gens[0]:
+            #print('# identity matrix returned')
+            return np.diag(np.ones(self._shape[0]))
         gen_idx = np.searchsorted(self._sorted_gens, desired_gen_time)
         desired_u = scaled_mut / (2.0 * self._N)
         u_idx = np.searchsorted(self._sorted_us, desired_u)
