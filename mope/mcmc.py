@@ -114,7 +114,8 @@ def run_mcmc(args):
             post_is_prior = args.just_prior_debug,
             lower_drift_limit = lower_dr,
             upper_drift_limit = upper_dr,
-            min_phred_score = args.min_phred_score)
+            min_phred_score = args.min_phred_score,
+            mutation_transitions_file = args.mutations)
 
     # for parallel tempering
     nt = args.num_temperatures

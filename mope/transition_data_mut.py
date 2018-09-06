@@ -21,7 +21,7 @@ def isclose(a,b, rtol = 1e-5):
 class TransitionData(object):
     
     def __init__(self, filename, master_filename = None, check = True,
-            memory = False):
+            memory = False, mutation_transitions = None):
         assert 3/2 == 1.5
         self._links = {}
         self._filename = filename
@@ -36,6 +36,7 @@ class TransitionData(object):
         self._check_integrity = check
         self._memory = memory
         self._cache = LRU(500)
+        self.mutation_transitions_file = mutation_transitions
 
         self._add_master_file()
             
@@ -108,6 +109,23 @@ class TransitionData(object):
         self._max_mutation_rate = self._sorted_us.max() * 2 * self._N
         if not self._memory:
             self._hdf5_file = h5py.File(self._filename, 'r')
+
+        if self.mutation_transitions_file is not None:
+            expected_us = set(list(self._us))
+            found_muts = set([])
+            with h5py.File(self.mutation_transitions_file, 'r') as fin:
+                self._mut_trans = {}
+                for dname in fin.keys():
+                    P = fin[dname][:]
+                    u = fin[dname].attrs['u']
+                    self._mut_trans[u] = P
+                    found_muts.add(u)
+            if not expected_us.issubset(found_muts):
+                diff = expected_us.difference(found_muts)
+                raise ValueError('could not find mutation rates {} in \
+                        mutation rates file'.format(diff))
+        else:
+            import pdb; pdb.set_trace()
         
     def get_transition_probabilities_time(self, scaled_time):
         desired_gen_time = self._N * scaled_time
@@ -195,7 +213,7 @@ class TransitionData(object):
             return self.bilinear_interpolation(desired_gen_time, desired_u,
                     gen_idx, u_idx)
         else:
-            return self.get_identity_matrix(desired_u)
+            return self.get_mutation_matrix(desired_u)
 
     def bilinear_interpolation(self, desired_gen_time, desired_u, gen_idx,
             u_idx):
@@ -331,6 +349,18 @@ class TransitionData(object):
             P[i,:] = dist
         P = bin_matrix(P, breaks)
         return P
+
+    def get_mutation_matrix(self, desired_u):
+        u_idx = np.searchsorted(self._sorted_us, desired_u)
+        lower_u = self._sorted_us[u_idx] 
+        upper_u = self._sorted_us[u_idx+1] 
+        lowerP = self._mut_trans[lower_u]
+        upperP = self._mut_trans[upper_u]
+        frac_lower = (desired_u-lower_u)/(upper_u-lower_u)
+        P = frac_lower*lowerP
+        P += (1-frac_lower)*upperP
+        return P
+
     
     def get_bin_frequencies(self):
         return self._frequencies

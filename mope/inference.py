@@ -147,7 +147,8 @@ class Inference(object):
             post_is_prior = False,
             lower_drift_limit = 1e-3,
             upper_drift_limit = 3,
-            min_phred_score = None):
+            min_phred_score = None,
+            mutation_transitions_file = None):
 
         self.asc_tree = None
         self.asc_num_loci = None
@@ -170,6 +171,7 @@ class Inference(object):
         self.start_from = _get_valid_start_from(start_from)
         self.init_true_params = true_parameters
         self.bottleneck_file = bottleneck_file
+        self.mutation_transitions_file = mutation_transitions_file
         self.poisson_like_penalty = poisson_like_penalty
         self.min_freq = min_freq
         self.transition_copy = transition_copy
@@ -509,12 +511,9 @@ class Inference(object):
     def _init_transition_data(self):
         ############################################################
         # add transition data
-        if self.transition_copy is None:
-            self.transition_data = tdm.TransitionData(self.transitions_file,
-                    memory = True)
-        else:
-            self.transition_data = tdm.TransitionDataCopy(transition_copy,
-                    transition_buf, transition_shape)
+        self.transition_data = tdm.TransitionData(self.transitions_file,
+                memory = True,
+                mutation_transitions = self.mutation_transitions_file)
         self.freqs = self.transition_data.get_bin_frequencies()
         self.num_freqs = self.freqs.shape[0]
         self.breaks = self.transition_data.get_breaks()

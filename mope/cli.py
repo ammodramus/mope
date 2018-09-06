@@ -50,6 +50,9 @@ def main():
     parser_run.add_argument('bottlenecks', type = str,
             help = 'HDF5 file for pre-calculated bottleneck transition \
                     distributions')
+    parser_run.add_argument('mutations', type = str,
+            help = 'HDF5 file for pre-calculate mutation-only transition \
+                    distributions')
     parser_run.add_argument('numiter', metavar='n',
             help = 'number of mcmc iterations to perform',
             type = ut.positive_int)
