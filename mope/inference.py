@@ -430,8 +430,10 @@ class Inference(object):
         self.num_varnames = num_varnames
         ndim = 2*num_varnames + 2
 
-        # (this multiplied by 0.01 for pointmass at zero)
-        min_allowed_len = 0.01*max(self.transition_data.get_min_coal_time(),
+        # (this multiplied by 0.1 for pointmass at zero)
+        # this gives the log10-uniform an additional order of magnitude for
+        # point mass at zero
+        min_allowed_len = 0.1*max(self.transition_data.get_min_coal_time(),
                 lower_drift_limit)
         max_allowed_len = min(self.transition_data.get_max_coal_time(),
                 upper_drift_limit)
