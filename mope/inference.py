@@ -203,6 +203,7 @@ class Inference(object):
                 tree_str = fin.read().strip()
                 self.tree_strings.append(tree_str)
 
+            print('# loading {}'.format(tree_str))
             self.plain_trees.append(newick.loads(
                     tree_str,
                     length_parser = ut.length_parser_str,
@@ -456,7 +457,8 @@ class Inference(object):
         upper_len[is_bottleneck_arr] = max_allowed_bottleneck
 
         # convert len limits to log10... above they should be natural scale
-        lower_len = np.log10(lower_len)
+        #lower_len = np.log10(lower_len)
+        lower_len = np.log10(lower_len) - 2
         upper_len = np.log10(upper_len)
 
         lower_mut = np.repeat(min_mut, num_varnames)

@@ -13,6 +13,7 @@ import numpy.random as npr
 from . import _interp
 from lru import LRU
 from .generate_transitions import bin_matrix
+from scipy.stats import binom
 
 def isclose(a,b, rtol = 1e-5):
     return np.abs(a-b) / np.abs(a) <= rtol
@@ -156,9 +157,9 @@ class TransitionData(object):
             raise ValueError('scaled_time is not finite')
         if not np.isfinite(scaled_mut):
             raise ValueError('scaled_mut is not finite')
-        if scaled_time < self._min_coal_time:
-            raise ValueError('drift time too small: {} < {} (min)'.format(
-                scaled_time, self._min_coal_time))
+        #if scaled_time < self._min_coal_time:
+        #    raise ValueError('drift time too small: {} < {} (min)'.format(
+        #        scaled_time, self._min_coal_time))
         if scaled_time > self._max_coal_time:
             raise ValueError('drift time too large: {} > {} (max)'.format(
                 scaled_time, self._max_coal_time))
@@ -190,8 +191,11 @@ class TransitionData(object):
         #    return self.biquadratic_interpolation(desired_gen_time, desired_u,
         #            gen_idx, u_idx)
 
-        return self.bilinear_interpolation(desired_gen_time, desired_u,
-                gen_idx, u_idx)
+        if scaled_time >= self._min_coal_time:
+            return self.bilinear_interpolation(desired_gen_time, desired_u,
+                    gen_idx, u_idx)
+        else:
+            return self.get_identity_matrix(desired_u)
 
     def bilinear_interpolation(self, desired_gen_time, desired_u, gen_idx,
             u_idx):
@@ -237,7 +241,6 @@ class TransitionData(object):
                 weight22)
 
         return distn
-
 
     def biquadratic_interpolation(self, desired_gen_time, desired_u, gen_idx,
             u_idx):
@@ -319,12 +322,11 @@ class TransitionData(object):
         N = self._N
         breaks = self._breaks
         # N+1 x N+1 identity matrix, plus 
-        diag = np.diag(np.repeat(1.0-2*u, N+1))
-        above_diag = np.diag(np.repeat(u, N), 1)
-        below_diag = np.diag(np.repeat(u, N), -1)
-        P = diag + above_diag + below_diag
-        P[0,0] += u
-        P[-1,-1] += u
+        P = np.zeros((N+1, N+1))
+        x = np.arange(N+1)
+        for i in range(N+1):
+            dist = np.convolve(binom.pmf(x, i, 1-u), binom.pmf(x, N-i, u))
+            P[i,:] = dist
         P = bin_matrix(P, breaks)
         return P
     
