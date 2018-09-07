@@ -1050,9 +1050,10 @@ class Inference(object):
         else:
             evidence_every = 2000
             num_completed = 0
+            p = init_pos_new
             while num_completed < num_iter:
                 to_do = min(evidence_every, num_iter-num_completed)
-                for p, lnprob, lnlike in sampler.sample(init_pos_new,
+                for p, lnprob, lnlike in sampler.sample(p,
                         iterations=to_do, storechain = True):
                     if parallel_print_all:
                         _util.print_parallel_csv_lines(p, lnprob, lnlike)
