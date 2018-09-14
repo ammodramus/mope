@@ -938,8 +938,8 @@ class Inference(object):
                     rstart[:, :nvarnames] = np.log10(npr.uniform(low,high)).reshape(
                             num_walkers,-1)
                 init_pos = rstart
-                logl_val = logl(init_pos)
-                logp_val = logp(init_pos)
+                logl_val = np.array([logl(p) for p in init_pos])
+                logp_val = np.array([logp(p) for p in init_pos])
                 if np.all(np.isfinite(logl_val)) and np.all(np.isfinite(logp_val)):
                     break  # successfully found starting position within bounds
                 else:
