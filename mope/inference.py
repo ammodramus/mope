@@ -878,7 +878,7 @@ class Inference(object):
 
 
     def _get_initial_mcmc_position(
-            self, num_walkers, prev_chain, start_from, init_norm_sd, pool):
+            self, num_walkers, prev_chain, start_from, init_norm_sd, pool, logp, logl):
 
         ndim = 2*len(self.varnames) + 2
 
@@ -912,31 +912,45 @@ class Inference(object):
             init_pos = proposed_init_pos
         else:
             # prior is the new default
-            if self.print_debug:
-                print('! starting MCMC from random point')
-            nvarnames = len(self.varnames)
-            nparams = self.lower.shape[0]
-            rstart = np.zeros((num_walkers, nparams))
-            # the mutation and the root parameters will be uniform across their
-            # ranges (both are log10 scaled)
-            low = np.tile(self.lower[nvarnames:], num_walkers)
-            high = np.tile(self.upper[nvarnames:], num_walkers)
-            rstart[:, nvarnames:] = npr.uniform(low,
-                    high).reshape(num_walkers,-1)
-            if self.log_unif_drift:
-                # drift parameters now in log10 units
-                low = np.tile(self.lower[:nvarnames], num_walkers)
-                high = np.tile(self.upper[:nvarnames], num_walkers)
-                #import pdb; pdb.set_trace()
-                #print('lower and upper uniform bounds:', low, high, file=sys.stderr)
-                rstart[:,:nvarnames] = npr.uniform(low, high).reshape(
-                        num_walkers, -1)
-            else:
-                low = np.tile(10**self.lower[:nvarnames], num_walkers)
-                high = np.tile(10**self.upper[:nvarnames], num_walkers)
-                rstart[:, :nvarnames] = np.log10(npr.uniform(low,high)).reshape(
-                        num_walkers,-1)
-            init_pos = rstart
+            while True:
+                if self.print_debug:
+                    print('! starting MCMC from random point')
+                nvarnames = len(self.varnames)
+                nparams = self.lower.shape[0]
+                rstart = np.zeros((num_walkers, nparams))
+                # the mutation and the root parameters will be uniform across their
+                # ranges (both are log10 scaled)
+                low = np.tile(self.lower[nvarnames:], num_walkers)
+                high = np.tile(self.upper[nvarnames:], num_walkers)
+                rstart[:, nvarnames:] = npr.uniform(low,
+                        high).reshape(num_walkers,-1)
+                if self.log_unif_drift:
+                    # drift parameters now in log10 units
+                    low = np.tile(self.lower[:nvarnames], num_walkers)
+                    high = np.tile(self.upper[:nvarnames], num_walkers)
+                    #import pdb; pdb.set_trace()
+                    #print('lower and upper uniform bounds:', low, high, file=sys.stderr)
+                    rstart[:,:nvarnames] = npr.uniform(low, high).reshape(
+                            num_walkers, -1)
+                else:
+                    low = np.tile(10**self.lower[:nvarnames], num_walkers)
+                    high = np.tile(10**self.upper[:nvarnames], num_walkers)
+                    rstart[:, :nvarnames] = np.log10(npr.uniform(low,high)).reshape(
+                            num_walkers,-1)
+                init_pos = rstart
+                logl_val = logl(init_pos)
+                logp_val = logp(init_pos)
+                if np.all(np.isfinite(logl_val)) and np.all(np.isfinite(logp_val)):
+                    break  # successfully found starting position within bounds
+                else:
+                    if not np.all(np.isfinite(logl_val)):
+                        print('# warning: attempted start at initial position where log-likelihood is not finite')
+                        print('# bad init position (logl)', file = sys.stderr)
+                        print(init_pos, file = sys.stderr)
+                    if not np.all(np.isfinite(logv_val)):
+                        print('# warning: attempted start at initial position where prior is not finite')
+                        print('# bad init position (logprior)', file = sys.stderr)
+                        print(init_pos, file = sys.stderr)
 
         return init_pos
 
@@ -1006,7 +1020,7 @@ class Inference(object):
 
         if init_pos is None:
             init_pos = self._get_initial_mcmc_position(num_walkers, prev_chain,
-                    start_from, init_norm_sd, pool)
+                    start_from, init_norm_sd, pool, logp, logl)
 
 
         ndim = 2*len(self.varnames)+2
