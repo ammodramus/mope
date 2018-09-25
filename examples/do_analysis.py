@@ -71,15 +71,44 @@ parser.add_argument('--m2', action = 'store_true',
         help = 'use summary statistics from newer data')
 parser.add_argument('--no-change', action = 'store_true',
         help = 'include pointmass at zero')
+parser.add_argument('--lowers', help = 'file with parameter lower limits, one per line')
 args = parser.parse_args()
 
 dat = pd.read_csv(args.datafile, sep = '\t', header = 0, comment = '#')
+
+if args.no_change and not args.old:
+    # get lowers
+    if args.lowers is None:
+        lowers = []
+        with open(args.datafile) as fin:
+            foundlower = False
+            for line in fin:
+                line = line.strip()
+                if 'lower' in line:
+                    foundlower = True
+                    continue
+                if foundlower:
+                    if 'upper' in line:
+                        break
+                    lowers.append(float(line.split(' ')[-1]))
+    else:
+        with open(args.lowers) as fin:
+            lowers = []
+            for line in fin:
+                lowers.append(float(line.strip()))
+
+    num_length_cols = dat.columns.str.endswith('_l').sum()
+    for i in range(num_length_cols):
+        low = lowers[i]
+        col = dat.columns[i]
+        dat.loc[dat[col] < low+1, col] = -np.inf
+
 # convert drift back to natural units
 if not args.old:
     dat.loc[:,dat.columns.str.contains('_l')] = 10**dat.loc[:,dat.columns.str.contains('_l')]
 else:
     dat.loc[:,dat.columns.str.contains('_l')] = dat.loc[:,dat.columns.str.contains('_l')].abs()
-    dat.loc[:,dat.columns.str.contains('_m')] = -1.0*dat.loc[:,dat.columns.str.contains('_m')].abs()
+    dat.loc[:,dat.columns.str.contains('_m')] = 10**(-1.0*dat.loc[:,dat.columns.str.contains('_m')].abs())
 burn_idx = int(dat.shape[0] * args.frac_burnin)
 dat_burn = dat.iloc[burn_idx:,:]
 
@@ -91,41 +120,6 @@ if args.m2:
 else:
     mean_age = 29.558974
 
-if args.no_change:
-    # get lowers
-    lowers = []
-    with open(args.datafile) as fin:
-        foundlower = False
-        for line in fin:
-            line = line.strip()
-            if 'lower' in line:
-                foundlower = True
-                continue
-            if foundlower:
-                if 'upper' in line:
-                    break
-                lowers.append(float(line.split(' ')[-1]))
-    # get uppers
-    uppers = []
-    with open(args.datafile) as fin:
-        foundupper = False
-        for line in fin:
-            line = line.strip()
-            if 'upper' in line:
-                foundupper = True
-                continue
-            if foundupper:
-                if len(uppers) < len(lowers):
-                    uppers.append(float(line.split(' ')[-1]))
-                else:
-                    break
-
-    num_length_cols = dat.columns.str.endswith('_l').sum()
-    assert num_length_cols == int((len(lowers)-2)/2), 'did not find correct number of lower bounds'
-    for i in range(num_length_cols):
-        low = lowers[i]
-        col = dat.columns[i]
-        dat.loc[dat[col] < low+1, col] = -np.inf
 
 if args.m2:
     bots_mean = 2.0/(dat_burn['eoo_pre_l'] + dat_burn['eoo_post_l'] + dat_burn['som_l'] + mean_age*dat_burn['loo_l']).values
