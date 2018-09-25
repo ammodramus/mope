@@ -100,7 +100,7 @@ if args.no_change and not args.old:
     num_length_cols = dat.columns.str.endswith('_l').sum()
     for i in range(num_length_cols):
         low = lowers[i]
-        col = dat.columns[i]
+        col = dat.columns[i+1]  # i+1 because first column is log-likelihood!
         dat.loc[dat[col] < low+1, col] = -np.inf
 
 # convert drift back to natural units
