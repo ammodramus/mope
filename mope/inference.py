@@ -947,7 +947,7 @@ class Inference(object):
                         print('# warning: attempted start at initial position where log-likelihood is not finite')
                         print('# bad init position (logl)', file = sys.stderr)
                         print(init_pos, file = sys.stderr)
-                    if not np.all(np.isfinite(logv_val)):
+                    if not np.all(np.isfinite(logp_val)):
                         print('# warning: attempted start at initial position where prior is not finite')
                         print('# bad init position (logprior)', file = sys.stderr)
                         print(init_pos, file = sys.stderr)
