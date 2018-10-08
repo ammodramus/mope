@@ -1099,11 +1099,11 @@ class Inference(object):
                     else:
                         # first chain is chain with temperature 1
                         _util.print_csv_lines(p[0], lnprob[0])
+                num_completed += to_do
                 for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
                     evidence = sampler.log_evidence_estimate(
                             fburnin=fburnin)
                     print('# evidence after {} iterations (fburnin = {}): {}'.format(num_completed, fburnin, evidence))
-                num_completed += to_do
 
 
         if mpi:
