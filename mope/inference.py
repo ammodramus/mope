@@ -722,7 +722,9 @@ class Inference(object):
             # same as specifying the drift as log-uniform, since
             # log D = log 2 - log B, and log B is uniform.
             # drift now in log-units
-            logp = 1.0
+
+            # everything is uniform on the scale of self.upper and self.lower
+            return np.sum(np.log(1.0/(self.upper-self.lower)))
         else:
             if self.inverse_bot_priors:
                 # if D = 2/B is uniform, f_B(x) \propto x^{-2}, and 
