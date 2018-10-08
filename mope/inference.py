@@ -726,22 +726,45 @@ class Inference(object):
             # everything is uniform on the scale of self.upper and self.lower
             return np.sum(np.log(1.0/(self.upper-self.lower)))
         else:
+            u = self.upper
+            l = self.lower
+            drift_x = x[:num_varnames]
+            mut_x = x[num_varnames:2*num_varnames]
+            root_x = x[2*num_varnames:]
+            #ln10 = 2.3025850929940459
+            #lnln10 = 0.834032445247956 
+            drift_part_arr = (drift_x*2.3025850929940459 +
+                    0.834032445247956 - np.log(10**u-10**l))
+            u_m = self.upper[num_varnames:2*num_varnames]
+            l_m = self.lower[num_varnames:2*num_varnames]
+            u_r = self.upper[2*num_varnames:]
+            l_r = self.lower[2*num_varnames:]
+            mut_part = np.sum(np.log(1.0/(u_m-l_m)))
+            root_part = np.sum(np.log(1.0/(u_r-l_r)))
+
             if self.inverse_bot_priors:
-                # if D = 2/B is uniform, f_B(x) \propto x^{-2}, and 
-                # log f_B(x) \propto -2log(x)
+                # if the drift D for bottleneck B, where D = 2/B, is
+                # Uniform(2/u,2/l), where l and u are the lower and upper
+                # bottleneck size limits, the prior density on B wrt z is
                 #
-                # update: if D = 2/B is uniform, the log-density of log B is
-                # \propto -x
-                pv = np.zeros(x.shape[0])
-                pv[self.is_bottleneck_arr] = -1.0*x[self.is_bottleneck_arr]
-                pv[~self.is_bottleneck_arr] = x[~self.is_bottleneck_arr]
-                logp = np.sum(pv)
-            else:
-                # if D ~ Unif, the density of log_10 D is \propto 10^x and thus
-                # the log-density of log_10 D is \propto log(10) * x.
-                # log(10) = 2.3025850929940459
-                logp = 2.3025850929940459*np.sum(x[:num_varnames])
-        return logp
+                #    2/( (2/l-2/u) * z^2) = l*u/( (u-l) * z^2)
+                #
+                # and the log-density is
+                #
+                #    log l + log u - ln(u-l) - 2 ln z.
+                #
+                # The below assumes that self.is_bottleneck_arr is a boolean
+                # array over only the drift components. Might be wrong about
+                # this, in which case this will throw an exception.
+                l_b = self.lower[self.is_bottleneck_arr]
+                u_b = self.upper[self.is_bottleneck_arr]
+                x_b = drift_x[self.is_bottleneck_arr]
+                drift_part_arr[self.is_bottleneck_arr] = (
+                        np.log(l_b) + np.log(u_b) + - np.log(u_b-l_b) -
+                        2*np.log(x_b))
+            drift_part = np.sum(drift_part_arr)
+
+            return drift_part + mut_part + root_part
 
 
     def poisson_log_like(self, logascprobs, tree_idx):
