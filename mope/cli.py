@@ -21,6 +21,7 @@ from .generate_transitions import _run_generate, _run_master, _run_gencmd
 from .generate_transitions import _run_make_gauss
 from .acceptance import _run_acceptance
 from .add_detection_noise import _add_det_noise
+from .posteriormutloc import run_posterior_mut_loc
 
 
 def main():
@@ -39,7 +40,8 @@ def main():
     #############################
     # run MCMC
     #############################
-    parser_run = subparsers.add_parser('run')
+    parser_run = subparsers.add_parser('run',
+            description = 'run MCMC')
 
     parser_run.add_argument('--input-file', type = str, help = 'whitespace-delimited table of input files with three columns (data file, tree file, age file)')
     parser_run.add_argument('--data-files', type = str, help = "list of data files, comma-separate")
@@ -393,6 +395,41 @@ def main():
                    'and false positives are added to this frequency window.')
     parser_noise.add_argument('--debug', action = 'store_true')
     parser_noise.set_defaults(func = _add_det_noise)
+
+    parser_posterior_mut_loc = subparsers.add_parser('posterior-mut-loc',
+            description = 'calculate posterior probabilities of where '
+                          'mutations occurred')
+    parser_posterior_mut_loc.add_argument('--input-file', type = str, help = 'whitespace-delimited table of input files with three columns (data file, tree file, age file)')
+    parser_posterior_mut_loc.add_argument('--data-files', type = str, help = "list of data files, comma-separate")
+    parser_posterior_mut_loc.add_argument('--tree-files', type = str, help = "list of tree files, comma-separated")
+    parser_posterior_mut_loc.add_argument('--age-files', type = str, help = "list of age files, comma-separated")
+    parser_posterior_mut_loc.add_argument('drift', type = str, help = "HDF5 file for \
+            pre-calculated drift transition distributions")
+    parser_posterior_mut_loc.add_argument('bottlenecks', type = str,
+            help = 'HDF5 file for pre-calculated bottleneck transition \
+                    distributions')
+    parser_posterior_mut_loc.add_argument('posteriorsamples',
+            help = 'posterior samples file', type = str)
+    parser_posterior_mut_loc.add_argument('--data-are-frequencies', action = 'store_true',
+            help = 'data are frequencies rather than allele counts')
+    parser_posterior_mut_loc.add_argument('--genome-size', type = ut.positive_int,
+            default = 16569, help = 'genome size is G bp [%(default)s]',
+            metavar = 'G')
+    parser_posterior_mut_loc.add_argument('--num-processes',
+            type = ut.positive_int, default = 1,
+            help = 'number of parallel processes to use [%(default)s]')
+    parser_posterior_mut_loc.add_argument('--asc-prob-penalty', type = float, default = 1.0,
+            help = 'multiplicative factor penalty for Poisson count of '
+                    'part of likelihood function (1 = no penalty, '
+                    '0 = full penalty) [%(default)s]')
+    parser_posterior_mut_loc.add_argument('--min-het-freq', type = ut.probability,
+            help = 'minimum heteroplasmy frequency considered [%(default)s]',
+            default = 0.001)
+    parser_posterior_mut_loc.add_argument('--mpi', action = 'store_true', 
+            help = 'use MPI for distribution of chain posterior calculations')
+    parser_posterior_mut_loc.add_argument('--min-phred-score', type = float,
+            help = 'phred score to assume for count data (INFINITY by default)')
+    parser_posterior_mut_loc.set_defaults(func = run_posterior_mut_loc)
 
 
     ############################################
