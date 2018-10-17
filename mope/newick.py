@@ -58,7 +58,9 @@ class Node(object):
         for char in RESERVED_PUNCTUATION:
             if (name and char in name) or (length and char in length):
                 raise ValueError(
-                    'Node names or branch lengths must not contain "%s"' % char)
+                    'Node name ({}) or branch length ({}) must not contain "{}"'.format(
+                        name, length, char))
+
         self.name = name
         self._length = length
         self.descendants = []
