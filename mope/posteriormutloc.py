@@ -34,10 +34,6 @@ def run_posterior_mut_loc(args):
     =========================
     '''
 
-    if args.debug and args.mpi:
-        errmsg='--debug and --mpi cannot be simultaneously specified'
-        raise ValueError(errmsg)
-
     lower_dr, upper_dr = args.drift_limits
 
     data_files, tree_files, age_files = get_input_files(args)
