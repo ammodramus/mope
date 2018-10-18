@@ -36,7 +36,7 @@ def run_posterior_mut_loc(args):
 
     lower_dr, upper_dr = args.drift_limits
 
-    data_files, tree_files, age_files = get_input_files(args)
+    data_files, tree_files, age_files = ut.get_input_files(args)
 
     inf_data = inf.Inference(
             data_files = data_files,

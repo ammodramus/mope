@@ -30,43 +30,6 @@ from ._util import print_csv_line, print_csv_lines, print_parallel_csv_lines
 from . import ascertainment as asc
 
 
-def _check_input_fns(datas, trees, ages):
-    fns = [datas, trees, ages]
-    if len(fns[0]) != len(fns[1]) or len(fns[0]) != len(fns[2]):
-        raise ValueError('--data-files, --tree-files, and --age-files must be of the same length')
-    for grp in fns:
-        for fn in grp:
-            if not os.path.exists(fn):
-                raise ValueError('could not find file {}'.format(fn))
-    return
-
-def get_input_files(args):
-    '''
-    look at args.input_file and (args.data_files, args.tree_files,
-    args.age_files)
-
-    args.input_file takes precedence
-    '''
-
-
-    if args.input_file is not None:
-        datas, trees, ages = [], [], []
-        inf = open(args.input_file)
-        for line in inf:
-            spline = line.strip().split()
-            if len(spline) != 3:
-                raise ValueError('--input-files file must have three columns: data file, tree file, and age file')
-            datas.append(spline[0])
-            trees.append(spline[1])
-            ages.append(spline[2])
-    else:
-        datas = args.data_files.split(',')
-        trees = args.tree_files.split(',')
-        ages = args.age_files.split(',')
-
-    _check_input_fns(datas, trees, ages)
-    return datas, trees, ages
-
 def run_mcmc(args):
     global inf_data
     '''
@@ -94,7 +57,7 @@ def run_mcmc(args):
 
     lower_dr, upper_dr = args.drift_limits
 
-    data_files, tree_files, age_files = get_input_files(args)
+    data_files, tree_files, age_files = ut.get_input_files(args)
 
     inf_data = inf.Inference(
             data_files = data_files,
