@@ -430,6 +430,10 @@ def main():
     parser_posterior_mut_loc.add_argument('--min-phred-score', type = float,
             help = 'phred score to assume for count data (INFINITY by default)')
     parser_posterior_mut_loc.set_defaults(func = run_posterior_mut_loc)
+    parser_posterior_mut_loc.add_argument('--drift-limits', type = float, nargs = 2,
+            default = (1e-3, 3),
+            help = 'lower and upper length limits for drift variables, in '
+                   'natural scale')
 
 
     ############################################
