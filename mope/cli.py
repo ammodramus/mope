@@ -122,7 +122,7 @@ def main():
             help = 'lower and upper length limits for drift variables, in '
                    'natural scale')
     parser_run.add_argument('--min-phred-score', type = float,
-            help = 'phred score to assume for count data (INFINITY by default)')
+            help = 'phred score to assume for count data (30 by default)', default = 30.0)
     parser_run.set_defaults(func = run_mcmc)
 
 
