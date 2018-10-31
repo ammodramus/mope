@@ -42,6 +42,9 @@ def fill_cond_probs(
     num_branches = inf.num_branches[tree_idx]
     branch_lengths = 10**params[:num_branches]
     mutation_rates = 10**params[num_branches:]
+    alphabeta, polyprob = 10**varparams[-2:]
+    stat_dist = lis.get_stationary_distribution_double_beta(inf.freqs,
+            inf.breaks, inf.transition_N, alphabeta, polyprob)
 
     mrca = inf.trees[tree_idx]
     # leaf_likelihoods is a dictionary, keys with leaf names, values ndarrays
@@ -104,6 +107,10 @@ def fill_cond_probs(
                         node_length,
                         mut_rate,
                         transitions)
+    root_cond_probs = inf.trees[tree_idx].cond_probs
+    loglikes = np.log(np.dot(root_cond_probs, stat_dist))
+    return loglikes
+
 
 def run_posterior_mut_loc(args):
     global inf_data
@@ -147,20 +154,23 @@ def run_posterior_mut_loc(args):
         tree_leaf_likes = inf_data.leaf_likes[tree_idx]
         inf_data.data[tree_idx]['position'] = inf_data.data[tree_idx]['position'].astype(np.int32)
         for idx, sampled_varpars in posterior_data.sample(args.numposteriorsamples, axis = 0).iterrows():
-            fill_cond_probs(inf_data, tree_idx, sampled_varpars.values)
+            log_overall_probs = fill_cond_probs(inf_data, tree_idx, sampled_varpars.values)
             for node in inf_data.trees[tree_idx].walk('postorder'):
                 subtending_cond_from_zero = node.cond_probs[:,0]
                 subtending_leaf_names = node.get_leaf_names()
                 non_subtending_leaf_log_likes_zero = np.log([tree_leaf_likes[el][:,0] for el in tree_leaf_likes.keys() if el not in subtending_leaf_names])
                 non_subtending_log_like_zero = np.sum(non_subtending_leaf_log_likes_zero, axis = 0)
-                log_p_this_node = np.log(subtending_cond_from_zero) + non_subtending_log_like_zero
+                # TODO check this is right... giving positive logprobs, so probably not right!
+                log_p_this_node = np.log(subtending_cond_from_zero) + non_subtending_log_like_zero - log_overall_probs
                 log_probs[tree_idx][node.name].append(log_p_this_node)
         for name, log_p_this_nodes in log_probs[tree_idx].iteritems():
-            log_probs[tree_idx][name] = pd.DataFrame(np.array(log_probs[tree_idx][name]).T)
-            log_probs[tree_idx][name]['family'] = inf_data.data[tree_idx]['family']
-            log_probs[tree_idx][name]['position'] = inf_data.data[tree_idx]['position']
-            log_probs[tree_idx][name]['nodename'] = name
-            log_probs[tree_idx][name] = pd.melt(log_probs[tree_idx][name], id_vars = ['family', 'position', 'nodename'], var_name = 'rep', value_name = 'logprob')
+            # TODO: need to get overall likelihood as well, subtract log-overallprob from above probs
+            log_cond_probs = np.array(log_probs[tree_idx][name]).T
+            log_mut_probs = pd.DataFrame(log_cond_probs)
+            log_mut_probs['family'] = inf_data.data[tree_idx]['family']
+            log_mut_probs['position'] = inf_data.data[tree_idx]['position']
+            log_mut_probs['nodename'] = name
+            log_probs[tree_idx][name] = pd.melt(log_mut_probs, id_vars = ['family', 'position', 'nodename'], var_name = 'rep', value_name = 'logprob')
         log_probs_all_nodes[tree_idx] = pd.concat(log_probs[tree_idx].values(), ignore_index = True)
     all_log_probs = pd.concat(log_probs_all_nodes.values(), ignore_index = True)
     all_log_probs.to_csv(sys.stdout, index = False, sep = str('\t'))
