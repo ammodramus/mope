@@ -410,6 +410,8 @@ def main():
                     distributions')
     parser_posterior_mut_loc.add_argument('posteriorsamples',
             help = 'posterior samples file', type = str)
+    parser_posterior_mut_loc.add_argument('numposteriorsamples', type = int, default = 1000,
+            help = 'number of posterior samples to sample for each locus')
     parser_posterior_mut_loc.add_argument('--data-are-frequencies', action = 'store_true',
             help = 'data are frequencies rather than allele counts')
     parser_posterior_mut_loc.add_argument('--genome-size', type = ut.positive_int,
@@ -425,15 +427,13 @@ def main():
     parser_posterior_mut_loc.add_argument('--min-het-freq', type = ut.probability,
             help = 'minimum heteroplasmy frequency considered [%(default)s]',
             default = 0.001)
-    parser_posterior_mut_loc.add_argument('--mpi', action = 'store_true', 
-            help = 'use MPI for distribution of chain posterior calculations')
     parser_posterior_mut_loc.add_argument('--min-phred-score', type = float,
-            help = 'phred score to assume for count data (INFINITY by default)')
-    parser_posterior_mut_loc.set_defaults(func = run_posterior_mut_loc)
+            help = 'phred score to assume for count data (30 by default)', default = 30.0)
     parser_posterior_mut_loc.add_argument('--drift-limits', type = float, nargs = 2,
             default = (1e-3, 3),
             help = 'lower and upper length limits for drift variables, in '
                    'natural scale')
+    parser_posterior_mut_loc.set_defaults(func = run_posterior_mut_loc)
 
 
     ############################################
