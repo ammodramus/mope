@@ -32,6 +32,18 @@ from . import ascertainment as asc
 from . import _likes
 
 
+
+def _get_ancestors(focalnode):
+    ancs = []
+    curnode = focalnode
+    while True:
+        curnode = curnode.ancestor
+        ancs.append(curnode.name)
+        if not curnode.ancestor:
+            break
+    return ancs
+
+
 def fill_cond_probs(
         inf,
         tree_idx,
@@ -111,22 +123,22 @@ def fill_cond_probs(
     overall_loglikes = np.log(np.dot(root_cond_probs, stat_dist))
     return overall_loglikes
 
-def run_up_a_branch(node, inf, tree_idx, varparams):
+def fill_cond_probs_mutation(
+        focalnode,
+        inf,
+        tree_idx,
+        varparams):
+
     trans_idxs = inf.translate_indices[tree_idx]
     params = varparams[trans_idxs]
     num_branches = inf.num_branches[tree_idx]
     branch_lengths = 10**params[:num_branches]
     mutation_rates = 10**params[num_branches:]
     alphabeta, polyprob = 10**varparams[-2:]
-    name = node.name
-    branch_indices = inf.branch_indices[tree_idx]
-    branch_index = branch_indices[name]
-    multipliername = node.multipliername
+    stat_dist = lis.get_stationary_distribution_double_beta(inf.freqs,
+            inf.breaks, inf.transition_N, alphabeta, polyprob)
 
     mrca = inf.trees[tree_idx]
-    if node == mrca:
-        # treat the MRCA differently
-        raise ValueError('node cannot be MRCA')
     # leaf_likelihoods is a dictionary, keys with leaf names, values ndarrays
     # with likelihoods, shape is (nloci, nfreqs)
     leaf_likelihoods = inf.leaf_likes[tree_idx]
@@ -138,47 +150,119 @@ def run_up_a_branch(node, inf, tree_idx, varparams):
     transitions = inf.transition_data
     bottlenecks = inf.bottleneck_data
 
-    ancestor = node.ancestor
-    mut_rate = mutation_rates[branch_index]
+    for node in mrca.walk(mode = 'postorder'):
+        _likes.reset_likes_ones(node.cond_probs)
 
-    ancestor_likes = np.ones_like(ancestor.cond_probs)
+    # determine which nodes are descendents of the focal node, and which aren't
+    descendants = set([node.name for node in focalnode.walk() if node.name != focalnode.name])
+    ancestors = set(_get_ancestors(focalnode))
 
-    if node.is_leaf:
-        node_likes = leaf_likelihoods[name].copy()
-    else:
-        node_likes = node.cond_probs
+    for node in mrca.walk(mode = 'postorder'):
+        if node == mrca:
+            break
+        name = node.name
+        is_descendant = name in descendants
+        is_ancestor = name in ancestors
+        is_focal = name == focalnode.name
+        branch_index = branch_indices[name]
+        multipliername = node.multipliername
 
-    if multipliername is not None:
-        node_lengths = (data[multipliername].values *
-                branch_lengths[branch_index])
-        _likes.compute_leaf_transition_likelihood(
-                node_likes,
-                ancestor_likes,
-                node_lengths,
-                mut_rate,
-                transitions)
+        ancestor = node.ancestor
+        mut_rate = mutation_rates[branch_index]
+        ancestor_likes = ancestor.cond_probs
 
-    else:  # multipliername is None
-        if node.is_bottleneck:
-            if bottlenecks is None:
-                raise ValueError('pre-computed bottleneck data needed')
-            bottleneck_size = branch_lengths[branch_index]
-            _likes.compute_bottleneck_transition_likelihood(
-                    node_likes,
-                    ancestor_likes,
-                    bottleneck_size,
-                    mut_rate,
-                    bottlenecks)
-        else:  # not a bottleneck
-            node_length = branch_lengths[branch_index]
-            _likes.compute_branch_transition_likelihood(
-                    node_likes,
-                    ancestor_likes,
-                    node_length,
-                    mut_rate,
-                    transitions)
+        if node.is_leaf:
+            node_likes = leaf_likelihoods[name].copy()  # shape: (nloci, nfreqs)
+            if not is_descendant:
+                node_likes[:,1:] = 0  # linear scale
+        else:
+            node_likes = node.cond_probs
 
-    return ancestor_likes
+        if multipliername is not None:
+            node_lengths = (data[multipliername].values *
+                    branch_lengths[branch_index])
+            # TODO need to do this for bottlenecks and constant-sized lengths, too
+            if is_descendant:
+                _likes.compute_leaf_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        node_lengths,
+                        mut_rate,
+                        transitions)
+            elif node != focalnode:  # not a descendant
+                _likes.compute_leaf_zero_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        node_lengths,
+                        mut_rate,
+                        transitions)
+            else:
+                assert node == focalnode
+                _likes.compute_leaf_focal_node_zero_transition_likelihood(
+                        node_likes,
+                        ancestor_likes,
+                        node_lengths,
+                        mut_rate,
+                        transitions)
+
+        else:  # multipliername is None
+            if node.is_bottleneck:
+                if bottlenecks is None:
+                    raise ValueError('pre-computed bottleneck data needed')
+                bottleneck_size = branch_lengths[branch_index]
+                if is_descendant:
+                    _likes.compute_bottleneck_transition_likelihood(
+                            node_likes,
+                            ancestor_likes,
+                            bottleneck_size,
+                            mut_rate,
+                            bottlenecks)
+                elif node.name != focalnode.name:
+                    _likes.compute_bottleneck_transition_likelihood_zero(
+                            node_likes,
+                            ancestor_likes,
+                            bottleneck_size,
+                            mut_rate,
+                            bottlenecks)
+                else:
+                    assert node.name == focalnode.name
+                    _likes.compute_bottleneck_transition_likelihood_zero_focalnode(
+                            node_likes,
+                            ancestor_likes,
+                            bottleneck_size,
+                            mut_rate,
+                            bottlenecks)
+
+            else:  # not a bottleneck
+                node_length = branch_lengths[branch_index]
+                if is_descendant:
+                    _likes.compute_branch_transition_likelihood(
+                            node_likes,
+                            ancestor_likes,
+                            node_length,
+                            mut_rate,
+                            transitions)
+                elif node.name != focalnode.name:  # non-descendant
+                    _likes.compute_branch_transition_likelihood_zero(
+                            node_likes,
+                            ancestor_likes,
+                            node_length,
+                            mut_rate,
+                            transitions)
+                else:
+                    assert node == focalnode
+                    _likes.compute_branch_transition_likelihood_zero_focalnode(
+                            node_likes,
+                            ancestor_likes,
+                            node_length,
+                            mut_rate,
+                            transitions)
+
+
+    root_cond_probs = inf.trees[tree_idx].cond_probs
+    #overall_loglikes = np.log(np.dot(root_cond_probs, stat_dist))
+    overall_loglikes = np.log(root_cond_probs[:,0]*stat_dist[0])
+    return overall_loglikes
 
 def run_posterior_mut_loc(args):
     global inf_data
@@ -214,6 +298,7 @@ def run_posterior_mut_loc(args):
 
     # load in posterior data, too
     posterior_data = pd.read_csv(args.posteriorsamples, header = 0, comment = '#', sep = '\t').iloc[:,1:]
+    posterior_data = posterior_data.iloc[int(args.burnin_frac*posterior_data.shape[0]+0.5):,:]
 
     log_probs = defaultdict(lambda: defaultdict(list))
     log_probs_all_nodes = {}
@@ -221,22 +306,16 @@ def run_posterior_mut_loc(args):
     for tree_idx in range(len(inf_data.trees)):
         tree_leaf_likes = inf_data.leaf_likes[tree_idx]
         for idx, sampled_varpars in posterior_data.sample(args.numposteriorsamples, axis = 0).iterrows():
-            log_overall_probs = fill_cond_probs(inf_data, tree_idx, sampled_varpars.values)
+            sampled_varpars = sampled_varpars.values
+            log_overall_probs = fill_cond_probs(inf_data, tree_idx, sampled_varpars)
             for node in inf_data.trees[tree_idx].walk('postorder'):
                 if node == inf_data.trees[tree_idx]:   # the MRCA
                     log_p_this_node = log_overall_probs
                     continue
-                #subtending_cond_from_zero = node.cond_probs[:,0]
-                ancestor_cond_probs = run_up_a_branch(node, inf_data, tree_idx, sampled_varpars.values)
-                subtending_cond_from_zero = ancestor_cond_probs[:,0]
-                subtending_leaf_names = node.get_leaf_names()
-                non_subtending_leaf_log_likes_zero = np.log([tree_leaf_likes[el][:,0] for el in tree_leaf_likes.keys() if el not in subtending_leaf_names])
-                non_subtending_log_like_zero = np.sum(non_subtending_leaf_log_likes_zero, axis = 0)
-                # TODO check this is right... giving positive logprobs, so probably not right!
-                log_p_this_node = np.log(subtending_cond_from_zero) + non_subtending_log_like_zero - log_overall_probs
-                if np.any(log_p_this_node > 0):
-                    import pdb; pdb.set_trace()
+                log_mut_probs = fill_cond_probs_mutation(node, inf_data, tree_idx, sampled_varpars)
+                log_p_this_node = log_mut_probs - log_overall_probs
                 log_probs[tree_idx][node.name].append(log_p_this_node)
+
         for name, log_p_this_nodes in log_probs[tree_idx].iteritems():
             # TODO: need to get overall likelihood as well, subtract log-overallprob from above probs
             log_cond_probs = np.array(log_probs[tree_idx][name]).T
