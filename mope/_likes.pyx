@@ -71,9 +71,8 @@ def compute_leaf_zero_transition_likelihood(
         time = leaf_lengths[i]
         P = transitions.get_transition_probabilities_time_mutation(
                 time, mut_rate)
-        zero_prob = P[0,0]
         Pzero = np.zeros_like(P)
-        Pzero[0,0] = zero_prob
+        Pzero[0,0] = P[0,0]
         ancestor_likes[i,:] *= np.dot(Pzero, leaf_likes[i,:])
 
 
@@ -91,9 +90,9 @@ def compute_leaf_focal_node_zero_transition_likelihood(
         time = leaf_lengths[i]
         P = transitions.get_transition_probabilities_time_mutation(
                 time, mut_rate)
-        zero_dist = P[0,:]
-        ancestor_likes[i,0] *= np.dot(zero_dist, leaf_likes[i,:])
-        ancestor_likes[i,1:] = 0.0
+        Pzero = np.zeros_like(P)
+        Pzero[0,:] = P[0,:]
+        ancestor_likes[i,:] *= np.dot(Pzero, leaf_likes[i,:])
 
 
 def compute_branch_transition_likelihood(
@@ -124,11 +123,10 @@ def compute_branch_transition_likelihood_zero(
     P = transitions.get_transition_probabilities_time_mutation(
             node_length,
             mut_rate)
-    zero_prob = P[0,0]
-    P[:,:] = 0.0
-    P[0,0] = zero_prob
+    Pzero = np.zeros_like(P)
+    Pzero[0,0] = P[0,0]
     for i in range(num_loci):
-        ancestor_likes[i] *= np.dot(P, node_likes[i])
+        ancestor_likes[i] *= np.dot(Pzero, node_likes[i])
 
 
 def compute_branch_transition_likelihood_zero_focalnode(
@@ -143,10 +141,10 @@ def compute_branch_transition_likelihood_zero_focalnode(
     P = transitions.get_transition_probabilities_time_mutation(
             node_length,
             mut_rate)
-    zero_dist = P[0,:]
+    Pzero = np.zeros_like(P)
+    Pzero[0,:] = P[0,:]
     for i in range(num_loci):
-        ancestor_likes[i] *= np.dot(zero_dist, node_likes[i])
-        ancestor_likes[i,1:] = 0.0
+        ancestor_likes[i] *= np.dot(Pzero, node_likes[i])
         
 
 def compute_bottleneck_transition_likelihood(
@@ -183,9 +181,8 @@ def compute_bottleneck_transition_likelihood_zero(
     P = bottlenecks.get_transition_probabilities_time_mutation(
             bottleneck_size,
             mut_rate)
-    zero_prob = P[0,0]
     Pzero = np.zeros_like(P)
-    Pzero[0,0] = zero_prob
+    Pzero[0,0] = P[0,0]
     for i in range(num_loci):
         ancestor_likes[i] *= np.dot(Pzero, node_likes[i])
 
@@ -205,10 +202,10 @@ def compute_bottleneck_transition_likelihood_zero_focalnode(
     P = bottlenecks.get_transition_probabilities_time_mutation(
             bottleneck_size,
             mut_rate)
-    zero_dist = P[0,:]
+    Pzero = np.zeros_like(P)
+    Pzero[0,:] = P[0,:]
     for i in range(num_loci):
-        ancestor_likes[i,0] *= np.dot(zero_dist, node_likes[i,:])
-        ancestor_likes[i,1:] = 0.0
+        ancestor_likes[i,:] *= np.dot(Pzero, node_likes[i,:])
 
 
 @cython.boundscheck(False)
