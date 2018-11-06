@@ -1,6 +1,7 @@
 from setuptools import setup, Extension, find_packages
 import os
 import numpy as np
+from Cython.Build import cythonize
 
 requirements = [
         'emcee',
@@ -49,46 +50,46 @@ except KeyError:
 extensions = [
         Extension(
             'mope._wf',
-            ['mope/_wf.c'],
+            ['mope/_wf.pyx'],
             include_dirs = include_dirs,
             extra_link_args = link_args,
             extra_compile_args = compile_args,
             library_dirs = library_dirs),
         Extension(
             'mope._util',
-            ['mope/_util.c'],
+            ['mope/_util.pyx'],
             include_dirs = include_dirs,
             library_dirs = library_dirs),
         Extension(
             'mope._binom',
-            ['mope/_binom.c'],
+            ['mope/_binom.pyx'],
             include_dirs = include_dirs,
             extra_link_args = link_args,
             extra_compile_args = compile_args,
             library_dirs = library_dirs),
         Extension(
             'mope._interp',
-            ['mope/_interp.c'],
+            ['mope/_interp.pyx'],
             include_dirs = include_dirs,
             extra_compile_args = compile_args,
             library_dirs = library_dirs),
         Extension(
             'mope._likes',
-            ['mope/_likes.c'],
+            ['mope/_likes.pyx'],
             include_dirs = include_dirs,
             extra_link_args = link_args,
             library_dirs = library_dirs,
             extra_compile_args = compile_args),
         Extension(
             'mope._poisson_binom',
-            ['mope/_poisson_binom.c'],
+            ['mope/_poisson_binom.pyx'],
             include_dirs = include_dirs,
             library_dirs = library_dirs,
             extra_link_args = link_args,
             extra_compile_args = compile_args),
         Extension(
             'mope._transition',
-            ['mope/_transition.c'],
+            ['mope/_transition.pyx'],
             include_dirs = include_dirs,
             library_dirs = library_dirs,
             extra_link_args = link_args,
@@ -109,4 +110,4 @@ setup(
         python_requires = '>=2.7',
         packages = find_packages(),
         entry_points = entry_points,
-        ext_modules=extensions)
+        ext_modules=cythonize(extensions))
