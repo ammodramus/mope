@@ -433,6 +433,8 @@ def main():
             default = (1e-3, 3),
             help = 'lower and upper length limits for drift variables, in '
                    'natural scale')
+    parser_posterior_mut_loc.add_argument('--overall-mutation', action = 'store_true',
+            help = 'just output posterior probability of de novo mutation somewhere')
     parser_posterior_mut_loc.add_argument('--burnin-frac', default = 0.3, type = float)
     parser_posterior_mut_loc.set_defaults(func = run_posterior_mut_loc)
 
