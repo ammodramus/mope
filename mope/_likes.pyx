@@ -91,7 +91,26 @@ def compute_leaf_focal_node_zero_transition_likelihood(
         P = transitions.get_transition_probabilities_time_mutation(
                 time, mut_rate)
         Pzero = np.zeros_like(P)
-        Pzero[0,:] = P[0,:]
+        Pzero[0,1:-1] = P[0,1:-1]
+        ancestor_likes[i,:] *= np.dot(Pzero, leaf_likes[i,:])
+
+
+def compute_leaf_zero_transition_likelihood_descendant(
+        np.ndarray[np.float64_t,ndim=2] leaf_likes,
+        np.ndarray[np.float64_t,ndim=2] ancestor_likes,
+        np.ndarray[np.float64_t,ndim=1] leaf_lengths,
+        double mut_rate,
+        transitions):
+
+    cdef int num_loci = leaf_likes.shape[0]
+    cdef int i
+    cdef double time, zero_prob
+    for i in range(num_loci):
+        time = leaf_lengths[i]
+        P = transitions.get_transition_probabilities_time_mutation(
+                time, mut_rate)
+        Pzero = np.zeros_like(P)
+        Pzero[1:-1,1:-1] = P[1:-1,1:-1]
         ancestor_likes[i,:] *= np.dot(Pzero, leaf_likes[i,:])
 
 
@@ -142,7 +161,25 @@ def compute_branch_transition_likelihood_zero_focalnode(
             node_length,
             mut_rate)
     Pzero = np.zeros_like(P)
-    Pzero[0,:] = P[0,:]
+    Pzero[0,1:-1] = P[0,1:-1]
+    for i in range(num_loci):
+        ancestor_likes[i] *= np.dot(Pzero, node_likes[i])
+
+
+def compute_branch_transition_likelihood_zero_descendant(
+            np.ndarray[np.float64_t,ndim=2] node_likes,
+            np.ndarray[np.float64_t,ndim=2] ancestor_likes,
+            double node_length,
+            double mut_rate,
+            transitions):
+
+    cdef int num_loci = node_likes.shape[0]
+    cdef int i
+    P = transitions.get_transition_probabilities_time_mutation(
+            node_length,
+            mut_rate)
+    Pzero = np.zeros_like(P)
+    Pzero[1:-1,1:-1] = P[1:-1,1:-1]
     for i in range(num_loci):
         ancestor_likes[i] *= np.dot(Pzero, node_likes[i])
         
@@ -203,7 +240,24 @@ def compute_bottleneck_transition_likelihood_zero_focalnode(
             bottleneck_size,
             mut_rate)
     Pzero = np.zeros_like(P)
-    Pzero[0,:] = P[0,:]
+    Pzero[0,1:-1] = P[0,1:-1]
+    for i in range(num_loci):
+        ancestor_likes[i,:] *= np.dot(Pzero, node_likes[i,:])
+
+
+def compute_bottleneck_transition_likelihood_zero_descendant(
+            np.ndarray[np.float64_t,ndim=2] node_likes,
+            np.ndarray[np.float64_t,ndim=2] ancestor_likes,
+            double bottleneck_size,
+            double mut_rate,
+            bottlenecks):
+    cdef int num_loci = node_likes.shape[0]
+    cdef int i
+    P = bottlenecks.get_transition_probabilities_time_mutation(
+            bottleneck_size,
+            mut_rate)
+    Pzero = np.zeros_like(P)
+    Pzero[1:-1,1:-1] = P[1:-1,1:-1]
     for i in range(num_loci):
         ancestor_likes[i,:] *= np.dot(Pzero, node_likes[i,:])
 

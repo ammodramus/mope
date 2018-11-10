@@ -130,89 +130,6 @@ def fill_cond_probs(
         return overall_loglikes
 
 
-def fill_cond_probs_mutation_only(
-        inf,
-        tree_idx,
-        varparams):
-
-    trans_idxs = inf.translate_indices[tree_idx]
-    params = varparams[trans_idxs]
-    num_branches = inf.num_branches[tree_idx]
-    branch_lengths = 10**params[:num_branches]
-    mutation_rates = 10**params[num_branches:]
-    alphabeta, polyprob = 10**varparams[-2:]
-    stat_dist = lis.get_stationary_distribution_double_beta(inf.freqs,
-            inf.breaks, inf.transition_N, alphabeta, polyprob)
-
-    # mutation only, here
-    stat_dist[1:-1] = 0.0
-
-    mrca = inf.trees[tree_idx]
-    # leaf_likelihoods is a dictionary, keys with leaf names, values ndarrays
-    # with likelihoods, shape is (nloci, nfreqs)
-    leaf_likelihoods = inf.leaf_likes[tree_idx]
-    leaf_indices = inf.leaf_indices[tree_idx]
-    branch_indices = inf.branch_indices[tree_idx]
-    multiplier_dict = inf.multiplierdict[tree_idx]
-    data = inf.data[tree_idx]
-    num_loci = inf.num_loci[tree_idx]
-    transitions = inf.transition_data
-    bottlenecks = inf.bottleneck_data
-
-    for node in mrca.walk(mode = 'postorder'):
-        _likes.reset_likes_ones(node.cond_probs)
-
-    for node in mrca.walk(mode = 'postorder'):
-        if node == mrca:
-            break
-        name = node.name
-        branch_index = branch_indices[name]
-        multipliername = node.multipliername
-
-        ancestor = node.ancestor
-        mut_rate = mutation_rates[branch_index]
-        ancestor_likes = ancestor.cond_probs
-
-
-        if node.is_leaf:
-            node_likes = leaf_likelihoods[name].copy()
-        else:
-            node_likes = node.cond_probs
-
-        if multipliername is not None:
-            node_lengths = (data[multipliername].values *
-                    branch_lengths[branch_index])
-            _likes.compute_leaf_transition_likelihood(
-                    node_likes,
-                    ancestor_likes,
-                    node_lengths,
-                    mut_rate,
-                    transitions)
-
-        else:  # multipliername is None
-            if node.is_bottleneck:
-                if bottlenecks is None:
-                    raise ValueError('pre-computed bottleneck data needed')
-                bottleneck_size = branch_lengths[branch_index]
-                _likes.compute_bottleneck_transition_likelihood(
-                        node_likes,
-                        ancestor_likes,
-                        bottleneck_size,
-                        mut_rate,
-                        bottlenecks)
-            else:  # not a bottleneck
-                node_length = branch_lengths[branch_index]
-                _likes.compute_branch_transition_likelihood(
-                        node_likes,
-                        ancestor_likes,
-                        node_length,
-                        mut_rate,
-                        transitions)
-    root_cond_probs = inf.trees[tree_idx].cond_probs
-    overall_loglikes = np.log(np.dot(root_cond_probs, stat_dist))
-    return overall_loglikes
-
-
 def fill_cond_probs_mutation(
         focalnode,
         inf,
@@ -261,8 +178,10 @@ def fill_cond_probs_mutation(
 
         if node.is_leaf:
             node_likes = leaf_likelihoods[name].copy()  # shape: (nloci, nfreqs)
-            if not is_descendant:
-                node_likes[:,1:] = 0  # linear scale... but this shouldn't matter
+            if is_descendant:
+                node_likes[:,[0,-1]] = 0
+            else:
+                node_likes[:,1:-1] = 0  # linear scale... but this shouldn't matter
         else:
             node_likes = node.cond_probs
 
@@ -270,7 +189,7 @@ def fill_cond_probs_mutation(
             node_lengths = (data[multipliername].values *
                     branch_lengths[branch_index])
             if is_descendant:
-                _likes.compute_leaf_transition_likelihood(
+                _likes.compute_leaf_zero_transition_likelihood_descendant(
                         node_likes,
                         ancestor_likes,
                         node_lengths,
@@ -298,7 +217,7 @@ def fill_cond_probs_mutation(
                     raise ValueError('pre-computed bottleneck data needed')
                 bottleneck_size = branch_lengths[branch_index]
                 if is_descendant:
-                    _likes.compute_bottleneck_transition_likelihood(
+                    _likes.compute_bottleneck_transition_likelihood_zero_descendant(
                             node_likes,
                             ancestor_likes,
                             bottleneck_size,
@@ -323,7 +242,7 @@ def fill_cond_probs_mutation(
             else:  # not a bottleneck
                 node_length = branch_lengths[branch_index]
                 if is_descendant:
-                    _likes.compute_branch_transition_likelihood(
+                    _likes.compute_branch_transition_likelihood_zero_descendant(
                             node_likes,
                             ancestor_likes,
                             node_length,
