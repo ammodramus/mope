@@ -308,7 +308,8 @@ def get_log_likelihood_somatic_newick(
         branch_lengths,
         mutation_rates,
         stationary_distribution,
-        inf):
+        inf,
+        tree_idx):
     '''
     Calculate the log-likelihood of a given tree, with branch lengths, leaf
     rates, and mutation rates.
@@ -334,13 +335,13 @@ def get_log_likelihood_somatic_newick(
     stationary_distribution    numpy array giving stationary distribution of
                                allele frequencies at the root
     '''
-    mrca = inf.tree
-    leaf_likelihoods = inf.leaf_likes_dict
-    leaf_indices = inf.leaf_indices
-    branch_indices = inf.branch_indices
-    multiplier_dict = inf.multiplierdict
-    data = inf.data
-    num_loci = inf.num_loci
+    mrca = inf.trees[tree_idx]
+    leaf_likelihoods = inf.leaf_likes[tree_idx]
+    leaf_indices = inf.leaf_indices[tree_idx]
+    branch_indices = inf.branch_indices[tree_idx]
+    multiplier_dict = inf.multiplierdict[tree_idx]
+    data = inf.data[tree_idx]
+    num_loci = inf.num_loci[tree_idx]
     transitions = inf.transition_data
     bottlenecks = inf.bottleneck_data
 
@@ -358,6 +359,7 @@ def get_log_likelihood_somatic_newick(
         mut_rate = mutation_rates[branch_index]
         ancestor_likes = ancestor.cond_probs
 
+
         if node.is_leaf:
             node_likes = leaf_likelihoods[name].copy()
         else:
@@ -372,6 +374,7 @@ def get_log_likelihood_somatic_newick(
                     node_lengths,
                     mut_rate,
                     transitions)
+
         else:  # multipliername is None
             if node.is_bottleneck:
                 if bottlenecks is None:
@@ -395,14 +398,6 @@ def get_log_likelihood_somatic_newick(
     loglike = _likes.compute_root_log_like(
             mrca.cond_probs,
             stationary_distribution)
-
-    #if loglike == -np.inf:
-    #    print >> sys.stderr, 'bad params:'
-    #    for bl in branch_lengths:
-    #        print >> sys.stderr, bl
-    #    for mr in mutation_rates:
-    #        print >> sys.stderr, mr
-    #    raise ValueError('bad params')
 
     return loglike
 

@@ -18,12 +18,13 @@ from . import likelihoods as lis
 from . import transition_data_mut as tdm
 from . import transition_data_bottleneck as tdb
 from . import params as par
-from . import initialguess as igs
 from functools import partial
 import multiprocessing as mp
 import numpy.random as npr
 import emcee
 import warnings
+from itertools import izip
+from scipy.special import gammaln
 
 from . import newick
 from . import util as ut
@@ -116,7 +117,7 @@ def optimize_posterior(inf_data, pool):
     return x
 
 def _get_valid_start_from(sf_str):
-    valid_sfs = ('initguess', 'true', 'map', 'prior')
+    valid_sfs = ('prior', 'true', 'map')
     for v in valid_sfs:
         if sf_str == v:
             return v
@@ -126,14 +127,14 @@ def _get_valid_start_from(sf_str):
 
 class Inference(object):
     def __init__(self,
-            data_file,
+            data_files,
+            tree_files,
+            age_files,
             transitions_file,
-            tree_file,
             true_parameters,
             start_from,
             data_are_freqs,
             genome_size,
-            ages_data_fn,
             bottleneck_file = None,
             poisson_like_penalty = 1.0,
             min_freq = 0.001,
@@ -145,13 +146,13 @@ class Inference(object):
             inverse_bot_priors = False,
             post_is_prior = False,
             lower_drift_limit = 1e-3,
-            upper_drift_limit = 3):
+            upper_drift_limit = 3,
+            min_phred_score = None):
 
         self.asc_tree = None
         self.asc_num_loci = None
         self.asc_ages = None
         self.asc_counts = None
-        self.coverage = None
         self.init_params = None
         self.true_params = None
         self.true_loglike = None
@@ -160,11 +161,12 @@ class Inference(object):
         self.transition_data = None
         self.bottleneck_data = None
 
+        self.data_files = data_files
+        self.tree_files = tree_files
+        self.age_files = age_files
         self.data_are_freqs = data_are_freqs
         self.genome_size = genome_size
-        self.tree_file = tree_file
         self.transitions_file = transitions_file
-        self.data_file = data_file
         self.start_from = _get_valid_start_from(start_from)
         self.init_true_params = true_parameters
         self.bottleneck_file = bottleneck_file
@@ -173,59 +175,42 @@ class Inference(object):
         self.transition_copy = transition_copy
         self.transition_buf = transition_buf
         self.transition_shape = transition_shape
-        self.ages_data_fn = ages_data_fn
         self.print_debug = print_debug
         self.log_unif_drift = log_unif_drift
         self.inverse_bot_priors = inverse_bot_priors
         self.post_is_prior = post_is_prior
         self.lower_drift_limit = lower_drift_limit,
         self.upper_drift_limit = upper_drift_limit
+        self.min_phred_score = min_phred_score
 
         ############################################################
-        # read in data
-        dat = pd.read_csv(data_file, sep = '\t', comment = '#',
+        # for each data file, read in data, convert columns to float
+        self.data = []
+        self.tree_strings = []
+        self.plain_trees = []
+        self.trees = []
+        self.ages = []
+        for dat_fn, tree_fn in zip(self.data_files, self.tree_files):
+            datp = pd.read_csv(dat_fn, sep = '\t', comment = '#',
                 na_values = ['NA'], header = 0)
+            for col in datp.columns:
+                if col != 'family':
+                    datp[col] = datp[col].astype(np.float64)
+            datp.sort_values('family', inplace = True)
+            self.data.append(datp)
 
-        ############################################################
-        # get a count for each unique row, since each will have its own
-        # likelihood. this is useful only for called frequencies and simulated
-        # data
-        # frequencies and ages should be floats
-        for col in list(dat.columns):
-            if col != 'family':
-                dat[col] = dat[col].astype(np.float64)
-        self.original_data = dat
-        self.data = dat.copy()
+            with open(tree_fn) as fin:
+                tree_str = fin.read().strip()
+                self.tree_strings.append(tree_str)
 
-        ############################################################
-        # add transition data
-        if transition_copy is None:
-            self.transition_data = tdm.TransitionData(self.transitions_file,
-                    memory = True)
-        else:
-            self.transition_data = tdm.TransitionDataCopy(transition_copy,
-                    transition_buf, transition_shape)
-        self.freqs = self.transition_data.get_bin_frequencies()
-        self.num_freqs = self.freqs.shape[0]
-        self.breaks = self.transition_data.get_breaks()
-        self.transition_N = self.transition_data.get_N()
+            self.plain_trees.append(newick.loads(
+                    tree_str,
+                    length_parser = ut.length_parser_str,
+                    look_for_multiplier = True)[0])
 
-        ############################################################
-        # add optional bottleneck data
-        if self.bottleneck_file is not None:
-            self.bottleneck_data = tdb.TransitionDataBottleneck(
-                    self.bottleneck_file, memory = True)
-        else:
-            self.bottleneck_data = None
 
-        ############################################################
-        # read in the tree file
-        with open(tree_file) as fin:
-            self.tree_str = fin.read().strip()
-        self.plain_tree = newick.loads(
-                self.tree_str,
-                length_parser = ut.length_parser_str,
-                look_for_multiplier = True)[0]
+
+        self._init_transition_data()
 
         ############################################################
         # a list of the leaves, each corresponding to one of the observed
@@ -234,201 +219,193 @@ class Inference(object):
         # a list of all of the nodes having a length
         self.branch_names = []
         # a list of the unique multiplier names
-        self.multipliernames = []
-        # a list of the varnames
-        self.varnames = []
-        # self.multiplierdict[nodename] gives the name of the multiplier for
-        # node named nodename
-        self.multiplierdict = {}
-        # a dict of varnames for each node
-        self.varnamedict = {}
+        #self.multipliernames = []   # later
+        # self.multiplierdict[treeidx][nodename] gives the name of the
+        # multiplier for node named nodename in tree indexed treeidx
+        self.multiplierdict = []
+        # a dict of varnames for each node, for each tree
+        self.varnamedict = []
         # a dict to determine whether each varname is a bottleneck
         self.is_bottleneck = {}
 
-        multipliernames_set = set([])
+
+        ######################################################################
+        # Processing trees for multipliers, var names, and branch names.
+        # Going through eash tree, collect branch names, leaf names, and
+        # multiplier dict for each tree.
+
+        # Each tree will have its own branch names, leaf names, and
+        # multiplierdict (indicates whether or not a node is to be multiplied
+        # by some multiplier). Varnames will be added to a single set shared
+        # across the different trees. Is_bottleneck must be the same across all
+        # trees.
+
+        ######################################################################
         varnames_set = set([])
-        for node in self.plain_tree.walk(mode='postorder'):
-            if node == self.plain_tree:
-                continue
-            if node.is_leaf:
-                self.leaf_names.append(node.name)
-            self.branch_names.append(node.name)
-            if node.multipliername is not None:
-                multipliernames_set.add(node.multipliername)
-                self.multiplierdict[node.name] = node.multipliername
-            else:
-                self.multiplierdict[node.name] = None
-            # check that each node.name is unique
-            varnames_set.add(node.varname)
-            if node.name in self.varnamedict:
-                raise ValueError(
-                'the name of each node in the tree must be unique')
-            self.varnamedict[node.name] = node.varname
-            if node.is_bottleneck:
-                self.is_bottleneck[node.varname] = True
-            else:
-                self.is_bottleneck[node.varname] = False
+        multipliernames = []
+        for pt in self.plain_trees:
+            self.leaf_names += [[]]
+            self.multiplierdict += [{}]
+            self.varnamedict += [{}]
+            self.branch_names += [[]]
+            multipliernames += [set([])]
+            for node in pt.walk(mode='postorder'):
+                if node == pt:
+                    continue
+                if node.is_leaf:
+                    self.leaf_names[-1].append(node.name)
+                self.branch_names[-1].append(node.name)
+                if node.name in self.multiplierdict[-1]:
+                    raise ValueError('node names must be unique in each tree')
+                self.multiplierdict[-1][node.name] = node.multipliername
+                if node.multipliername is not None:
+                    multipliernames[-1].add(node.multipliername)
+                varnames_set.add(node.varname)
+                self.varnamedict[-1][node.name] = node.varname
+                if node.varname in self.is_bottleneck:
+                    if self.is_bottleneck[node.varname] != node.is_bottleneck:
+                        raise ValueError('nodes with the same variable name must have the same status as bottlenecks in all trees')
+                self.is_bottleneck[node.varname] = node.is_bottleneck
 
-        self.multipliernames = list(multipliernames_set)
+        self.multipliernames = [list(multset) for multset in multipliernames]
         self.varnames = sorted(list(varnames_set))
-
         if self.data_are_freqs:
-            self.coverage_names = None
+            self.coverage_names = [None for ln in self.leaf_names]
         else:
-            self.coverage_names = [el + '_n' for el in self.leaf_names]
+            self.coverage_names = [[el + '_n' for el in ln] for ln in self.leaf_names]
 
         # number of branches having a length
-        self.num_branches = len(self.branch_names)
+        self.num_branches = [len(bn) for bn in self.branch_names]
         # number of leaves
-        self.num_leaves = len(self.leaf_names)
+        # self.num_leaves = len(self.leaf_names)   # this will break initialguess, but that's okay. start from prior
         # indices of the variables with lengths
-        self.branch_indices = {}
-        for i, br in enumerate(self.branch_names):
-            self.branch_indices[br] = i
-        # indices of just the leaves
-        self.leaf_indices = {}
-        for i, le in enumerate(self.leaf_names):
-            self.leaf_indices[le] = i
-
-        self.var_indices = {vname: i for i, vname in enumerate(self.varnames)}
-        translate_indices = []
-        num_varnames = len(self.varnames)
-        for br in self.branch_names:
-            br_vname = self.varnamedict[br]
-            vname_idx = self.var_indices[br_vname]
-            translate_indices.append(vname_idx)
-        for br in self.branch_names:
-            br_vname = self.varnamedict[br]
-            vname_idx = self.var_indices[br_vname]
-            translate_indices.append(num_varnames+vname_idx)
-        # for ab
-        translate_indices.append(2*num_varnames)
-        # for p_poly
-        translate_indices.append(2*num_varnames+1)
-        self.translate_indices = np.array(translate_indices,
-                dtype = np.int)
-
-
-        # for each branch length parameter, need a min and a max multiplier
-        # this is 1 if it is not multiplied by any of the multipliers this is
-        # min(mult) and max(mult) otherwise, where mult is the relevant
-        # multiplier
-        self.min_multipliers = np.ones(len(self.branch_names))
-        self.max_multipliers = np.ones(len(self.branch_names))
-        # avg_multipliers needs to be ndim in length
-        self.avg_multipliers = np.ones(2*len(self.branch_names)+2)
-        for i, br in enumerate(self.branch_names):
-            multname = self.multiplierdict[br]
-            if multname is not None:
-                self.min_multipliers[i] = self.data[multname].min(skipna = True)
-                self.max_multipliers[i] = self.data[multname].max(skipna = True)
-                self.avg_multipliers[i] = self.data[multname].mean(skipna = True)
-
-        #####################################################
-        # removing extraneous columns
-        # verifying all leaves present
         
+        # branch indices will be different for each tree. during likelihood evaluation, will have to fill branch lengths, mutation rates, etc. independently for each tree
+        self.branch_indices = [{br: i for i, br in enumerate(tbn)} for tbn in self.branch_names]
+        # indices of just the leaves.... these are apparently never used.
+        self.leaf_indices = [{br: i for i, br in enumerate(tln)} for tln in self.leaf_names]
 
-        self.data.sort_values('family', inplace = True)
+        # each varname gets its own index, since it will correspond to a single branch length and mutation rate
+        self.var_indices = {vname: i for i, vname in enumerate(self.varnames)}
+        # translate_indices will translate parameters in varnames 'space' to parameters in branch 'space'
+        translate_indices = []
+        for tbn, tvnd in izip(self.branch_names, self.varnamedict):  # for each tree's branch names...
+            translate_indices += [[]]
+            for br in tbn:
+                br_vname = tvnd[br]
+                vname_idx = self.var_indices[br_vname]
+                translate_indices[-1].append(vname_idx)
+            num_varnames = len(self.varnames)
+            for br in tbn:
+                br_vname = tvnd[br]
+                vname_idx = self.var_indices[br_vname]
+                translate_indices[-1].append(num_varnames+vname_idx)
+            # for ab
+            translate_indices[-1].append(2*num_varnames)
+            # for p_poly
+            translate_indices[-1].append(2*num_varnames+1)
+        self.translate_indices = [np.array(ti, dtype = np.int32) for ti in translate_indices]
+
+        ##################################################### 
+        # remove any fixed loci
+        ##################################################### 
+        fixed = [da.is_fixed(dat, ln, not self.data_are_freqs) for dat, ln in izip(self.data, self.leaf_names)]
+        self.data = [dat.loc[~fi,:].reset_index(drop = True) for dat, fi in izip(self.data, fixed)]
+
 
         #####################################################
         # rounding down frequencies below min_freq
         #####################################################
 
-        # round down if allele frequencies are taken as true
         if self.data_are_freqs:
-            for ln in self.leaf_names:
-                needs_rounding0 = (self.data[ln] < self.min_freq)
-                needs_rounding1 = (self.data[ln] > 1-self.min_freq)
-                self.data.loc[needs_rounding0, ln] = 0.0
-                self.data.loc[needs_rounding1, ln] = 1.0
-
-        # don't trust allele frequencies less than 0.005. this is *not* because
-        # of the lack of binomial sampling. it's because we're not really
-        # modeling error. So what should be done with allele counts when the
-        # MLE is less than 0.005? Could round down to zero, essentially
-        # discarding those. That is a good first thing to try.
+            for datp, tln in izip(self.data, self.leaf_names):
+                for ln in tln:
+                    if ln in datp.columns:
+                        needs_rounding0 = (datp[ln] < self.min_freq)
+                        needs_rounding1 = (datp[ln] > 1-self.min_freq)
+                        datp.loc[needs_rounding0, ln] = 0.0
+                        datp.loc[needs_rounding1, ln] = 1.0
 
         else:   # self.data_are_freqs == False
-            for ln, nn in zip(self.leaf_names, self.coverage_names):
-                freqs = self.data[ln].astype(np.float64)/self.data[nn]
-                needs_rounding0 = (freqs < self.min_freq)
-                needs_rounding1 = (freqs > 1-self.min_freq)
-                self.data.loc[needs_rounding0, ln] = 0
-                self.data.loc[needs_rounding1, ln] = (
-                        self.data.loc[needs_rounding1, nn])
+            for datp, tln, tcn in izip(self.data, self.leaf_names, self.coverage_names):
+                for ln, nn in zip(tln, tcn):
+                    freqs = datp[ln].astype(np.float64)/datp[nn]
+                    needs_rounding0 = (freqs < self.min_freq)
+                    needs_rounding1 = (freqs > 1-self.min_freq)
+                    datp.loc[needs_rounding0, ln] = 0
+                    datp.loc[needs_rounding1, ln] = (
+                            datp.loc[needs_rounding1, nn])
 
-        ##################################################### 
-        # remove any fixed loci
-        ##################################################### 
-        fixed = da.is_fixed(self.data, self.leaf_names,
-                not self.data_are_freqs)
-        self.data = self.data.loc[~fixed,:]
-        self.data = self.data.reset_index(drop = True)
 
         #####################################################
         # ages data
         #####################################################
-        self.asc_ages = pd.read_csv(ages_data_fn, sep = '\t',
-                comment = '#')
-        counts = []
-        for fam in self.asc_ages['family']:
-            count = (
-                self.data.loc[self.data['family'] == fam,:].shape[0])
-            counts.append(count)
-        self.asc_ages['count'] = counts
-        self.num_asc_combs = self.asc_ages.shape[0]
+        self.asc_ages = []
+        self.num_asc_combs = []
+        for age_fn, datp, multnames in izip(self.age_files, self.data, self.multipliernames):
+            asc_ages = pd.read_csv(age_fn, sep = '\t', comment = '#')
+            counts = []
+            for fam in asc_ages['family']:
+                count = (datp['family'] == fam).sum()
+                counts.append(count)
+            asc_ages['count'] = counts
+            self.asc_ages.append(asc_ages)
+            self.num_asc_combs.append(asc_ages.shape[0])
+            # if multipliers are not in data, add them to the data
+            for mult in multnames:
+                if mult not in datp:
+                    multvals = []
+                    for fam in datp['family']:
+                        v = asc_ages.loc[asc_ages['family'] == fam,mult].iloc[0]
+                        assert v is not None
+                        multvals.append(v)
+                    datp[mult] = multvals
 
         #####################################################
         # ascertainment
         #####################################################
-        asc_tree = newick.loads(
-                self.tree_str,
-                num_freqs = self.num_freqs,
-                num_loci = 2*self.num_asc_combs,
-                length_parser = ut.length_parser_str,
-                look_for_multiplier = True)[0]
-        self.asc_tree = asc_tree
-
-        self.num_loci = self.data.shape[0]
-        self.tree = newick.loads(self.tree_str,
-                num_freqs = self.num_freqs,
-                num_loci = self.num_loci,
-                length_parser = ut.length_parser_str,
-                look_for_multiplier = True)[0]
-
-        if 'coverage' in self.data.columns:
-            # assumes that all coverages are the same, as in simulations
-            self.coverage = int(self.data['coverage'][0])
-        else:
-            self.coverage = None
+        self.asc_trees = []
+        for tree_str, n_asc_comb in izip(self.tree_strings, self.num_asc_combs):
+            asc_tree = newick.loads(
+                    tree_str,
+                    num_freqs = self.num_freqs,
+                    num_loci = 2*n_asc_comb,
+                    length_parser = ut.length_parser_str,
+                    look_for_multiplier = True)[0]
+            self.asc_trees.append(asc_tree)
+        self.num_loci = [d.shape[0] for d in self.data]
+        self.trees = []
+        for tree_str, n_loc in izip(self.tree_strings, self.num_loci):
+            self.trees.append(newick.loads(tree_str,
+                    num_freqs = self.num_freqs,
+                    num_loci = n_loc,
+                    length_parser = ut.length_parser_str,
+                    look_for_multiplier = True)[0])
 
         #####################################################
         # leaf allele frequency likelihoods
         #####################################################
-        if not self.data_are_freqs:
-            n_names = self.coverage_names
-            count_dat = self.data.loc[:,self.leaf_names].values.astype(
-                    np.float64)
-            ns_dat = self.data.loc[:,n_names].values.astype(
-                    np.float64)
-            leaf_likes = _binom.get_binom_likelihoods_cython(count_dat,
-                    ns_dat, self.freqs)
-        else:
-            freq_dat = self.data.loc[:,self.leaf_names].values.astype(
-                    np.float64)
-            leaf_likes = _binom.get_nearest_likelihoods_cython(freq_dat,
-                    self.freqs)
+        self.leaf_likes = []
+        for datp, n_names, ln in izip(self.data, self.coverage_names, self.leaf_names):
+            if not self.data_are_freqs:
+                count_dat = datp.loc[:,ln].values.astype(
+                        np.float64)
+                ns_dat = datp.loc[:,n_names].values.astype(
+                        np.float64)
+                # get_binom_like...() wants -1 for missing value / assumed perfect counts
+                phred_score_param = -1.0 if self.min_phred_score is None else self.min_phred_score
+                leaf_likes = _binom.get_binom_likelihoods_cython(count_dat,
+                        ns_dat, self.freqs, phred_score_param)
+            else:
+                freq_dat = datp.loc[:,leaf_names].values.astype(
+                        np.float64)
+                leaf_likes = _binom.get_nearest_likelihoods_cython(freq_dat,
+                        self.freqs)
+            leaf_likes_dict = {}
+            for i, leaf in enumerate(ln):
+                leaf_likes_dict[leaf] = leaf_likes[:,i,:].copy('C')
+            self.leaf_likes.append(leaf_likes_dict)
 
-        leaf_likes_dict = {}
-        for i, leaf in enumerate(self.leaf_names):
-            leaf_likes_dict[leaf] = leaf_likes[:,i,:].copy('C')
-
-        self.leaf_likes_dict = leaf_likes_dict
-
-        #####################################################
-        # likelihood objective
-        #####################################################
         # min_mults and max_mults give the minimum and
         # maximum multipliers for each varname
         self.min_mults, self.max_mults = (
@@ -453,8 +430,10 @@ class Inference(object):
         self.num_varnames = num_varnames
         ndim = 2*num_varnames + 2
 
-        # (hard-coded bounds)
-        min_allowed_len = max(self.transition_data.get_min_coal_time(),
+        # (this multiplied by 0.1 for pointmass at zero)
+        # this gives the log10-uniform an additional order of magnitude for
+        # point mass at zero
+        min_allowed_len = 0.1*max(self.transition_data.get_min_coal_time(),
                 lower_drift_limit)
         max_allowed_len = min(self.transition_data.get_max_coal_time(),
                 upper_drift_limit)
@@ -491,15 +470,12 @@ class Inference(object):
         self.lower = lower
         self.upper = upper
 
-        if self.print_debug:
-            print(self.min_mults)
-            print(self.max_mults)
-            print('! self.lower:')
-            for el in self.lower:
-                print('! ', el)
-            print('! self.upper:')
-            for el in self.upper:
-                print('! ', el)
+        print('# self.lower:')
+        for el in self.lower:
+            print('# ', el)
+        print('# self.upper:')
+        for el in self.upper:
+            print('# ', el)
 
         #####################################################
         # true parameters, if specified (for sim. data)
@@ -522,13 +498,32 @@ class Inference(object):
 
             self.true_loglike = self.loglike(self.true_params)
 
-        #####################################################
-        # setting initial parameters
-        #####################################################
-        if self.start_from == 'true':
-            self.init_params = self.true_params
+        # (no longer setting initial parameters here)
+
+        # end __init__
+
+
+    def _init_transition_data(self):
+        ############################################################
+        # add transition data
+        if self.transition_copy is None:
+            self.transition_data = tdm.TransitionData(self.transitions_file,
+                    memory = True)
         else:
-            self.init_params = igs.estimate_initial_parameters(self)
+            self.transition_data = tdm.TransitionDataCopy(transition_copy,
+                    transition_buf, transition_shape)
+        self.freqs = self.transition_data.get_bin_frequencies()
+        self.num_freqs = self.freqs.shape[0]
+        self.breaks = self.transition_data.get_breaks()
+        self.transition_N = self.transition_data.get_N()
+
+        ############################################################
+        # add optional bottleneck data
+        if self.bottleneck_file is not None:
+            self.bottleneck_data = tdb.TransitionDataBottleneck(
+                    self.bottleneck_file, memory = True)
+        else:
+            self.bottleneck_data = None
 
 
     def like_obj(self, varparams):
@@ -537,38 +532,94 @@ class Inference(object):
 
     def loglike(self, varparams):
 
-        params = varparams[self.translate_indices]
-
-        num_branches = self.num_branches
-        branch_lengths = 10**params[:num_branches]
-        mutation_rates = 10**params[num_branches:]
-        alphabeta = 10**params[2*num_branches]
-        polyprob = 10**params[2*num_branches+1]
+        ll = 0.0
+        alphabeta, polyprob = 10**varparams[-2:]
 
         stat_dist = lis.get_stationary_distribution_double_beta(self.freqs,
                 self.breaks, self.transition_N, alphabeta, polyprob)
 
-        ll = lis.get_log_likelihood_somatic_newick(
-            branch_lengths,
-            mutation_rates,
-            stat_dist,
-            self)
+        for i in range(len(self.data)):
+            trans_idxs = self.translate_indices[i]
+            params = varparams[trans_idxs]
+            num_branches = self.num_branches[i]
+            branch_lengths = 10**params[:num_branches]
+            mutation_rates = 10**params[num_branches:]
+            asc_ages = self.asc_ages[i]
 
-        log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
-                mutation_rates, stat_dist, self, self.min_freq)
-        log_asc_prob = (log_asc_probs *
-                self.asc_ages['count'].values).sum()
-        ll -= log_asc_prob
+            tll = lis.get_log_likelihood_somatic_newick(
+                branch_lengths,
+                mutation_rates,
+                stat_dist,
+                self,
+                i)
 
-        if self.poisson_like_penalty > 0:
-            logmeanascprob, logpoissonlike = self.poisson_log_like(
-                    log_asc_probs)
-            ll += logpoissonlike * self.poisson_like_penalty
+            log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
+                    mutation_rates, stat_dist, self, self.min_freq, i)
+            log_asc_prob = (log_asc_probs *
+                    asc_ages['count'].values).sum()
+            tll -= log_asc_prob
+
+            if self.poisson_like_penalty > 0:
+                logmeanascprob, logpoissonlike = self.poisson_log_like(
+                        log_asc_probs, i)
+                tll += logpoissonlike * self.poisson_like_penalty
+
+            ll += tll
+
         if self.print_debug:
             print('@@ {:15}'.format(str(ll)), logmeanascprob, ' ', end=' ')
             _util.print_csv_line(varparams)
 
         return ll
+
+    def debug_loglike_components(self, varparams):
+
+        ll = 0.0
+        alphabeta, polyprob = 10**varparams[-2:]
+
+        stat_dist = lis.get_stationary_distribution_double_beta(self.freqs,
+                self.breaks, self.transition_N, alphabeta, polyprob)
+
+        comps = []
+        for i in range(len(self.data)):
+            trans_idxs = self.translate_indices[i]
+            params = varparams[trans_idxs]
+            num_branches = self.num_branches[i]
+            branch_lengths = 10**params[:num_branches]
+            mutation_rates = 10**params[num_branches:]
+            asc_ages = self.asc_ages[i]
+
+            tll = lis.get_log_likelihood_somatic_newick(
+                branch_lengths,
+                mutation_rates,
+                stat_dist,
+                self,
+                i)
+
+            tcomps = [tll]
+
+            log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
+                    mutation_rates, stat_dist, self, self.min_freq, i)
+            log_asc_prob = (log_asc_probs *
+                    asc_ages['count'].values).sum()
+            tll -= log_asc_prob
+
+            tcomps += [log_asc_probs, asc_ages['count'].copy().values]
+
+            if self.poisson_like_penalty > 0:
+                logmeanascprob, logpoissonlike = self.poisson_log_like(
+                        log_asc_probs, i)
+                tll += logpoissonlike * self.poisson_like_penalty
+
+                tcomps += [logmeanascprob, logpoissonlike]
+            
+
+            tcomps += [tll]
+            tcomps += [self.logprior(varparams)]
+            ll += tll
+            comps.append(tcomps)
+
+        return comps
 
 
     def locusloglikes(self, varparams, use_counts = False):
@@ -624,23 +675,22 @@ class Inference(object):
         for each varname, need the min and max of all the multipliers
         associated with the varname
         '''
-        datp = self.asc_ages.loc[:,self.multipliernames]
-        mins = {}
-        maxes = {}
-        for br in self.branch_names:
-            vname = self.varnamedict[br]
-            if vname not in mins:
-                mins[vname] = set([])
-                maxes[vname] = set([])
-            mult = self.multiplierdict[br]
-            if mult:
-                mmin = np.nanmin(datp[mult].values)
-                mmax = np.nanmax(datp[mult].values)
-            else:
-                mmin = 1
-                mmax = 1
-            mins[vname].add(mmin)
-            maxes[vname].add(mmax)
+        from collections import defaultdict
+        mins = defaultdict(list)
+        maxes = defaultdict(list)
+        for agep, tmult, tbn, vnd, multdict in izip(self.asc_ages, self.multipliernames, self.branch_names, self.varnamedict, self.multiplierdict):
+            agep = agep.loc[:,tmult]
+            for br in tbn:
+                vname = vnd[br]
+                mult = multdict[br]
+                if mult:
+                    mmin = np.nanmin(agep[mult].values)
+                    mmax = np.nanmax(agep[mult].values)
+                else:
+                    mmin = 1
+                    mmax = 1
+                mins[vname].append(mmin)
+                maxes[vname].append(mmax)
 
         min_mults = []
         max_mults = []
@@ -672,27 +722,52 @@ class Inference(object):
             # same as specifying the drift as log-uniform, since
             # log D = log 2 - log B, and log B is uniform.
             # drift now in log-units
-            logp = 1.0
+
+            # everything is uniform on the scale of self.upper and self.lower
+            return np.sum(np.log(1.0/(self.upper-self.lower)))
         else:
+            u = self.upper
+            l = self.lower
+            drift_x = x[:num_varnames]
+            mut_x = x[num_varnames:2*num_varnames]
+            root_x = x[2*num_varnames:]
+            #ln10 = 2.3025850929940459
+            #lnln10 = 0.834032445247956 
+            drift_part_arr = (drift_x*2.3025850929940459 +
+                    0.834032445247956 - np.log(10**u-10**l))
+            u_m = self.upper[num_varnames:2*num_varnames]
+            l_m = self.lower[num_varnames:2*num_varnames]
+            u_r = self.upper[2*num_varnames:]
+            l_r = self.lower[2*num_varnames:]
+            mut_part = np.sum(np.log(1.0/(u_m-l_m)))
+            root_part = np.sum(np.log(1.0/(u_r-l_r)))
+
             if self.inverse_bot_priors:
-                # if D = 2/B is uniform, f_B(x) \propto x^{-2}, and 
-                # log f_B(x) \propto -2log(x)
+                # if the drift D for bottleneck B, where D = 2/B, is
+                # Uniform(2/u,2/l), where l and u are the lower and upper
+                # bottleneck size limits, the prior density on B wrt z is
                 #
-                # update: if D = 2/B is uniform, the log-density of log B is
-                # \propto -x
-                pv = np.zeros(x.shape[0])
-                pv[self.is_bottleneck_arr] = -1.0*x[self.is_bottleneck_arr]
-                pv[~self.is_bottleneck_arr] = x[~self.is_bottleneck_arr]
-                logp = np.sum(pv)
-            else:
-                # if D ~ Unif, the density of log_10 D is \propto 10^x and thus
-                # the log-density of log_10 D is \propto log(10) * x.
-                # log(10) = 2.3025850929940459
-                logp = 2.3025850929940459*np.sum(x[:num_varnames])
-        return logp
+                #    2/( (2/l-2/u) * z^2) = l*u/( (u-l) * z^2)
+                #
+                # and the log-density is
+                #
+                #    log l + log u - ln(u-l) - 2 ln z.
+                #
+                # The below assumes that self.is_bottleneck_arr is a boolean
+                # array over only the drift components. Might be wrong about
+                # this, in which case this will throw an exception.
+                l_b = self.lower[self.is_bottleneck_arr]
+                u_b = self.upper[self.is_bottleneck_arr]
+                x_b = drift_x[self.is_bottleneck_arr]
+                drift_part_arr[self.is_bottleneck_arr] = (
+                        np.log(l_b) + np.log(u_b) + - np.log(u_b-l_b) -
+                        2*np.log(x_b))
+            drift_part = np.sum(drift_part_arr)
+
+            return drift_part + mut_part + root_part
 
 
-    def poisson_log_like(self, logascprobs):
+    def poisson_log_like(self, logascprobs, tree_idx):
         '''
         x is varparams, not branchparams
 
@@ -703,7 +778,10 @@ class Inference(object):
         loglams = logascprobs + np.log(self.genome_size)
         lams = np.exp(loglams)
 
-        logpoissonlikes = -lams + self.asc_ages['count'].values*loglams
+        logpoissonlikes = (-lams +
+                self.asc_ages[tree_idx]['count'].values*loglams -
+                gammaln(self.asc_ages[tree_idx]['count'].values+1))
+
         logpoissonlike = logpoissonlikes.sum()
         return logmeanascprob, logpoissonlike
 
@@ -772,6 +850,7 @@ class Inference(object):
         return good_params, penalty
 
     def _get_pool(self, num_processes, mpi):
+        # TODO: update the initializer for the updated Inference API
 
         def initializer(*args):
 
@@ -789,14 +868,14 @@ class Inference(object):
         elif num_processes > 1:
             init_args = [
                     # order important here because of *args above
-                    self.data_file,
+                    self.data_files,
+                    self.tree_files,
+                    self.age_files,
                     self.transitions_file,
-                    self.tree_file,
                     self.init_true_params,
                     self.start_from,
                     self.data_are_freqs,
                     self.genome_size,
-                    self.ages_data_fn,
                     self.bottleneck_file,
                     self.poisson_like_penalty,
                     self.min_freq,
@@ -808,8 +887,10 @@ class Inference(object):
                     self.inverse_bot_priors,
                     self.post_is_prior,
                     self.lower_drift_limit,
-                    self.upper_drift_limit
+                    self.upper_drift_limit,
+                    self.min_phred_score,
                     ]
+
 
             pool = mp.Pool(num_processes, initializer = initializer,
                     initargs = init_args)
@@ -822,7 +903,7 @@ class Inference(object):
 
 
     def _get_initial_mcmc_position(
-            self, num_walkers, prev_chain, start_from, init_norm_sd, pool):
+            self, num_walkers, prev_chain, start_from, init_norm_sd, pool, logp, logl):
 
         ndim = 2*len(self.varnames) + 2
 
@@ -854,45 +935,47 @@ class Inference(object):
                     axis = 1, 
                     arr = proposed_init_pos)
             init_pos = proposed_init_pos
-        elif start_from == 'prior':
-            # start from random points
-            if self.print_debug:
-                print('! starting MCMC from random point')
-            nvarnames = len(self.varnames)
-            nparams = self.lower.shape[0]
-            rstart = np.zeros((num_walkers, nparams))
-            # the mutation and the root parameters will be uniform across their
-            # ranges (both are log10 scaled)
-            low = np.tile(self.lower[nvarnames:], num_walkers)
-            high = np.tile(self.upper[nvarnames:], num_walkers)
-            rstart[:, nvarnames:] = npr.uniform(low,
-                    high).reshape(num_walkers,-1)
-            if self.log_unif_drift:
-                # drift parameters now in log10 units
-                low = np.tile(self.lower[:nvarnames], num_walkers)
-                high = np.tile(self.upper[:nvarnames], num_walkers)
-                rstart[:,:nvarnames] = npr.uniform(low, high).reshape(
-                        num_walkers, -1)
-            else:
-                low = np.tile(10**self.lower[:nvarnames], num_walkers)
-                high = np.tile(10**self.upper[:nvarnames], num_walkers)
-                rstart[:, :nvarnames] = np.log10(npr.uniform(low,high)).reshape(
-                        num_walkers,-1)
-            init_pos = rstart
         else:
-            # use initial guess
-            rx = (1+init_norm_sd*npr.randn(ndim*num_walkers))
-            rx = rx.reshape((num_walkers, ndim))
-            proposed_init_pos = rx*self.init_params
-            proposed_init_pos = np.apply_along_axis(
-                    func1d = lambda x: np.maximum(self.lower, x),
-                    axis = 1, 
-                    arr = proposed_init_pos)
-            proposed_init_pos = np.apply_along_axis(
-                    func1d = lambda x: np.minimum(self.upper, x),
-                    axis = 1, 
-                    arr = proposed_init_pos)
-            init_pos = proposed_init_pos
+            # prior is the new default
+            while True:
+                if self.print_debug:
+                    print('! starting MCMC from random point')
+                nvarnames = len(self.varnames)
+                nparams = self.lower.shape[0]
+                rstart = np.zeros((num_walkers, nparams))
+                # the mutation and the root parameters will be uniform across their
+                # ranges (both are log10 scaled)
+                low = np.tile(self.lower[nvarnames:], num_walkers)
+                high = np.tile(self.upper[nvarnames:], num_walkers)
+                rstart[:, nvarnames:] = npr.uniform(low,
+                        high).reshape(num_walkers,-1)
+                if self.log_unif_drift:
+                    # drift parameters now in log10 units
+                    low = np.tile(self.lower[:nvarnames], num_walkers)
+                    high = np.tile(self.upper[:nvarnames], num_walkers)
+                    #import pdb; pdb.set_trace()
+                    #print('lower and upper uniform bounds:', low, high, file=sys.stderr)
+                    rstart[:,:nvarnames] = npr.uniform(low, high).reshape(
+                            num_walkers, -1)
+                else:
+                    low = np.tile(10**self.lower[:nvarnames], num_walkers)
+                    high = np.tile(10**self.upper[:nvarnames], num_walkers)
+                    rstart[:, :nvarnames] = np.log10(npr.uniform(low,high)).reshape(
+                            num_walkers,-1)
+                init_pos = rstart
+                logl_val = np.array([logl(p) for p in init_pos])
+                logp_val = np.array([logp(p) for p in init_pos])
+                if np.all(np.isfinite(logl_val)) and np.all(np.isfinite(logp_val)):
+                    break  # successfully found starting position within bounds
+                else:
+                    if not np.all(np.isfinite(logl_val)):
+                        print('# warning: attempted start at initial position where log-likelihood is not finite')
+                        print('# bad init position (logl)', file = sys.stderr)
+                        print(init_pos, file = sys.stderr)
+                    if not np.all(np.isfinite(logp_val)):
+                        print('# warning: attempted start at initial position where prior is not finite')
+                        print('# bad init position (logprior)', file = sys.stderr)
+                        print(init_pos, file = sys.stderr)
 
         return init_pos
 
@@ -962,7 +1045,7 @@ class Inference(object):
 
         if init_pos is None:
             init_pos = self._get_initial_mcmc_position(num_walkers, prev_chain,
-                    start_from, init_norm_sd, pool)
+                    start_from, init_norm_sd, pool, logp, logl)
 
 
         ndim = 2*len(self.varnames)+2
@@ -994,19 +1077,34 @@ class Inference(object):
         if parallel_print_all:
             self.header = '\t'.join(['chain', 'lnpost'] + self.header_list)
         print(self.header)
-        for p, lnprob, lnlike in sampler.sample(init_pos_new,
-                iterations=num_iter, storechain = True):
-            if parallel_print_all:
-                _util.print_parallel_csv_lines(p, lnprob, lnlike)
-            else:
-                # first chain is chain with temperature 1
-                _util.print_csv_lines(p[0], lnprob[0])
+        if not do_evidence:
+            for p, lnprob, lnlike in sampler.sample(init_pos_new,
+                    iterations=num_iter, storechain = True):
+                if parallel_print_all:
+                    _util.print_parallel_csv_lines(p, lnprob, lnlike)
+                else:
+                    # first chain is chain with temperature 1
+                    _util.print_csv_lines(p[0], lnprob[0])
 
-        if do_evidence:
-            for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
-                evidence = sampler.log_evidence_estimate(
-                        fburnin=fburnin)
-                print('# evidence (fburnin = {}):'.format(fburnin), evidence)
+        else:
+            evidence_every = 2000
+            num_completed = 0
+            p = init_pos_new
+            while num_completed < num_iter:
+                to_do = min(evidence_every, num_iter-num_completed)
+                for p, lnprob, lnlike in sampler.sample(p,
+                        iterations=to_do, storechain = True):
+                    if parallel_print_all:
+                        _util.print_parallel_csv_lines(p, lnprob, lnlike)
+                    else:
+                        # first chain is chain with temperature 1
+                        _util.print_csv_lines(p[0], lnprob[0])
+                num_completed += to_do
+                for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
+                    evidence = sampler.log_evidence_estimate(
+                            fburnin=fburnin)
+                    print('# evidence after {} iterations (fburnin = {}): {}'.format(num_completed, fburnin, evidence))
+
 
         if mpi:
             pool.close()

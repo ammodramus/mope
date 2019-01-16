@@ -130,15 +130,17 @@ class TransitionData(object):
 
     def get_transition_probabilities_time_mutation(self, scaled_time,
             scaled_mut):
+        if not np.isfinite(scaled_time):
+            raise ValueError('scaled_time is not finite')
         key = (scaled_time, scaled_mut)
         if key in self._cache:
-            return self._cache[key]
+            val = self._cache[key]
         else:
             val = self.get_transition_probabilities_time_mutation_not_cached(
                     scaled_time,
                     scaled_mut)
             self._cache[key] = val
-            return val
+        return val
 
     def get_transition_probabilities_time_mutation_not_cached(self,
             scaled_time, scaled_mut):
@@ -150,9 +152,13 @@ class TransitionData(object):
                       population size
         '''
 
-        if scaled_time < self._min_coal_time:
-            raise ValueError('drift time too small: {} < {} (min)'.format(
-                scaled_time, self._min_coal_time))
+        if not np.isfinite(scaled_time):
+            raise ValueError('scaled_time is not finite')
+        if not np.isfinite(scaled_mut):
+            raise ValueError('scaled_mut is not finite')
+        #if scaled_time < self._min_coal_time:
+        #    raise ValueError('drift time too small: {} < {} (min)'.format(
+        #        scaled_time, self._min_coal_time))
         if scaled_time > self._max_coal_time:
             raise ValueError('drift time too large: {} > {} (max)'.format(
                 scaled_time, self._max_coal_time))
@@ -173,6 +179,9 @@ class TransitionData(object):
         suitable position is given.
         '''
         desired_gen_time = self._N * scaled_time
+        if desired_gen_time < self._sorted_gens[0]:
+            #print('# identity matrix returned')
+            return np.diag(np.ones(self._shape[0]))
         gen_idx = np.searchsorted(self._sorted_gens, desired_gen_time)
         desired_u = scaled_mut / (2.0 * self._N)
         u_idx = np.searchsorted(self._sorted_us, desired_u)
@@ -205,7 +214,7 @@ class TransitionData(object):
         t2 = self._sorted_gens[gen_idx]
         u1 = self._sorted_us[u_idx-1]
         u2 = self._sorted_us[u_idx]
-        fQ11 = self.get_distribution(t1,u1)
+        fQ11 = self.get_distribution(t1, u1)
         fQ12 = self.get_distribution(t1, u2)
         fQ21 = self.get_distribution(t2, u1)
         fQ22 = self.get_distribution(t2, u2)

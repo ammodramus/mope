@@ -17,7 +17,7 @@ import sys
 from .simulate import get_parameters
 from . import util as ut
 from . import newick
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 def get_hatch(paramtype):
     hatch = None
@@ -64,39 +64,51 @@ def get_acceptance(chain):
     num_comparisons = rows0.shape[0]
     return num_changes / num_comparisons
 
-def get_len_limits(tree, ages_file, lower_drift, upper_drift,
+def get_len_limits(trees, ages_file, lower_drift, upper_drift,
         lower_bottleneck = 2, upper_bottleneck = 500):
     is_bottleneck = {}
     ages_dat = pd.read_csv(ages_file, sep = '\t')
-    limits = {}
-    for node in tree.walk():
-        varname = node.varname
-        is_bottleneck[varname] = node.is_bottleneck
-        mult = node.multipliername
-        if mult is None:
-            limits[varname] = [1.0, 1.0]
-        else:
-            minv, maxv = ages_dat[mult].min(), ages_dat[mult].max()
-            if varname in limits:
-                limits[varname][0] = min(limits[varname][0], minv)
-                limits[varname][1] = max(limits[varname][1], maxv)
+
+    # first, get min and max multipliers
+    mins = defaultdict(lambda: np.inf)
+    maxes = defaultdict(lambda: -np.inf)
+    for tree in trees:
+        for node in tree.walk():
+            varname = node.varname
+            is_bottleneck[varname] = node.is_bottleneck
+            mult = node.multipliername
+            if mult is None:
+                mins[varname] = 1.0
+                maxes[varname] = 1.0
             else:
-                limits[varname] = [minv, maxv]
+                minv, maxv = ages_dat[mult].min(), ages_dat[mult].max()
+                if varname in mins:
+                    mins[varname] = min(mins[varname], minv)
+                else:
+                    mins[varname] = minv
+                if varname in maxes:
+                    maxes[varname] = max(maxes[varname], maxv)
+                else:
+                    maxes[varname] = maxv
+    limits = {}
 
     # so far, it has just been the multipliers, now need to make them limits
-    for varname in list(limits.keys()):
-        mults = limits[varname]
+    assert set(mins.keys()) == set(maxes.keys())
+    for varname in list(mins.keys()):
+        minv = mins[varname]
+        maxv = maxes[varname]
+        ld = np.array([minv, maxv])
+        #mults = limits[varname]
         if is_bottleneck[varname]:
             ld, ud = lower_bottleneck, upper_bottleneck
         else:
             ld, ud = lower_drift, upper_drift
-        limits[varname] = [np.log10(ld / mults[0]),
-                np.log10(ud / mults[1])]
-
+        limits[varname] = [np.log10(ld / minv),
+                np.log10(ud / maxv)]
     return limits
 
 def make_figures(
-        results, tree, num_walkers, ages_file, prefix = None,
+        results, tree_files, num_walkers, ages_file, prefix = None,
         img_format = 'png', dpi = 300, colors_and_types = None,
         length_prior_limits = (-6,0.477), mutation_prior_limits = (-8,-1),
         true_parameters = None, which_plot = 'histograms',
@@ -149,15 +161,20 @@ def make_figures(
     ###################
     # loading the data
     ###################
-    tree_file = tree
-    with open(tree_file) as fin:
-        tree_str = fin.read().strip()
-    tree = newick.loads(tree_str,
-                        look_for_multiplier = True,
-                        length_parser = ut.length_parser_str)[0]
-
-    cols = get_parameter_names(tree_file)
-    varnames = [col[:-2] for col in cols if col.endswith('_l')]
+    all_varnames = []
+    trees = []
+    with open(tree_files) as trees_in:
+        for line in trees_in:
+            fn = line.strip()
+            with open(fn) as fin:
+                tree_str = fin.read().strip()
+                tree = newick.loads(tree_str,
+                                    look_for_multiplier = True,
+                                    length_parser = ut.length_parser_str)[0]
+            trees.append(tree)
+            cols = get_parameter_names(fn)
+            varnames = [col[:-2] for col in cols if col.endswith('_l')]
+            all_varnames += varnames
     try:
         # first try no header
         dat_m1 = pd.read_csv(results,
@@ -187,7 +204,7 @@ def make_figures(
             lower_l, upper_l = length_prior_limits
             lower_l = 10**float(lower_l)
             upper_l = 10**float(upper_l)
-            length_limits = get_len_limits(tree, ages_file, lower_l, upper_l)
+            length_limits = get_len_limits(trees, ages_file, lower_l, upper_l)
 
     # getting true parameters
     if true_parameters is not None:
@@ -420,7 +437,7 @@ def _run_make_figures(args):
 
     make_figures(
             results = args.results,
-            tree = args.tree,
+            tree_files = args.tree,
             num_walkers = args.num_walkers,
             ages_file = args.ages_file,
             prefix = args.prefix,
@@ -434,5 +451,5 @@ def _run_make_figures(args):
             trace_burnin_steps = args.trace_burnin_steps,
             posterior_burnin_frac = args.posterior_burnin_frac,
             add_title = args.add_title,
-            log_uniform_drift_priors = args.log_uniform_drift_priors)
+            log_uniform_drift_priors = not args.uniform_drift_priors)
 

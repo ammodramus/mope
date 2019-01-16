@@ -67,33 +67,82 @@ parser.add_argument('--frac-burnin', '-b', type = float,
         default = 0.3)
 parser.add_argument('--old', action ='store_true',
         help = 'specify for old data, drift in natural scale')
+parser.add_argument('--m2', action = 'store_true',
+        help = 'use summary statistics from newer data')
+parser.add_argument('--no-change', action = 'store_true',
+        help = 'include pointmass at zero')
+parser.add_argument('--lowers', help = 'file with parameter lower limits, one per line')
 args = parser.parse_args()
 
 dat = pd.read_csv(args.datafile, sep = '\t', header = 0, comment = '#')
+
+if args.no_change and not args.old:
+    # get lowers
+    if args.lowers is None:
+        lowers = []
+        with open(args.datafile) as fin:
+            foundlower = False
+            for line in fin:
+                line = line.strip()
+                if 'lower' in line:
+                    foundlower = True
+                    continue
+                if foundlower:
+                    if 'upper' in line:
+                        break
+                    lowers.append(float(line.split(' ')[-1]))
+    else:
+        with open(args.lowers) as fin:
+            lowers = []
+            for line in fin:
+                lowers.append(float(line.strip()))
+
+    num_length_cols = dat.columns.str.endswith('_l').sum()
+    for i in range(num_length_cols):
+        low = lowers[i]
+        col = dat.columns[i+1]  # i+1 because first column is log-likelihood!
+        dat.loc[dat[col] < low+1, col] = -np.inf
+
 # convert drift back to natural units
 if not args.old:
     dat.loc[:,dat.columns.str.contains('_l')] = 10**dat.loc[:,dat.columns.str.contains('_l')]
 else:
     dat.loc[:,dat.columns.str.contains('_l')] = dat.loc[:,dat.columns.str.contains('_l')].abs()
-    dat.loc[:,dat.columns.str.contains('_m')] = -1.0*dat.loc[:,dat.columns.str.contains('_m')].abs()
+    dat.loc[:,dat.columns.str.contains('_m')] = 10**(-1.0*dat.loc[:,dat.columns.str.contains('_m')].abs())
 burn_idx = int(dat.shape[0] * args.frac_burnin)
 dat_burn = dat.iloc[burn_idx:,:]
 
 # calculate EBSs
 
-mean_age = 29.558974
-bots_mean = (2.0/(2.0/dat_burn['eoo_l'] + 
-    dat_burn['som_l'] + mean_age*dat_burn['loo_l'])).values
-bots_18 = (2.0/(2.0/dat_burn['eoo_l'] + 
-    dat_burn['som_l'] + 18*dat_burn['loo_l'])).values
-bots_40 = (2.0/(2.0/dat_burn['eoo_l'] + 
-    dat_burn['som_l'] + 40*dat_burn['loo_l'])).values
+# update the new statistic when all of the data is included
+if args.m2:
+    mean_age = 29.192876
+else:
+    mean_age = 29.558974
+
+
+if args.m2:
+    bots_mean = 2.0/(dat_burn['eoo_pre_l'] + dat_burn['eoo_post_l'] + dat_burn['som_l'] + mean_age*dat_burn['loo_l']).values
+    bots_18 = 2.0/(dat_burn['eoo_pre_l'] + dat_burn['eoo_post_l'] + dat_burn['som_l'] + 18*dat_burn['loo_l']).values
+    bots_40 = 2.0/(dat_burn['eoo_pre_l'] + dat_burn['eoo_post_l'] + dat_burn['som_l'] + 40*dat_burn['loo_l']).values
+else:
+    bots_mean = (2.0/(2.0/dat_burn['eoo_l'] + 
+        dat_burn['som_l'] + mean_age*dat_burn['loo_l'])).values
+    bots_18 = (2.0/(2.0/dat_burn['eoo_l'] + 
+        dat_burn['som_l'] + 18*dat_burn['loo_l'])).values
+    bots_40 = (2.0/(2.0/dat_burn['eoo_l'] + 
+        dat_burn['som_l'] + 40*dat_burn['loo_l'])).values
+
 
 # calculate loo rates
-bots_25 = (2.0/(2.0/dat_burn['eoo_l'] + 
-    dat_burn['som_l'] + 25*dat_burn['loo_l'])).values
-bots_34 = (2.0/(2.0/dat_burn['eoo_l'] + 
-    dat_burn['som_l'] + 34*dat_burn['loo_l'])).values
+if args.m2:
+    bots_25 = 2.0/(dat_burn['eoo_pre_l'] + dat_burn['eoo_post_l'] + dat_burn['som_l'] + 25*dat_burn['loo_l']).values
+    bots_34 = 2.0/(dat_burn['eoo_pre_l'] + dat_burn['eoo_post_l'] + dat_burn['som_l'] + 34*dat_burn['loo_l']).values
+else:
+    bots_25 = (2.0/(2.0/dat_burn['eoo_l'] + 
+        dat_burn['som_l'] + 25*dat_burn['loo_l'])).values
+    bots_34 = (2.0/(2.0/dat_burn['eoo_l'] + 
+        dat_burn['som_l'] + 34*dat_burn['loo_l'])).values
 rates = (bots_34-bots_25)/(34-25)
 
 # calculate bottlenecks for fblo_l and f_buc_l
