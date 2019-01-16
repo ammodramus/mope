@@ -32,10 +32,11 @@ To install these dependencies, you can use pip:
 # pip install -U numpy scipy pandas h5py emcee future lru-dict
 ```
 
-Mope also requires some compilation of code written in C into python modules.
-This requires Python development headers and libraries. The [GNU Scientific
-Library](https://www.gnu.org/software/gsl/) development libraries are also
-required. On Ubuntu, these can be installed with the following command:
+Mope also requires [Cython](https://cython.org/), the Python development
+headers and libraries, and the [GNU Scientific
+Library](https://www.gnu.org/software/gsl/) development libraries.
+Many systems will already have Cython. On Ubuntu, the remaining libraries can
+be installed with the following command:
 
 ```
 # apt-get install python-dev libgsl0-dev
@@ -44,44 +45,40 @@ required. On Ubuntu, these can be installed with the following command:
 Installation
 ---------------
 
-The easiest way to install mope is to use pip:
+For install the most up-to-date version of `mope`, clone this repository and
+use Python and distutils:
+
+```
+# git clone https://github.com/ammodramus/mope
+# cd mope/
+# python setup.py install
+```
+
+This may require superuser priveleges; to install in your home directory
+replace `install` with `install --user`
+
+`mope` can also be installed using `pip`; however the version on `PyPI` may not
+be updated as frequently. To install with `pip`:
 
 ```
 # pip install mope
 ```
 
-This command may require superuser priveleges on some systems; in this case,
+Again, this command may require superuser priveleges on some systems; in this case,
 use the command
 
 ```
 # pip install --user mope
 ```
 
-This will install the mope library for use in Python and at the same time
-install an executable script called `mope`, which can be used to run data
-analysis and inference, perform simulations, and execute a number of other
-utility functionalities. This executable script should be in the user's PATH
-after installation with pip.
-
-To uninstall mope:
-
-```
-# pip uninstall mope
-```
-
-Mope can also be installed manually:
-
-```
-# git clone https://github.com/ammodramus/mope.git
-# cd mope
-# python setup.py install --record files.txt
-```
-
-In this case, uninstall by removing files manually using `cat files.txt | xargs
-rm`.
+A successful installation will install the `mope` library for use in Python and
+an executable script called `mope`, which can be used to run data analysis and
+inference, perform simulations, and execute a number of other utility
+functionalities. This executable script should be in the user's PATH after
+installation.
 
 To obtain example files and scripts, clone this repository rather than install
-by pip. Mope is not supported on Windows.
+by `pip`. Mope is not supported on Windows.
 
 Obtaining allele frequency transition files
 -----------------
