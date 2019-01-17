@@ -254,7 +254,6 @@ def add_matrix(h5file, P, N, s, u, v, gen, idx, breaks = None):
         P[np.isnan(P)] = 0.0
     if breaks is not None:
         P = bin_matrix(P, breaks)
-    print('row sums:', P.sum(1).tolist())
     #assert np.all(np.isfinite(P)), "not all elements of P are finite"
     group_name = "P" + str(idx)
     dset = h5file.create_dataset(group_name,
