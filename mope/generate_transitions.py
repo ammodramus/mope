@@ -254,7 +254,7 @@ def add_matrix(h5file, P, N, s, u, v, gen, idx, breaks = None):
         P[np.isnan(P)] = 0.0
     if breaks is not None:
         P = bin_matrix(P, breaks)
-    print('colsums:', P.sum(1).tolist())
+    print('row sums:', P.sum(1).tolist())
     #assert np.all(np.isfinite(P)), "not all elements of P are finite"
     group_name = "P" + str(idx)
     dset = h5file.create_dataset(group_name,
@@ -541,7 +541,8 @@ def _run_gencmd(args):
     prefix = 'mkdir -p transitions/drift_matrices && '
     mutsel_txt = 'sel' if args.selection else 'mut'
     for mutsel in default_mutsels:
-        outfile = 'transitions/drift_matrices/drift_matrices_{}_{}.h5'.format(mutsel_txt, mutsel)
+        outfile = 'transitions/drift_matrices/drift_matrices_{}_{}.h5'.format(
+            mutsel_txt, mutsel)
         if args.selection:
             s = mutsel
             u = 0

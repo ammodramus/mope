@@ -3,6 +3,11 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 import os
 
+import sys
+
+import numpy as np
+import numpy.linalg as npl
+
 import argparse
 from . import util as ut
 
@@ -450,10 +455,5 @@ def main():
     ############################################
     # parse and run
     args = parser.parse_args()
-
-    if args.func is not _run_generate:
-        os.environ['OPENBLAS_NUM_THREADS'] = "1"
-        os.environ['MKL_NUM_THREADS'] = "1"
-    import numpy as np
 
     args.func(args)
