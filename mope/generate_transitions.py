@@ -523,14 +523,10 @@ def _run_gencmd(args):
         20061])
 
     # write to gens file
-    if not args.big:
-        with open('gens.txt', 'w') as fout:
-            for gen in default_gens:
-                fout.write(str(gen) + '\n')
-    else:
-        with open('gens.txt', 'w') as fout:
-            for gen in default_big_gens:
-                fout.write(str(gen) + '\n')
+    write_gens = default_gens if not args.big else default_big_gens
+    with open('gens.txt', 'w') as fout:
+        for gen in write_gens:
+            fout.write(str(gen) + '\n')
     if args.gauss:
         with open('gens_gauss.txt', 'w') as fout:
             for gen in default_gauss_gens:
