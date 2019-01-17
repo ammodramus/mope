@@ -13,7 +13,7 @@ import numpy as np
 import scipy.optimize as opt
 import pandas as pd
 from . import likelihoods as lis
-from . import transition_data_mut as tdm
+from . import transition_data_2d as td2d
 from . import transition_data_bottleneck as tdb
 from . import params as par
 from functools import partial
@@ -124,7 +124,8 @@ def _get_valid_start_from(sf_str):
 
 
 class Inference(object):
-    def __init__(self,
+    def __init__(
+            self,
             data_files,
             tree_files,
             age_files,
@@ -145,7 +146,8 @@ class Inference(object):
             post_is_prior = False,
             lower_drift_limit = 1e-3,
             upper_drift_limit = 3,
-            min_phred_score = None):
+            min_phred_score = None,
+            selection_model=False):
 
         self.asc_tree = None
         self.asc_num_loci = None
@@ -180,6 +182,7 @@ class Inference(object):
         self.lower_drift_limit = lower_drift_limit,
         self.upper_drift_limit = upper_drift_limit
         self.min_phred_score = min_phred_score
+        self.selection_model=selection_model
 
         ############################################################
         # for each data file, read in data, convert columns to float
@@ -438,9 +441,9 @@ class Inference(object):
         min_allowed_bottleneck = 2
         max_allowed_bottleneck = 500
         min_mut = max(-8,
-                np.log10(self.transition_data.get_min_mutation_rate()))
+                np.log10(self.transition_data.get_min_mutsel_rate()))
         max_mut = min(-1,
-                np.log10(self.transition_data.get_max_mutation_rate()))
+                np.log10(self.transition_data.get_max_mutsel_rate()))
         min_ab = -9
         max_ab = 0
         min_polyprob = -9
@@ -496,8 +499,6 @@ class Inference(object):
 
             self.true_loglike = self.loglike(self.true_params)
 
-        # (no longer setting initial parameters here)
-
         # end __init__
 
 
@@ -505,11 +506,13 @@ class Inference(object):
         ############################################################
         # add transition data
         if self.transition_copy is None:
-            self.transition_data = tdm.TransitionData(self.transitions_file,
-                    memory = True)
+            self.transition_data = td2d.TransitionData(
+                self.transitions_file, memory=True,
+                selection=self.selection_model)
         else:
-            self.transition_data = tdm.TransitionDataCopy(transition_copy,
-                    transition_buf, transition_shape)
+            self.transition_data = td2d.TransitionDataCopy(
+                transition_copy, transition_buf, transition_shape,
+                selection=self.selection_model)
         self.freqs = self.transition_data.get_bin_frequencies()
         self.num_freqs = self.freqs.shape[0]
         self.breaks = self.transition_data.get_breaks()
@@ -519,7 +522,7 @@ class Inference(object):
         # add optional bottleneck data
         if self.bottleneck_file is not None:
             self.bottleneck_data = tdb.TransitionDataBottleneck(
-                    self.bottleneck_file, memory = True)
+                    self.bottleneck_file, memory=True)
         else:
             self.bottleneck_data = None
 
@@ -1000,7 +1003,7 @@ class Inference(object):
 
         if init_pos is None:
             init_pos = self._get_initial_mcmc_position(num_walkers, prev_chain,
-                    start_from, init_norm_sd, pool)
+                    start_from, init_norm_sd, pool, logp, logl)
 
         ##############################################################
         # running normal MCMC   

@@ -90,19 +90,19 @@ class TransitionDataBottleneck(object):
         if not self._memory:
             self._hdf5_file = h5py.File(self._filename, 'r')
         
-    def get_transition_probabilities_time_mutation(self, nb,
+    def get_transition_probabilities_2d(self, nb,
             scaled_mut):
         key = (nb, scaled_mut)
         if key in self._cache:
             val = self._cache[key]
         else:
-            val = self.get_transition_probabilities_time_mutation_not_cached(
+            val = self.get_transition_probabilities_2d_not_cached(
                     nb,
                     scaled_mut)
             self._cache[key] = val
         return val
 
-    def get_transition_probabilities_time_mutation_not_cached(self,
+    def get_transition_probabilities_2d_not_cached(self,
             nb, scaled_mut):
         '''
         Returns the interpolated transition probabilities

@@ -18,35 +18,37 @@ def isclose(a,b, rtol = 1e-5):
 class TransitionData(object):
     
     def __init__(self, filename, master_filename = None, check = True,
-            memory = False):
+            memory = False, selection=False):
         assert 3/2 == 1.5
         self._links = {}
         self._filename = filename
         self._N = None
         self._shape = None
         self._frequencies = None
-        self._us = set()
+        self._xs = set()
         self._gens = set()
-        self._sorted_us = None
+        self._sorted_xs = None
         self._sorted_gens = None
         self._hdf5_file = None
         self._check_integrity = check
         self._memory = memory
         self._cache = LRU(500)
+        self._selection_model = selection
 
         self._add_master_file()
             
     def _add_dataset(self, dataset, dataset_name):
         '''
         Adds a particular dataset to the dict of dataset names, keys being
-        (gen, u). Also adds gen and u to set of observed values and checks
+        (gen, x). Also adds gen and x to set of observed values and checks
         that N is correct.
         '''
         attr = dataset.attrs
         N = attr['N']
         gen = attr['gen']
-        u = attr['u']
-        key = (gen, u)
+        xkey = 's' if self._selection_model else 'u'
+        x = attr[xkey]
+        key = (gen, x)
         if self._check_integrity:
             if self._N is None:
                 self._N = N
@@ -59,16 +61,15 @@ class TransitionData(object):
                 raise Exception('Found multiple distinct shapes of matrices \
                         in file')
             if key in self._links:
-                print(key)
-                err_msg = 'Found duplicate generation / mutation rate \
-                        combination in matrices'
+                err_msg = ('Found duplicate generation & mutation/selection '
+                           'rate combination in matrices: {}'.format(key))
                 raise Exception(err_msg)
         if not self._memory:
             self._links[key] = dataset_name
         else:
             self._links[key] = np.array(dataset[:,:].copy())
         self._gens.add(gen)
-        self._us.add(u)
+        self._xs.add(x)
         
     def _add_master_file(self):
         '''
@@ -83,14 +84,13 @@ class TransitionData(object):
                 self._add_dataset(ds, dsname)
             self._frequencies = mf.attrs['frequencies']
             self._breaks = mf.attrs['breaks']
-        self._sorted_us = np.array(sorted(list(self._us)), dtype = np.float64)
-        #self._sorted_gens = np.array(sorted(list(self._gens)), dtype = np.int)
+        self._sorted_xs = np.array(sorted(list(self._xs)), dtype = np.float64)
         self._sorted_gens = np.array(sorted(list(self._gens)), dtype = np.float)
         # check missing members of grid
         missings = []
         for g in self._sorted_gens:
-            for u in self._sorted_us:
-                key = (g,u)
+            for x in self._sorted_xs:
+                key = (g,x)
                 if key not in self._links:
                     missings.append(key)
         if len(missings) != 0:
@@ -101,8 +101,8 @@ class TransitionData(object):
 
         self._min_coal_time = self._sorted_gens.min() / self._N
         self._max_coal_time = self._sorted_gens.max() / self._N
-        self._min_mutation_rate = self._sorted_us.min() * 2 * self._N
-        self._max_mutation_rate = self._sorted_us.max() * 2 * self._N
+        self._min_mutsel_rate = self._sorted_xs.min() * 2 * self._N
+        self._max_mutsel_rate = self._sorted_xs.max() * 2 * self._N
         if not self._memory:
             self._hdf5_file = h5py.File(self._filename, 'r')
         
@@ -126,46 +126,46 @@ class TransitionData(object):
         distn = f0*(1-frac_t1) + f1*(frac_t1)
         return distn
 
-    def get_transition_probabilities_time_mutation(self, scaled_time,
-            scaled_mut):
+    def get_transition_probabilities_2d(self, scaled_time,
+            scaled_mutsel):
         if not np.isfinite(scaled_time):
             raise ValueError('scaled_time is not finite')
-        key = (scaled_time, scaled_mut)
+        key = (scaled_time, scaled_mutsel)
         if key in self._cache:
             val = self._cache[key]
         else:
-            val = self.get_transition_probabilities_time_mutation_not_cached(
+            val = self.get_transition_probabilities_2d_not_cached(
                     scaled_time,
-                    scaled_mut)
+                    scaled_mutsel)
             self._cache[key] = val
         return val
 
-    def get_transition_probabilities_time_mutation_not_cached(self,
-            scaled_time, scaled_mut):
+    def get_transition_probabilities_2d_not_cached(self,
+            scaled_time, scaled_mutsel):
         '''
         Returns the interpolated transition probabilities
         
-        scaled_time   time, scaled by N
-        scaled_mut    2Nu, where u is the mutation rate and N is the haploid
-                      population size
+        scaled_time      time, scaled by N
+        scaled_mutsel    2Nx, where x is the mutation rate / selection
+                         coefficient and N is the haploid population size
         '''
 
         if not np.isfinite(scaled_time):
             raise ValueError('scaled_time is not finite')
-        if not np.isfinite(scaled_mut):
-            raise ValueError('scaled_mut is not finite')
+        if not np.isfinite(scaled_mutsel):
+            raise ValueError('scaled_mutsel is not finite')
         #if scaled_time < self._min_coal_time:
         #    raise ValueError('drift time too small: {} < {} (min)'.format(
         #        scaled_time, self._min_coal_time))
         if scaled_time > self._max_coal_time:
             raise ValueError('drift time too large: {} > {} (max)'.format(
                 scaled_time, self._max_coal_time))
-        if scaled_mut < self._min_mutation_rate:
-            raise ValueError('mutation rate too small: {} < {} (min)'.format(
-                scaled_mut, self._min_mutation_rate))
-        if scaled_mut > self._max_mutation_rate:
-            raise ValueError('mutation rate too large: {} > {} (max)'.format(
-                scaled_mut, self._max_mutation_rate))
+        if scaled_mutsel < self._min_mutsel_rate:
+            raise ValueError('mutsel rate too small: {} < {} (min)'.format(
+                scaled_mutsel, self._min_mutsel_rate))
+        if scaled_mutsel > self._max_mutsel_rate:
+            raise ValueError('mutsel rate too large: {} > {} (max)'.format(
+                scaled_mutsel, self._max_mutsel_rate))
 
         '''
         searchsorted behavior:
@@ -181,22 +181,15 @@ class TransitionData(object):
             #print('# identity matrix returned')
             return np.diag(np.ones(self._shape[0]))
         gen_idx = np.searchsorted(self._sorted_gens, desired_gen_time)
-        desired_u = scaled_mut / (2.0 * self._N)
-        u_idx = np.searchsorted(self._sorted_us, desired_u)
+        desired_x = scaled_mutsel / (2.0 * self._N)
+        x_idx = np.searchsorted(self._sorted_xs, desired_x)
 
-        #if gen_idx > 1:
-        #    return self.bilinear_interpolation(desired_gen_time, desired_u,
-        #            gen_idx, u_idx)
-        #else:
-        #    return self.biquadratic_interpolation(desired_gen_time, desired_u,
-        #            gen_idx, u_idx)
+        return self.bilinear_interpolation(desired_gen_time, desired_x,
+                gen_idx, x_idx)
 
-        return self.bilinear_interpolation(desired_gen_time, desired_u,
-                gen_idx, u_idx)
-
-    def bilinear_interpolation(self, desired_gen_time, desired_u, gen_idx,
-            u_idx):
-        # bilinear interpolation for both gen and mutation rate
+    def bilinear_interpolation(self, desired_gen_time, desired_x, gen_idx,
+            x_idx):
+        # bilinear interpolation for both gen and mutsel rate
         '''
         Now interpolate to get distribution. Use bilinear interpolation,
         which will always produce a valid distribution at every point
@@ -207,23 +200,23 @@ class TransitionData(object):
         that notation, here we interpolate. x is time, y is selection
         '''
         t = desired_gen_time
-        u = desired_u
+        x = desired_x
         t1 = self._sorted_gens[gen_idx-1]
         t2 = self._sorted_gens[gen_idx]
-        u1 = self._sorted_us[u_idx-1]
-        u2 = self._sorted_us[u_idx]
-        fQ11 = self.get_distribution(t1, u1)
-        fQ12 = self.get_distribution(t1, u2)
-        fQ21 = self.get_distribution(t2, u1)
-        fQ22 = self.get_distribution(t2, u2)
+        x1 = self._sorted_xs[x_idx-1]
+        x2 = self._sorted_xs[x_idx]
+        fQ11 = self.get_distribution(t1, x1)
+        fQ12 = self.get_distribution(t1, x2)
+        fQ21 = self.get_distribution(t2, x1)
+        fQ22 = self.get_distribution(t2, x2)
 
-        #distn = ((fQ11*((t2-t)*(u2-u)) + fQ21*((t-t1)*(u2-u)) +
-        #    fQ12*((t2-t)*(u-u1)) + fQ22*((t-t1)*(u-u1))) / ((t2-t1)*(u2-u1)))
-        denom = ((t2-t1)*(u2-u1))
-        weight11 = (t2-t)*(u2-u) / denom
-        weight21 = (t-t1)*(u2-u) / denom
-        weight12 = (t2-t)*(u-u1) / denom
-        weight22 = (t-t1)*(u-u1) / denom
+        #distn = ((fQ11*((t2-t)*(x2-x)) + fQ21*((t-t1)*(x2-x)) +
+        #    fQ12*((t2-t)*(x-x1)) + fQ22*((t-t1)*(x-x1))) / ((t2-t1)*(x2-x1)))
+        denom = ((t2-t1)*(x2-x1))
+        weight11 = (t2-t)*(x2-x) / denom
+        weight21 = (t-t1)*(x2-x) / denom
+        weight12 = (t2-t)*(x-x1) / denom
+        weight22 = (t-t1)*(x-x1) / denom
 
         #distn = fQ11*weight11 + fQ21*weight21 + fQ12*weight12 + fQ22*weight22
         distn = _interp.bilinear_interpolate(
@@ -240,11 +233,11 @@ class TransitionData(object):
         return distn
 
 
-    def biquadratic_interpolation(self, desired_gen_time, desired_u, gen_idx,
-            u_idx):
+    def biquadratic_interpolation(self, desired_gen_time, desired_x, gen_idx,
+            x_idx):
         '''
         Perform a quadratic interpolation along the generations axis and a
-        linear interpolation along the mutation axis
+        linear interpolation along the mutsel axis
         '''
         assert gen_idx < 2  # only do this for very low drift times
 
@@ -253,16 +246,16 @@ class TransitionData(object):
         t2 = self._sorted_gens[gen_idx]
         t3 = self._sorted_gens[gen_idx+1]
 
-        u = desired_u
-        u1 = self._sorted_us[u_idx-1]
-        u2 = self._sorted_us[u_idx]
+        x = desired_x
+        x1 = self._sorted_xs[x_idx-1]
+        x2 = self._sorted_xs[x_idx]
 
-        fQ11 = self.get_distribution(t1, u1)
-        fQ12 = self.get_distribution(t1, u2)
-        fQ21 = self.get_distribution(t2, u1)
-        fQ22 = self.get_distribution(t2, u2)
-        fQ31 = self.get_distribution(t3, u1)
-        fQ32 = self.get_distribution(t3, u2)
+        fQ11 = self.get_distribution(t1, x1)
+        fQ12 = self.get_distribution(t1, x2)
+        fQ21 = self.get_distribution(t2, x1)
+        fQ22 = self.get_distribution(t2, x2)
+        fQ31 = self.get_distribution(t3, x1)
+        fQ32 = self.get_distribution(t3, x2)
 
         # get coefficients of Lagrange interpolation polynomial for three terms
         c = np.zeros(3)
@@ -275,7 +268,7 @@ class TransitionData(object):
 
 
 
-        # interpolated distribution for mutation rate 1
+        # interpolated distribution for mutsel rate 1
         iQu1 = c1*fQ11
         iQu1 += c2*fQ21
         iQu1 += c3*fQ31
@@ -291,15 +284,15 @@ class TransitionData(object):
         #print iQu1[pos][:10]
         #print t1, t2, t3
 
-        # interpolated distribution for mutation rate 2
+        # interpolated distribution for mutsel rate 2
         iQu2 = c1*fQ12
         iQu2 += c2*fQ22
         iQu2 += c3*fQ32
 
-        # linearly interpolate between mutation rates 
+        # linearly interpolate between mutsel rates 
         # first, get coefficients
-        coef1 = (u2-u)/(u2-u1)
-        coef2 = (u-u1)/(u2-u1)
+        coef1 = (x2-x)/(x2-x1)
+        coef2 = (x-x1)/(x2-x1)
 
         # (linearly) interpolate
         distn = coef1*iQu1 + coef2*iQu2
@@ -307,8 +300,8 @@ class TransitionData(object):
         return distn
 
     
-    def get_distribution(self, gen, u):
-        key = (gen, u)
+    def get_distribution(self, gen, x):
+        key = (gen, x)
         if not self._memory:
             dataset_name = self._links[key]
             transition_matrix = self._hdf5_file[dataset_name][:,:].copy()
@@ -316,16 +309,16 @@ class TransitionData(object):
             transition_matrix = self._links[key]
         return transition_matrix
 
-    def get_identity_matrix(self, u):
+    def get_identity_matrix(self, x):
         N = self._N
         breaks = self._breaks
         # N+1 x N+1 identity matrix, plus 
-        diag = np.diag(np.repeat(1.0-2*u, N+1))
-        above_diag = np.diag(np.repeat(u, N), 1)
-        below_diag = np.diag(np.repeat(u, N), -1)
+        diag = np.diag(np.repeat(1.0-2*x, N+1))
+        above_diag = np.diag(np.repeat(x, N), 1)
+        below_diag = np.diag(np.repeat(x, N), -1)
         P = diag + above_diag + below_diag
-        P[0,0] += u
-        P[-1,-1] += u
+        P[0,0] += x
+        P[-1,-1] += x
         P = bin_matrix(P, breaks)
         return P
     
@@ -345,17 +338,17 @@ class TransitionData(object):
         assert 3/2 == 1.5
         return self._max_coal_time
 
-    def get_min_mutation_rate(self):
+    def get_min_mutsel_rate(self):
         '''
-        returns min mutation rate, scaled by 2N
+        returns min mutsel rate, scaled by 2N
         '''
-        return self._min_mutation_rate
+        return self._min_mutsel_rate
     
-    def get_max_mutation_rate(self):
+    def get_max_mutsel_rate(self):
         '''
-        returns max mutation rate, scaled by 2N
+        returns max mutsel rate, scaled by 2N
         '''
-        return self._max_mutation_rate
+        return self._max_mutsel_rate
 
     def close(self):
         self._hdf5_file.close()
