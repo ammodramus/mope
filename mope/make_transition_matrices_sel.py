@@ -154,8 +154,9 @@ def bin_matrix(P, breaks):
         breaks + middles)[break_is_odd], :]
     left_middles = np.floor((bin_lengths - 1) / 2).astype(np.int)
     right_middles = np.ceil((bin_lengths - 1) / 2).astype(np.int)
-    P_binned[break_is_even, :] = (P_colsummed[breaks + left_middles, :][break_is_even, :] +
-                                  P_colsummed[breaks + right_middles, :][break_is_even, :]) / 2
+    P_binned[break_is_even,:] = ((
+        P_colsummed[breaks + left_middles,:][break_is_even,:]
+        + P_colsummed[breaks + right_middles,:][break_is_even,:]) / 2)
     return P_binned
 
 
@@ -271,16 +272,17 @@ if __name__ == '__main__':
                         'the focal allele', type=ut.probability)
     parser.add_argument('v', help='mutation probability towards from '
                         'the focal allele', type=ut.probability)
-    parser.add_argument('output',
-                        help='filename for output hdf5 file. overwrites if exists.')
+    parser.add_argument(
+        'output',
+        help='filename for output hdf5 file. overwrites if exists.')
     parser.add_argument('gensfile', type=str,
                         help='file containing generations to '
                         'produce, one per line. ')
-    parser.add_argument('--breaks',
-                        help='uniform weight and minimum bin size for binning of larger '
-                        'matrix into smaller matrix',
-                        nargs=2, metavar=('uniform_weight', 'min_bin_size'),
-                        type=float, default=(0.5, 0.01))
+    parser.add_argument(
+        '--breaks', help='uniform weight and minimum bin size for binning of larger '
+        'matrix into smaller matrix', nargs=2, metavar=(
+            'uniform_weight', 'min_bin_size'), type=float, default=(
+            0.5, 0.01))
     parser.add_argument('--debug', action='store_true',
                         help='print debug messages')
     args = parser.parse_args()
