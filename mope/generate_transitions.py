@@ -9,15 +9,13 @@ from builtins import object
 import argparse
 import h5py
 import os 
-os.environ['OPENBLAS_NUM_THREADS'] = '1' 
-os.environ['MKL_NUM_THREADS'] = '1' 
 import numpy as np
 import sys
 import numpy.linalg as npl
 import logging
 import warnings
 import gc
-import scipy.stats
+import scipy.stats as st
 from numpy.core.numeric import binary_repr, asanyarray
 from numpy.core.numerictypes import issubdtype
 from .generate_transitions_util import log_matrix_power, logdot
@@ -54,20 +52,15 @@ def get_bottleneck_transition_matrix(N, Nb, mu):
 
 
 def get_wright_fisher_transition_matrix(N, s, u, v):
-    try:
-        from scipy.misc import comb
-    except ImportError:
-        raise ImportError('generating transition matrices requires scipy')
-    assert 3/2 == 1.5  # check for __future__ division
-    P = np.matrix(np.zeros((N+1, N+1), dtype = np.float64))
-    js = np.arange(0,N+1)
-    for i in xrange(N+1):
-        p = i/N
-        pmut = (1-u)*p + v*(1-p) # first mutation, then selection
-        pstar = pmut*(1+s) / (pmut*(1+s) + 1-pmut)
-        P[i,:] = comb(N, js)*(pstar**js)*((1-pstar)**(N-js))
+    assert 3 / 2 == 1.5, "check for __future__ division"
+    P = np.matrix(np.zeros((N + 1, N + 1), dtype=np.float64))
+    js = np.arange(0, N + 1)
+    for i in range(N + 1):
+        p = i / N
+        pmut = (1 - u) * p + v * (1 - p)  # first mutation, then selection
+        pstar = pmut * (1 + s) / (pmut * (1 + s) + 1 - pmut)
+        P[i, :] = np.exp(st.binom.logpmf(js, N, pstar))
     return P
-
 
 def get_log_wright_fisher_transition_matrix(N, s, u, v):
     assert 3/2 == 1.5  # check for __future__ division
@@ -77,7 +70,7 @@ def get_log_wright_fisher_transition_matrix(N, s, u, v):
         p = i/N
         pmut = (1-u)*p + v*(1-p) # first mutation, then selection
         pstar = pmut*(1+s) / (pmut*(1+s) + 1-pmut)
-        lP[i,:] = scipy.stats.binom.logpmf(js, N, pstar)
+        lP[i,:] = st.binom.logpmf(js, N, pstar)
     return lP
 
 
@@ -217,11 +210,18 @@ def get_binned_frequencies(N, breaks):
     return vals
 
 
-def get_next_matrix_with_prev(cur_matrix, cur_power, next_power, lP):
+def get_next_matrix_with_prev(cur_matrix, cur_power, next_power, P,
+                                  log_space=False):
     step_power = next_power - cur_power
-    lP_step = log_matrix_power(lP, step_power)
-    lnext_P = logdot(cur_matrix, lP_step)
-    return lnext_P
+    if log_space:
+        lP_step = log_matrix_power(P, step_power)
+        lnext_P = logdot(cur_matrix, lP_step)
+        retP = lnext_P
+    else:
+        P_step = npl.matrix_power(P, step_power)
+        next_P = np.matmul(cur_matrix, P_step)
+        retP = next_P
+    return retP
 
 def get_identity_matrix(N, u, breaks):
     # N+1 x N+1 identity matrix, plus 
@@ -321,18 +321,15 @@ def _run_generate(args):
 
         if args.bottlenecks:
             dataset_idx = 0
-            if args.input_file is None:
-                Nbs = range(args.start, args.end+1, args.every)
-            else:
-                Nbs = []
-                with open(args.input_file) as nb_in:
-                    for line in nb_in:
-                        try:
-                            Nb = int(line.strip())
-                        except ValueError:
-                            raise ValueError("invalid integer in bottleneck sizes \
-                                    file")
-                        Nbs.append(Nb)
+            Nbs = []
+            with open(args.inputfile) as nb_in:
+                for line in nb_in:
+                    try:
+                        Nb = int(line.strip())
+                    except ValueError:
+                        raise ValueError("invalid integer in bottleneck sizes \
+                                file")
+                    Nbs.append(Nb)
             for Nb in Nbs:
                 logger.debug('getting bottleneck P, Nb = {}, {} of {}'.format(
                     Nb, Nbs.index(Nb)+1, len(Nbs)))
@@ -345,44 +342,23 @@ def _run_generate(args):
 
         else:  # not bottlenecks
             logger.debug('calculating Wright-Fisher matrix P')
-            lP = get_log_wright_fisher_transition_matrix(args.N, args.s, args.u, args.v)
-            if np.any(np.isnan(lP)):
-                warnings.warn('log WF transition matrix P contains nans')
-                warnings.warn('number of nans: {} out of {}'.format(
-                    np.isnan(P).sum(),
-                    P.shape[0] * P.shape[1]))
-            logger.debug('log Wright-Fisher matrix P obtained')
-            dataset_idx = 0
-            if args.input_file is None:
-                lstep_matrix = log_matrix_power(lP, args.every)
-
-                gen = args.start
-                if gen > 0:
-                    lP_prime = log_matrix_power(lP, args.start)
-                    P_prime = np.exp(lP_prime) 
-                    add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
-                            gen, dataset_idx, breaks)
-                elif gen == 0:
-                    P_prime = np.diag(np.repeat(1.0, args.N+1))
-                    add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
-                            gen, dataset_idx, breaks)
-                    P_prime = np.diag(np.repeat(1.0, args.N+1))
-                dataset_idx += 1
-                step_matrix = npl.matrix_power(P, args.every)
-                for gen in xrange(args.start+args.every, args.end+1, args.every):
-                    P_prime = np.dot(P_prime, step_matrix)
-                    add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v, gen,
-                            dataset_idx, breaks)
-                    dataset_idx += 1
-            else:
-                gens = []
-                with open(args.input_file) as gen_in:
-                    for line in gen_in:
-                        try:
-                            gen = int(line.strip())
-                        except ValueError:
-                            raise ValueError("invalid integer in generations file")
-                        gens.append(gen)
+            gens = []
+            with open(args.inputfile) as gen_in:
+                for line in gen_in:
+                    try:
+                        gen = int(line.strip())
+                    except ValueError:
+                        raise ValueError("invalid integer in generations file")
+                    gens.append(gen)
+            if args.log:
+                lP = get_log_wright_fisher_transition_matrix(args.N, args.s, args.u, args.v)
+                if np.any(np.isnan(lP)):
+                    warnings.warn('log WF transition matrix P contains nans')
+                    warnings.warn('number of nans: {} of {}'.format(
+                        np.isnan(P).sum(),
+                        P.shape[0] * P.shape[1]))
+                logger.debug('log Wright-Fisher matrix P obtained')
+                dataset_idx = 0
                 logger.debug('calculating P_prime')
                 lP_prime = log_matrix_power(lP, gens[0])
                 logger.debug('P_prime obtained, adding matrix')
@@ -394,7 +370,7 @@ def _run_generate(args):
                 for gen in gens[1:]:
                     logger.debug('calculating P prime')
                     lP_prime = get_next_matrix_with_prev(
-                            lP_prime, prev_gen, gen, lP)
+                            lP_prime, prev_gen, gen, lP, log_space=True)
                     logger.debug('P_prime calculated for gen {}, '
                                  'adding matrix'.format(gen))
                     add_matrix(h5file, np.exp(lP_prime), args.N, args.s, args.u, args.v,
@@ -402,7 +378,38 @@ def _run_generate(args):
                     logger.debug('matrix added')
                     dataset_idx += 1
                     prev_gen = gen
-                    gc.collect()   # explicit memory management
+                    gc.collect()   # explicit garbage collection
+            else:
+                P = get_wright_fisher_transition_matrix(args.N, args.s, args.u,
+                                                        args.v)
+                if np.any(np.isnan(P)):
+                    warnings.warn('WF transition matrix P contains nans')
+                    warnings.warn('number of nans: {} of {}'.format(
+                        np.isnan(P).sum(),
+                        P.shape[0] * P.shape[1]))
+                logger.debug('Wright-Fisher matrix P obtained')
+                dataset_idx = 0
+                logger.debug('calculating P_prime')
+                P_prime = npl.matrix_power(P, gens[0])
+                logger.debug('P_prime obtained, adding matrix')
+                add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
+                        gens[0], dataset_idx, breaks)
+                logger.debug('adding matrix')
+                dataset_idx += 1
+                prev_gen = gens[0]
+                for gen in gens[1:]:
+                    logger.debug('calculating P prime')
+                    P_prime = get_next_matrix_with_prev(
+                            P_prime, prev_gen, gen, P, log_space=False)
+                    logger.debug('P_prime calculated for gen {}, '
+                                 'adding matrix'.format(gen))
+                    add_matrix(h5file, P_prime, args.N, args.s, args.u, args.v,
+                            gen, dataset_idx, breaks)
+                    logger.debug('matrix added')
+                    dataset_idx += 1
+                    prev_gen = gen
+                    gc.collect()   # explicit garbage collection
+
 
 def _run_master(args):
     if args.out_file in args.files:
@@ -490,16 +497,11 @@ def _run_gencmd(args):
             5200, 5400, 5600, 5800, 6000, 6200, 6400, 6600, 6800, 7000, 7200,
             7400, 7600, 7800, 8000, 8200, 8400, 8600, 8800, 9000, 9200, 9400,
             9600, 9800, 10000]
-    if args.gauss:
-        log10_smallest_t = -np.log10(N)
-        log10_smallest_gauss_t = log10_smallest_t - 2
-        default_gauss_gens = 10**np.linspace(log10_smallest_gauss_t,
-                log10_smallest_t, num = 20)[:-1]
     default_bots = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45, 50,
             55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 110, 120, 130, 140, 150,
             160, 180, 200, 220, 240, 260, 280, 300, 320, 340, 360, 380, 400,
             425, 450, 475, 500]
-    default_muts = [1.0e-12, 2.5e-12, 5e-12, 7.5e-12, 1.0e-11, 2.5e-11, 5e-11,
+    default_mutsels = [1.0e-12, 2.5e-12, 5e-12, 7.5e-12, 1.0e-11, 2.5e-11, 5e-11,
             7.5e-11, 1.0e-10, 2.5e-10, 5e-10, 7.5e-10, 1.0e-9, 2.5e-9, 5e-9,
             7.5e-9, 1.0e-8, 2.5e-8, 5e-8, 7.5e-8, 1.0e-7, 2.5e-7, 5e-7, 7.5e-7,
             1.0e-6, 2.5e-6, 5e-6, 7.5e-6, 1.0e-5, 2.5e-5, 5e-5, 7.5e-5, 1.0e-4,
@@ -522,61 +524,60 @@ def _run_gencmd(args):
         12779, 13363, 13974, 14615, 15287, 15991, 16730, 17504, 18316, 19168,
         20061])
 
-    # write to gens file
+    # write gens
     write_gens = default_gens if not args.big else default_big_gens
     with open('gens.txt', 'w') as fout:
         for gen in write_gens:
             fout.write(str(gen) + '\n')
-    if args.gauss:
-        with open('gens_gauss.txt', 'w') as fout:
-            for gen in default_gauss_gens:
-                fout.write(str(gen) + '\n')
 
-    # write out bottlenecks
-    with open('bots.txt', 'w') as fout:
-        for bot in default_bots:
-            fout.write(str(bot) + '\n')
+    if not args.selection:
+        # write bottlenecks
+        with open('bots.txt', 'w') as fout:
+            for bot in default_bots:
+                fout.write(str(bot) + '\n')
 
-    # print out W-F drift commands
+    # print W-F drift commands
     infile = 'gens.txt'
     prefix = 'mkdir -p transitions/drift_matrices && '
-    for mut in default_muts:
-        outfile = 'transitions/drift_matrices/drift_matrices_mut_{}.h5'.format(mut)
-        cmd = ('mope generate-transitions {N} {s} {u} {u} {start} {every} '
-               '{end} {output} --breaks 0.5 0.01 --input-file {fin}'.format(
-                      N = N, s = 0, u = mut, start = 1, every = 1, end = 2,
-                      output = outfile, fin = 'gens.txt'))
+    mutsel_txt = 'sel' if args.selection else 'mut'
+    for mutsel in default_mutsels:
+        outfile = 'transitions/drift_matrices/drift_matrices_{}_{}.h5'.format(mutsel_txt, mutsel)
+        if args.selection:
+            s = mutsel
+            u = 0
+        else:
+            s = 0
+            u = mutsel
+        cmd = ('mope generate-transitions {N} {s} {u} {u} '
+               '{fin} {output} --breaks 0.5 0.01'.format(
+                      N=N, s=s, u=u, output=outfile, fin='gens.txt'))
         print(prefix + cmd)
 
-    if args.gauss:
-        # print out gauss commands (same directory)
-        for mut in default_muts:
-            outfile = 'transitions/drift_matrices/gaussian_drift_matrices_mut_{}.h5'.format(mut)
-            cmd = ('mope make-gauss {fin} {N} {uv} {output}'.format(
-                          N = N, uv = mut, output = outfile, fin = 'gens_gauss.txt'))
+    # print bottleneck commands
+    if not args.selection:
+        prefix = 'mkdir -p transitions/bottleneck_matrices && '
+        for mutsel in default_mutsels:
+            outfile = 'transitions/bottleneck_matrices/bottleneck_matrices_mut_{}.h5'.format(mutsel)
+            cmd = ('mope generate-transitions {N} {s} {u} {u} '
+                   '{fin} {output} --breaks 0.5 0.01 --bottlenecks'.format(
+                       N=N, s=0, u=mutsel, output=outfile, fin='bots.txt'))
             print(prefix + cmd)
 
-    # print out bottleneck commands
-    prefix = 'mkdir -p transitions/bottleneck_matrices && '
-    for mut in default_muts:
-        outfile = 'transitions/bottleneck_matrices/bottleneck_matrices_mut_{}.h5'.format(mut)
-        cmd = ('mope generate-transitions {N} {s} {u} {u} {start} {every} '
-               '{end} {output} --breaks 0.5 0.01 --input-file {fin} '
-               '--bottlenecks'.format(
-                      N = N, s = 0, u = mut, start = 1, every = 1, end = 2,
-                      output = outfile, fin = 'bots.txt'))
-        print(prefix + cmd)
 
-
-    # print out master-file generation command
+    # print master-file generation command
     print("#########################################")
     print('# run these after everything has completed')
     print("#########################################")
+    if args.selection:
+        outfile = 'selection_transitions.h5'
+    else:
+        outfile = 'drift_transitions.h5'
     cmd = ('# cd transitions/ && mope make-master-transitions '
-           'drift_matrices/*.h5 --out-file drift_transitions.h5; '
-           'cd ..')
+           'drift_matrices/*.h5 --out-file {outfile}; '
+           'cd ..'.format(outfile=outfile))
     print(cmd)
-    cmd = ('# cd transitions/ && mope make-master-transitions '
-           'bottleneck_matrices/*.h5 --out-file bottleneck_transitions.h5; '
-           'cd ..')
-    print(cmd)
+    if not args.selection:
+        cmd = ('# cd transitions/ && mope make-master-transitions '
+               'bottleneck_matrices/*.h5 --out-file bottleneck_transitions.h5; '
+               'cd ..')
+        print(cmd)

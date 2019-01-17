@@ -2,8 +2,6 @@ from __future__ import division
 from __future__ import absolute_import
 from __future__ import unicode_literals
 import os
-os.environ['OPENBLAS_NUM_THREADS'] = "1"
-os.environ['MKL_NUM_THREADS'] = "1"
 
 import argparse
 from . import util as ut
@@ -298,6 +296,12 @@ def main():
             'the focal allele', type = ut.probability)
     parser_gendrift.add_argument('v', help='mutation probability towards from '
             'the focal allele', type = ut.probability)
+    parser_gendrift.add_argument('inputfile', type=str,
+            help='file containing generations or bottleneck sizes to '
+                 'produce, one per line. ' 'overrides start, every, and '
+                 'end.')
+
+    '''
     parser_gendrift.add_argument('start',
             help='first generation (or minimum bottleneck size) to record '
             '(generation 1 is first generation after the present generation)',
@@ -308,6 +312,7 @@ def main():
     parser_gendrift.add_argument('end',
             help='final generation or bottleneck size to record',
             type = ut.nonneg_int)
+    '''
     parser_gendrift.add_argument('output',
             help='filename for output hdf5 file. overwrites if exists.')
     parser_gendrift.add_argument('--bottlenecks', action = 'store_true',
@@ -323,6 +328,9 @@ def main():
                    'end.')
     parser_gendrift.add_argument('--debug', action = 'store_true',
             help = 'print debug messages')
+    parser_gendrift.add_argument('--log', action='store_true',
+                                 help='perform calculations in log space '
+                                      '(slower)')
     parser_gendrift.set_defaults(
             func = _run_generate)
 
@@ -338,9 +346,8 @@ def main():
                           'all transitions.')
     parser_gencmd.add_argument('--big', action = 'store_true',
             help = 'use N = 2000 (vs 1000) for better small time resolution')
-    parser_gencmd.add_argument('--gauss', action = 'store_true',
-            help = 'use Gaussian approximation for very small times, vs '
-                   'linearly interpolating from identity matrix (zero gen)')
+    parser_gencmd.add_argument('--selection', action='store_true',
+                               help='selection instead of mutation')
     parser_gencmd.set_defaults(
             func = _run_gencmd)
 
@@ -439,7 +446,14 @@ def main():
     parser_posterior_mut_loc.set_defaults(func = run_posterior_mut_loc)
 
 
+
     ############################################
     # parse and run
     args = parser.parse_args()
+
+    if args.func is not _run_generate:
+        os.environ['OPENBLAS_NUM_THREADS'] = "1"
+        os.environ['MKL_NUM_THREADS'] = "1"
+    import numpy as np
+
     args.func(args)
