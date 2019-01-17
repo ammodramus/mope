@@ -5,8 +5,6 @@ from __future__ import unicode_literals
 from builtins import zip
 from builtins import range
 import os 
-os.environ['OPENBLAS_NUM_THREADS'] = '1' 
-os.environ['MKL_NUM_THREADS'] = '1' 
 import numpy as np
 from scipy.stats import binom
 from scipy.stats import beta as betarv

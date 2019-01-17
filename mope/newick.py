@@ -22,8 +22,6 @@ from builtins import object
 import io
 import re
 import os 
-os.environ['OPENBLAS_NUM_THREADS'] = '1' 
-os.environ['MKL_NUM_THREADS'] = '1' 
 import numpy as np
 
 

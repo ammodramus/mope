@@ -3,8 +3,6 @@ from __future__ import unicode_literals
 import argparse
 import pandas as pd
 import os 
-os.environ['OPENBLAS_NUM_THREADS'] = '1' 
-os.environ['MKL_NUM_THREADS'] = '1' 
 import numpy as np
 import sys
 

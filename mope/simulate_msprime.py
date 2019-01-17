@@ -7,8 +7,6 @@ import re
 import sys
 import argparse
 import os 
-os.environ['OPENBLAS_NUM_THREADS'] = '1' 
-os.environ['MKL_NUM_THREADS'] = '1' 
 import numpy as np
 import numpy.random as npr
 import scipy.stats as st

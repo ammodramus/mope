@@ -9,8 +9,6 @@ from builtins import object
 import argparse
 import sys
 import os 
-os.environ['OPENBLAS_NUM_THREADS'] = '1' 
-os.environ['MKL_NUM_THREADS'] = '1' 
 import numpy as np
 import scipy.optimize as opt
 import pandas as pd
