@@ -337,7 +337,7 @@ def main():
                           'in order to make the master files containing '
                           'all transitions.')
     parser_gencmd.add_argument('--big', action = 'store_true',
-            help = 'use N = 10000 (vs 1000) for better small time-resolution')
+            help = 'use N = 2000 (vs 1000) for better small time resolution')
     parser_gencmd.add_argument('--gauss', action = 'store_true',
             help = 'use Gaussian approximation for very small times, vs '
                    'linearly interpolating from identity matrix (zero gen)')
