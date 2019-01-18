@@ -8,24 +8,26 @@ import os.path
 import emcee
 import argparse
 import sys
+
 import numpy as np
 import scipy.optimize as opt
 import pandas as pd
-from . import likelihoods as lis
-from . import transition_data_mut as tdm
-from . import params as par
 from functools import partial
 import multiprocessing as mp
 import numpy.random as npr
 
-from . import newick
-from . import inference as inf
-from . import util as ut
-from . import data as da
-from . import _binom
-from .pso import pso
-from ._util import print_csv_line, print_csv_lines, print_parallel_csv_lines
-from . import ascertainment as asc
+from mope import newick
+from mope import inference as inf
+from mope import util as ut
+from mope import data as da
+from mope import _binom
+from mope.pso import pso
+from mope._util import print_csv_line, print_csv_lines
+from mope._util import print_parallel_csv_lines
+from mope import ascertainment as asc
+from mope import likelihoods as lis
+from mope import transition_data_mut as tdm
+from mope import params as par
 
 
 def run_mcmc(args):
