@@ -60,24 +60,26 @@ def run_mcmc(args):
     data_files, tree_files, age_files = ut.get_input_files(args)
 
     inf_data = inf.Inference(
-            data_files = data_files,
-            tree_files = tree_files,
-            age_files = age_files,
-            transitions_file = args.drift,
-            true_parameters = args.true_parameters,
-            start_from = start_from,
-            data_are_freqs = args.data_are_frequencies,
-            genome_size = args.genome_size,
-            bottleneck_file = args.bottlenecks,
-            min_freq = args.min_het_freq,
-            poisson_like_penalty = args.asc_prob_penalty,
-            print_debug = args.debug,
-            log_unif_drift = not args.uniform_drift_priors,
-            inverse_bot_priors = args.inverse_bottleneck_priors,
-            post_is_prior = args.just_prior_debug,
-            lower_drift_limit = lower_dr,
-            upper_drift_limit = upper_dr,
-            min_phred_score = args.min_phred_score)
+        data_files = data_files,
+        tree_files = tree_files,
+        age_files = age_files,
+        transitions_file = args.drift,
+        true_parameters = args.true_parameters,
+        start_from = start_from,
+        data_are_freqs = args.data_are_frequencies,
+        genome_size = args.genome_size,
+        bottleneck_file = args.bottlenecks,
+        min_freq = args.min_het_freq,
+        poisson_like_penalty = args.asc_prob_penalty,
+        print_debug = args.debug,
+        log_unif_drift = not args.uniform_drift_priors,
+        inverse_bot_priors = args.inverse_bottleneck_priors,
+        post_is_prior = args.just_prior_debug,
+        lower_drift_limit = lower_dr,
+        upper_drift_limit = upper_dr,
+        min_phred_score = args.min_phred_score,
+        selection_model=args.selection,
+    )
 
     # for parallel tempering
     nt = args.num_temperatures

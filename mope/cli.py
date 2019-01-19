@@ -12,19 +12,19 @@ import argparse
 from . import util as ut
 
 
-from .mcmc import run_mcmc
-from .simulate import run_simulate
-from .make_bottleneck_matrices import run_make_bot
-from .get_ages_from_sims import run_ages
-from .count_heteroplasmies import count_hets
-from .simulate_msprime import run_sim_ms
-from .make_figures import _run_make_figures
-from .download_transitions import _run_download
-from .generate_transitions import _run_generate, _run_master, _run_gencmd
-from .generate_transitions import _run_make_gauss
-from .acceptance import _run_acceptance
-from .add_detection_noise import _add_det_noise
-from .posteriormutloc import run_posterior_mut_loc
+from mope.mcmc import run_mcmc
+from mope.simulate import run_simulate
+from mope.make_bottleneck_matrices import run_make_bot
+from mope.get_ages_from_sims import run_ages
+from mope.count_heteroplasmies import count_hets
+from mope.simulate_msprime import run_sim_ms
+from mope.make_figures import _run_make_figures
+from mope.download_transitions import _run_download
+from mope.generate_transitions import _run_generate, _run_master, _run_gencmd
+from mope.generate_transitions import _run_make_gauss
+from mope.acceptance import _run_acceptance
+from mope.add_detection_noise import _add_det_noise
+from mope.posteriormutloc import run_posterior_mut_loc
 
 
 def main():
@@ -46,89 +46,93 @@ def main():
     parser_run = subparsers.add_parser('run',
             description = 'run MCMC')
 
-    parser_run.add_argument('--input-file', type = str, help = 'whitespace-delimited table of input files with three columns (data file, tree file, age file)')
-    parser_run.add_argument('--data-files', type = str, help = "list of data files, comma-separate")
-    parser_run.add_argument('--tree-files', type = str, help = "list of tree files, comma-separated")
-    parser_run.add_argument('--age-files', type = str, help = "list of age files, comma-separated")
-    parser_run.add_argument('drift', type = str, help = "HDF5 file for \
+    parser_run.add_argument('--input-file', type=str, help='whitespace-delimited table of input files with three columns (data file, tree file, age file)')
+    parser_run.add_argument('--data-files', type=str,
+                            help="list of data files, comma-separate")
+    parser_run.add_argument('--tree-files', type=str,
+                            help="list of tree files, comma-separated")
+    parser_run.add_argument('--age-files', type=str,
+                            help="list of age files, comma-separated")
+    parser_run.add_argument('drift', type=str, help="HDF5 file for \
             pre-calculated drift transition distributions")
-    parser_run.add_argument('bottlenecks', type = str,
-            help = 'HDF5 file for pre-calculated bottleneck transition \
-                    distributions')
     parser_run.add_argument('numiter', metavar='n',
-            help = 'number of mcmc iterations to perform',
-            type = ut.positive_int)
-    parser_run.add_argument('--num-optimizations', type = ut.positive_int,
-            default = 1, metavar = 'n',
-            help = 'perform n optimizations [%(default)s]')
+                            help='number of mcmc iterations to perform',
+                            type=ut.positive_int)
+    parser_run.add_argument('--bottlenecks', type=str,
+            help='HDF5 file for pre-calculated bottleneck transition \
+                    distributions')
+    parser_run.add_argument('--num-optimizations', type=ut.positive_int,
+            default=1, metavar='n',
+            help='perform n optimizations [%(default)s]')
     parser_run.add_argument('--true-parameters',
-            help = 'file containing true parameters', metavar = "FILE")
-    parser_run.add_argument('--start-from-true', action = 'store_true',
-            help = 'start MCMC from true parameters, for debugging with '
+            help='file containing true parameters', metavar="FILE")
+    parser_run.add_argument('--start-from-true', action='store_true',
+            help='start MCMC from true parameters, for debugging with '
                    'simulations')
-    parser_run.add_argument('--start-from-map', action = 'store_true',
-            help = 'start MCMC chain from MAP estimate. this improves '
+    parser_run.add_argument('--start-from-map', action='store_true',
+            help='start MCMC chain from MAP estimate. this improves '
                    'convergence')
-    parser_run.add_argument('--data-are-frequencies', action = 'store_true',
-            help = 'data are frequencies rather than allele counts')
-    parser_run.add_argument('--genome-size', type = ut.positive_int,
-            default = 16569, help = 'genome size is G bp [%(default)s]',
-            metavar = 'G')
-    parser_run.add_argument('--num-walkers', type = ut.positive_int,
-            default = 500,
-            help = 'number of walkers (chains) to use [%(default)s]')
-    parser_run.add_argument('--init-norm-sd', type = float, default = 0.2,
-            help = 'initial parameters are multiplied by 1+a*X, '
+    parser_run.add_argument('--data-are-frequencies', action='store_true',
+            help='data are frequencies rather than allele counts')
+    parser_run.add_argument('--genome-size', type=ut.positive_int,
+            default=16569, help='genome size is G bp [%(default)s]',
+            metavar='G')
+    parser_run.add_argument('--num-walkers', type=ut.positive_int,
+            default=500,
+            help='number of walkers (chains) to use [%(default)s]')
+    parser_run.add_argument('--init-norm-sd', type=float, default=0.2,
+            help='initial parameters are multiplied by 1+a*X, '
                     'where X~norm(0,1) and a is the specified parameter '
                     '[%(default)s]')
     parser_run.add_argument('--num-processes',
-            type = ut.positive_int, default = 1,
-            help = 'number of parallel processes to use [%(default)s]')
-    parser_run.add_argument('--asc-prob-penalty', type = float, default = 1.0,
-            help = 'multiplicative factor penalty for Poisson count of '
-                    'part of likelihood function (1 = no penalty, '
-                    '0 = full penalty) [%(default)s]')
-    parser_run.add_argument('--min-het-freq', type = ut.probability,
-            help = 'minimum heteroplasmy frequency considered [%(default)s]',
-            default = 0.001)
+            type=ut.positive_int, default=1,
+            help='number of parallel processes to use [%(default)s]')
+    parser_run.add_argument('--asc-prob-penalty', type=float, default=1.0,
+            help='multiplicative factor penalty for Poisson count of '
+                    'part of likelihood function (1=no penalty, '
+                    '0=full penalty) [%(default)s]')
+    parser_run.add_argument('--min-het-freq', type=ut.probability,
+            help='minimum heteroplasmy frequency considered [%(default)s]',
+            default=0.001)
     parser_run.add_argument('--num-temperatures',
-            type = ut.positive_int,
-            help = 'number of temperatures for parallel-tempering MCMC. '
+            type=ut.positive_int,
+            help='number of temperatures for parallel-tempering MCMC. '
                    'specifying > 1 will enable paralle-tempering MCMC.')
-    parser_run.add_argument('--parallel-print-all', action = 'store_true',
-            help = 'if specifying --num-temperatures > 1, or '
+    parser_run.add_argument('--parallel-print-all', action='store_true',
+            help='if specifying --num-temperatures > 1, or '
                    '--evidence-integral, use this option to print states and '
                    'log-posterior values for all temperatures. otherwise just '
                    'the chain with temperature 1 (the original posterior) is '
                    'printed. ignored if not doing parallel-tempering MCMC')
-    parser_run.add_argument('--evidence-integral', action = 'store_true')
+    parser_run.add_argument('--evidence-integral', action='store_true')
     parser_run.add_argument('--prev-chain',
-            help = 'tab-separated table of previous chain positions, with \
+            help='tab-separated table of previous chain positions, with \
                     the first column giving the logposterior values')
-    parser_run.add_argument('--chain-alpha', '-a', type = float, default = 1.4,
-            help = 'scale value for emcee ensemble chain proposals')
-    parser_run.add_argument('--mpi', action = 'store_true', 
-            help = 'use MPI for distribution of chain posterior calculations')
-    parser_run.add_argument('--debug', action = 'store_true',
-            help = 'print debug output')
+    parser_run.add_argument('--chain-alpha', '-a', type=float, default=1.4,
+            help='scale value for emcee ensemble chain proposals')
+    parser_run.add_argument('--mpi', action='store_true', 
+            help='use MPI for distribution of chain posterior calculations')
+    parser_run.add_argument('--debug', action='store_true',
+            help='print debug output')
     parser_run.add_argument('--uniform-drift-priors',
-            action = 'store_true',
-            help = 'use uniform prior distributions for drift parameters,'
+            action='store_true',
+            help='use uniform prior distributions for drift parameters,'
                    'rather than the default log-uniform priors')
     parser_run.add_argument('--inverse-bottleneck-priors',
-            action = 'store_true',
-            help = 'make the prior for bottlenecks reflect the drift caused '
+            action='store_true',
+            help='make the prior for bottlenecks reflect the drift caused '
                    'by the bottleneck, which is inversely proportional to '
                    'the bottleneck size')
-    parser_run.add_argument('--just-prior-debug', action = 'store_true',
-            help = 'let the posterior be the prior, for debugging')
-    parser_run.add_argument('--drift-limits', type = float, nargs = 2,
-            default = (1e-3, 3),
-            help = 'lower and upper length limits for drift variables, in '
+    parser_run.add_argument('--just-prior-debug', action='store_true',
+            help='let the posterior be the prior, for debugging')
+    parser_run.add_argument('--drift-limits', type=float, nargs=2,
+            default=(1e-3, 3),
+            help='lower and upper length limits for drift variables, in '
                    'natural scale')
-    parser_run.add_argument('--min-phred-score', type = float,
-            help = 'phred score to assume for count data (INFINITY by default)')
-    parser_run.set_defaults(func = run_mcmc)
+    parser_run.add_argument('--min-phred-score', type=float,
+            help='phred score to assume for count data (INFINITY by default)')
+    parser_run.add_argument('--selection', action='store_true')
+    parser_run.set_defaults(func=run_mcmc)
 
 
     #############################

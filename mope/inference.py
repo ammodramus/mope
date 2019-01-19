@@ -24,14 +24,15 @@ import warnings
 from itertools import izip
 from scipy.special import gammaln
 
-from . import newick
-from . import util as ut
-from . import data as da
-from . import _binom
-from . import _util
-from .pso import pso
-from .simulate import get_parameters
-from . import ascertainment as asc
+from mope import newick
+from mope import util as ut
+from mope import data as da
+from mope import _binom
+from mope import _util
+from mope.pso import pso
+from mope.simulate import get_parameters
+from mope import ascertainment as asc
+from mope.dfe import CygnusDistribution
 
 inf_data = None
 
@@ -79,10 +80,10 @@ def optimize_posterior(inf_data, pool):
     num_processes = 1 if pool is None else 2
 
     x, f = pso(target, lower_bound, upper_bound,
-            swarmsize = swarmsize, minfunc = minfunc,
-            init_params = inf_data.init_params,
-            init_params_weight = swarm_init_weight,
-            pool = pool, processes = num_processes)
+               swarmsize=swarmsize, minfunc=minfunc,
+               init_params=inf_data.init_params,
+               init_params_weight=swarm_init_weight,
+               pool=pool, processes=num_processes)
 
     if inf_data.print_debug:
         print('! pso:', x, f)
@@ -122,6 +123,87 @@ def _get_valid_start_from(sf_str):
     warnings.warn('getting starting position from heuristic guess')
     return 'initguess'
 
+def _get_header(inf):
+    length_names = [el+'_l' for el in inf.varnames]
+    if inf.selection_model:
+        mutsel_names = ['el_a' for el in inf.varnames] + inf.dfe.param_names
+    else:
+        mutsel_names = [el+'_m' for el in inf.varnames]
+    header_list = (['ll'] + length_names + mutsel_names +
+            ['log10ab', 'log10polyprob'])
+    if inf.selection_model:
+        header_list += ['alpha_{}'.format(bp) for bp in inf.unique_positions]
+    header = '\t'.join(header_list)
+    return header
+
+
+def _get_likelihood_limits(inf):
+    num_varnames = inf.num_varnames
+    ndim = 2*num_varnames + 2
+    # TODO here, have to figure out how to parameterize alphas for each unique
+    # bp position
+    import pdb; pdb.set_trace()
+    if inf.selection_model:
+        ndim += inf.dfe.nparams
+
+    # (this multiplied by 0.1 for pointmass at zero)
+    # this gives the log10-uniform an additional order of magnitude for
+    # point mass at zero
+    min_allowed_len = 0.1*max(inf.transition_data.get_min_coal_time(),
+            inf.lower_drift_limit)
+    max_allowed_len = min(inf.transition_data.get_max_coal_time(),
+            inf.upper_drift_limit)
+
+    min_allowed_bottleneck = 2
+    max_allowed_bottleneck = 500
+
+    min_ab = -9
+    max_ab = 0
+    min_polyprob = -9
+    max_polyprob = 0
+
+    lower_len = min_allowed_len / inf.min_mults
+    upper_len = max_allowed_len / inf.max_mults
+
+    is_bottleneck_arr = np.array(
+            [inf.is_bottleneck[vn] for vn in inf.varnames], dtype = bool)
+    inf.is_bottleneck_arr = is_bottleneck_arr
+    lower_len[is_bottleneck_arr] = min_allowed_bottleneck
+    upper_len[is_bottleneck_arr] = max_allowed_bottleneck
+
+    # convert len limits to log10... above they should be natural scale
+    lower_len = np.log10(lower_len)
+    upper_len = np.log10(upper_len)
+
+    if inf.selection_model:
+        lower_alpha_neg = -15
+        upper_alpha_neg = min(-1,
+                          np.log10(inf.transition_data.get_max_mutsel_rate()))
+        lower_log10_alpha_ratio = -5
+        upper_log10_alpha_ratio = 5
+        lower_log10_prob_negative = -5
+        upper_log10_prob_negative = 5
+        lower_sel = np.array(([lower_alpha_neg]*num_varnames
+                              + [lower_log10_alpha_ratio,
+                                 lower_log10_prob_negative]))
+        upper_sel = np.array(([upper_alpha_neg]*num_varnames
+                              + [upper_log10_alpha_ratio,
+                                 upper_log10_prob_negative]))
+        lower = np.concatenate((lower_len, lower_sel, (min_ab,min_polyprob)))
+        upper = np.concatenate((upper_len, upper_sel, (max_ab,max_polyprob)))
+    else:
+        min_mut = max(-8,
+                np.log10(inf.transition_data.get_min_mutsel_rate()))
+        max_mut = min(-1,
+                np.log10(inf.transition_data.get_max_mutsel_rate()))
+        lower_mut = np.repeat(min_mut, num_varnames)
+        upper_mut = np.repeat(max_mut, num_varnames)
+        lower = np.concatenate((lower_len, lower_mut, (min_ab,min_polyprob)))
+        upper = np.concatenate((upper_len, upper_mut, (max_ab,max_polyprob)))
+
+    return lower, upper, ndim
+
+
 
 class Inference(object):
     def __init__(
@@ -134,19 +216,19 @@ class Inference(object):
             start_from,
             data_are_freqs,
             genome_size,
-            bottleneck_file = None,
-            poisson_like_penalty = 1.0,
-            min_freq = 0.001,
-            transition_copy = None,
-            transition_buf = None,
-            transition_shape = None,
-            print_debug = False,
-            log_unif_drift = False,
-            inverse_bot_priors = False,
-            post_is_prior = False,
-            lower_drift_limit = 1e-3,
-            upper_drift_limit = 3,
-            min_phred_score = None,
+            bottleneck_file=None,
+            poisson_like_penalty=1.0,
+            min_freq=0.001,
+            transition_copy=None,
+            transition_buf=None,
+            transition_shape=None,
+            print_debug=False,
+            log_unif_drift=False,
+            inverse_bot_priors=False,
+            post_is_prior=False,
+            lower_drift_limit=1e-3,
+            upper_drift_limit=3,
+            min_phred_score=None,
             selection_model=False):
 
         self.asc_tree = None
@@ -179,10 +261,10 @@ class Inference(object):
         self.log_unif_drift = log_unif_drift
         self.inverse_bot_priors = inverse_bot_priors
         self.post_is_prior = post_is_prior
-        self.lower_drift_limit = lower_drift_limit,
+        self.lower_drift_limit = lower_drift_limit
         self.upper_drift_limit = upper_drift_limit
         self.min_phred_score = min_phred_score
-        self.selection_model=selection_model
+        self.selection_model = selection_model
 
         ############################################################
         # for each data file, read in data, convert columns to float
@@ -194,10 +276,14 @@ class Inference(object):
         for dat_fn, tree_fn in zip(self.data_files, self.tree_files):
             datp = pd.read_csv(dat_fn, sep = '\t', comment = '#',
                 na_values = ['NA'], header = 0)
+            if self.selection_model and 'position' not in datp.columns:
+                raise ValueError('The selection model requires a "position" '
+                                 'column in each dataframe. Could not find '
+                                 'one in {}'.format(dat_fn))
             for col in datp.columns:
-                if col != 'family':
+                if col not in ['family', 'position']:
                     datp[col] = datp[col].astype(np.float64)
-            datp.sort_values('family', inplace = True)
+            datp.sort_values(['family', 'position'], inplace = True)
             self.data.append(datp)
 
             with open(tree_fn) as fin:
@@ -208,8 +294,6 @@ class Inference(object):
                     tree_str,
                     length_parser = ut.length_parser_str,
                     look_for_multiplier = True)[0])
-
-
 
         self._init_transition_data()
 
@@ -286,9 +370,11 @@ class Inference(object):
         # indices of just the leaves.... these are apparently never used.
         self.leaf_indices = [{br: i for i, br in enumerate(tln)} for tln in self.leaf_names]
 
-        # each varname gets its own index, since it will correspond to a single branch length and mutation rate
+        # each varname gets its own index, since it will correspond to a single
+        # branch length and mutation rate
         self.var_indices = {vname: i for i, vname in enumerate(self.varnames)}
-        # translate_indices will translate parameters in varnames 'space' to parameters in branch 'space'
+        # translate_indices will translate parameters in varnames 'space' to
+        # parameters in branch 'space'
         translate_indices = []
         for tbn, tvnd in izip(self.branch_names, self.varnamedict):  # for each tree's branch names...
             translate_indices += [[]]
@@ -305,13 +391,16 @@ class Inference(object):
             translate_indices[-1].append(2*num_varnames)
             # for p_poly
             translate_indices[-1].append(2*num_varnames+1)
-        self.translate_indices = [np.array(ti, dtype = np.int32) for ti in translate_indices]
+        self.translate_indices = [
+            np.array(ti, dtype=np.int32) for ti in translate_indices]
 
         ##################################################### 
         # remove any fixed loci
         ##################################################### 
-        fixed = [da.is_fixed(dat, ln, not self.data_are_freqs) for dat, ln in izip(self.data, self.leaf_names)]
-        self.data = [dat.loc[~fi,:].reset_index(drop = True) for dat, fi in izip(self.data, fixed)]
+        fixed = [da.is_fixed(dat, ln, not self.data_are_freqs)
+                 for dat, ln in izip(self.data, self.leaf_names)]
+        self.data = [dat.loc[~fi, :].reset_index(
+            drop=True) for dat, fi in izip(self.data, fixed)]
 
 
         #####################################################
@@ -337,14 +426,30 @@ class Inference(object):
                     datp.loc[needs_rounding1, ln] = (
                             datp.loc[needs_rounding1, nn])
 
+        #####################################################
+        # get unique positions if selection model
+        #####################################################
+        if self.selection_model:
+            unique_positions = set([])
+            for datp in self.data:
+                unique_positions.update(
+                    set(datp['position'].tolist()))
+            unique_positions = sorted(unique_positions)
+            self.unique_positions = unique_positions
+            self.num_unique_positions = len(unique_positions)
+
+            for datp in self.data:
+                datp['position_idx'] = datp['position'].apply(
+                    lambda x: unique_positions.index(x))
 
         #####################################################
         # ages data
         #####################################################
         self.asc_ages = []
         self.num_asc_combs = []
-        for age_fn, datp, multnames in izip(self.age_files, self.data, self.multipliernames):
-            asc_ages = pd.read_csv(age_fn, sep = '\t', comment = '#')
+        for age_fn, datp, multnames in izip(self.age_files, self.data,
+                                            self.multipliernames):
+            asc_ages = pd.read_csv(age_fn, sep='\t', comment='#')
             counts = []
             for fam in asc_ages['family']:
                 count = (datp['family'] == fam).sum()
@@ -357,7 +462,8 @@ class Inference(object):
                 if mult not in datp:
                     multvals = []
                     for fam in datp['family']:
-                        v = asc_ages.loc[asc_ages['family'] == fam,mult].iloc[0]
+                        v = asc_ages.loc[
+                            asc_ages['family'] == fam,mult].iloc[0]
                         assert v is not None
                         multvals.append(v)
                     datp[mult] = multvals
@@ -387,7 +493,8 @@ class Inference(object):
         # leaf allele frequency likelihoods
         #####################################################
         self.leaf_likes = []
-        for datp, n_names, ln in izip(self.data, self.coverage_names, self.leaf_names):
+        for datp, n_names, ln in izip(self.data, self.coverage_names,
+                                      self.leaf_names):
             if not self.data_are_freqs:
                 count_dat = datp.loc[:,ln].values.astype(
                         np.float64)
@@ -395,8 +502,8 @@ class Inference(object):
                         np.float64)
                 # get_binom_like...() wants -1 for missing value / assumed perfect counts
                 phred_score_param = -1.0 if self.min_phred_score is None else self.min_phred_score
-                leaf_likes = _binom.get_binom_likelihoods_cython(count_dat,
-                        ns_dat, self.freqs, phred_score_param)
+                leaf_likes = _binom.get_binom_likelihoods_cython(
+                    count_dat, ns_dat, self.freqs, phred_score_param)
             else:
                 freq_dat = datp.loc[:,leaf_names].values.astype(
                         np.float64)
@@ -412,64 +519,29 @@ class Inference(object):
         self.min_mults, self.max_mults = (
                 self.get_min_max_mults())
 
+        #####################################################
+        # if selection, get DFE
+        #####################################################
+        if self.selection_model:
+            self.dfe = CygnusDistribution()
+
 
         #####################################################
         # header
         #####################################################
-        length_names = [el+'_l' for el in self.varnames]
-        mut_names = [el+'_m' for el in self.varnames]
-        header_list = (['ll'] + length_names + mut_names +
-                ['log10ab', 'log10polyprob'])
-        self.header_list = header_list
-        self.header = '\t'.join(header_list)
+        self.header = _get_header(self)
 
 
         #####################################################
         # making bounds for likelihood functions
         #####################################################
-        num_varnames = len(self.varnames)
-        self.num_varnames = num_varnames
-        ndim = 2*num_varnames + 2
-
-        # (this multiplied by 0.1 for pointmass at zero)
-        # this gives the log10-uniform an additional order of magnitude for
-        # point mass at zero
-        min_allowed_len = 0.1*max(self.transition_data.get_min_coal_time(),
-                lower_drift_limit)
-        max_allowed_len = min(self.transition_data.get_max_coal_time(),
-                upper_drift_limit)
-        min_allowed_bottleneck = 2
-        max_allowed_bottleneck = 500
-        min_mut = max(-8,
-                np.log10(self.transition_data.get_min_mutsel_rate()))
-        max_mut = min(-1,
-                np.log10(self.transition_data.get_max_mutsel_rate()))
-        min_ab = -9
-        max_ab = 0
-        min_polyprob = -9
-        max_polyprob = 0
-
-        lower_len = min_allowed_len / self.min_mults
-        upper_len = max_allowed_len / self.max_mults
-
-        is_bottleneck_arr = np.array(
-                [self.is_bottleneck[vn] for vn in self.varnames], dtype = bool)
-        self.is_bottleneck_arr = is_bottleneck_arr
-        lower_len[is_bottleneck_arr] = min_allowed_bottleneck
-        upper_len[is_bottleneck_arr] = max_allowed_bottleneck
-
-        # convert len limits to log10... above they should be natural scale
-        lower_len = np.log10(lower_len)
-        upper_len = np.log10(upper_len)
-
-        lower_mut = np.repeat(min_mut, num_varnames)
-        upper_mut = np.repeat(max_mut, num_varnames)
-        lower = np.concatenate((lower_len, lower_mut, (min_ab,min_polyprob)))
-        upper = np.concatenate((upper_len, upper_mut, (max_ab,max_polyprob)))
+        self.num_varnames = len(self.varnames)
+        lower, upper, ndim = _get_likelihood_limits(self)
 
         # self.lower and .upper give the bounds for prior distributions
         self.lower = lower
         self.upper = upper
+        self.ndim = ndim
 
         print('# self.lower:')
         for el in self.lower:
@@ -482,6 +554,10 @@ class Inference(object):
         # true parameters, if specified (for sim. data)
         #####################################################
         if true_parameters:
+            if self.selection_model:
+                raise NotImplementedError(
+                    'still need to implement true-parameter evaluation '
+                    'for selection model')
             true_bls, true_mrs, true_ab, true_ppoly = (
                     get_parameters(true_parameters, self.plain_tree))
             log10_true_ab = np.log10(true_ab)
@@ -529,7 +605,7 @@ class Inference(object):
 
     def like_obj(self, varparams):
         return -self.loglike(varparams)
-
+    
 
     def loglike(self, varparams):
 
@@ -544,15 +620,18 @@ class Inference(object):
             params = varparams[trans_idxs]
             num_branches = self.num_branches[i]
             branch_lengths = 10**params[:num_branches]
-            mutation_rates = 10**params[num_branches:]
+            mutsel_rates = 10**params[num_branches:]
             asc_ages = self.asc_ages[i]
 
-            tll = lis.get_log_likelihood_somatic_newick(
-                branch_lengths,
-                mutation_rates,
-                stat_dist,
-                self,
-                i)
+            if self.selection_model:
+                pass
+            else:
+                tll = lis.get_log_likelihood_somatic_newick(
+                    branch_lengths,
+                    mutsel_rates,
+                    stat_dist,
+                    self,
+                    i)
 
             log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
                     mutation_rates, stat_dist, self, self.min_freq, i)
@@ -560,18 +639,23 @@ class Inference(object):
                     asc_ages['count'].values).sum()
             tll -= log_asc_prob
 
-            if self.poisson_like_penalty > 0:
+            if self.poisson_like_penalty > 0 and not self.selection_model:
                 logmeanascprob, logpoissonlike = self.poisson_log_like(
                         log_asc_probs, i)
                 tll += logpoissonlike * self.poisson_like_penalty
 
             ll += tll
 
+        if self.selection_model:
+            # add component for 
+            pass
+
         if self.print_debug:
             print('@@ {:15}'.format(str(ll)), logmeanascprob, ' ', end=' ')
             _util.print_csv_line(varparams)
 
         return ll
+
 
     def debug_loglike_components(self, varparams):
 
@@ -868,29 +952,30 @@ class Inference(object):
 
         elif num_processes > 1:
             init_args = [
-                    # order important here because of *args above
-                    self.data_files,
-                    self.tree_files,
-                    self.age_files,
-                    self.transitions_file,
-                    self.init_true_params,
-                    self.start_from,
-                    self.data_are_freqs,
-                    self.genome_size,
-                    self.bottleneck_file,
-                    self.poisson_like_penalty,
-                    self.min_freq,
-                    self.transition_copy,
-                    self.transition_buf,
-                    self.transition_shape,
-                    self.print_debug,
-                    self.log_unif_drift,
-                    self.inverse_bot_priors,
-                    self.post_is_prior,
-                    self.lower_drift_limit,
-                    self.upper_drift_limit,
-                    self.min_phred_score,
-                    ]
+                # order important here because of *args above
+                self.data_files,
+                self.tree_files,
+                self.age_files,
+                self.transitions_file,
+                self.init_true_params,
+                self.start_from,
+                self.data_are_freqs,
+                self.genome_size,
+                self.bottleneck_file,
+                self.poisson_like_penalty,
+                self.min_freq,
+                self.transition_copy,
+                self.transition_buf,
+                self.transition_shape,
+                self.print_debug,
+                self.log_unif_drift,
+                self.inverse_bot_priors,
+                self.post_is_prior,
+                self.lower_drift_limit,
+                self.upper_drift_limit,
+                self.min_phred_score,
+                self.selection_model
+            ]
 
 
             pool = mp.Pool(num_processes, initializer = initializer,
@@ -904,48 +989,39 @@ class Inference(object):
 
 
     def _get_initial_mcmc_position(
-            self, num_walkers, prev_chain, start_from, init_norm_sd, pool, logp, logl):
+            self, num_walkers, prev_chain, start_from, init_norm_sd, pool,
+            logp, logl):
 
-        ndim = 2*len(self.varnames) + 2
+        ndim = self.ndim
 
         if prev_chain is not None:
             # start from previous state
             try:
-                prev_chains = pd.read_csv(prev_chain, sep = '\t', header = None, dtype = np.float64)
+                prev_chains = pd.read_csv(prev_chain, sep='\t', header=None,
+                                          dtype=np.float64)
             except:
-                prev_chains = pd.read_csv(prev_chain, sep = '\t', header = 0, dtype = np.float64, comment = '#')
+                prev_chains = pd.read_csv(prev_chain, sep='\t', header=0,
+                                          dtype=np.float64, comment='#')
             prev_chains = prev_chains.iloc[-num_walkers:,1:]
             vnames = self.varnames
-            prev_chains.columns = ([el+'_l' for el in vnames] +
-                    [el+'_m' for el in vnames] + ['root', 'ppoly'])
+
+            mutsel_suffix = '_a' if self.selection_model else '_m'
+            cols = ([el+'_l' for el in vnames] +
+                    [el+mutsel_suffix for el in vnames])
+            if self.selection_model:
+                cols += self.dfe.param_names
+            cols += ['root', 'ppoly']
+            prev_chains.columns = cols
+
             init_pos = prev_chains.values
-        elif start_from == 'map':
-            # start from MAP
-            if self.print_debug:
-                print('! starting MAP optimization for initial MCMC params')
-            init_params = optimize_posterior(self, pool)
-            rx = (1+init_norm_sd*npr.randn(ndim*num_walkers))
-            rx = rx.reshape((num_walkers, ndim))
-            proposed_init_pos = rx*init_params
-            proposed_init_pos = np.apply_along_axis(
-                    func1d = lambda x: np.maximum(self.lower, x),
-                    axis = 1, 
-                    arr = proposed_init_pos)
-            proposed_init_pos = np.apply_along_axis(
-                    func1d = lambda x: np.minimum(self.upper, x),
-                    axis = 1, 
-                    arr = proposed_init_pos)
-            init_pos = proposed_init_pos
+
         else:
-            # prior is the new default
             while True:
-                if self.print_debug:
-                    print('! starting MCMC from random point')
                 nvarnames = len(self.varnames)
                 nparams = self.lower.shape[0]
                 rstart = np.zeros((num_walkers, nparams))
-                # the mutation and the root parameters will be uniform across their
-                # ranges (both are log10 scaled)
+                # the mutation and the root parameters will be uniform across
+                # their ranges (both are log10 scaled)
                 low = np.tile(self.lower[nvarnames:], num_walkers)
                 high = np.tile(self.upper[nvarnames:], num_walkers)
                 rstart[:, nvarnames:] = npr.uniform(low,
@@ -954,37 +1030,39 @@ class Inference(object):
                     # drift parameters now in log10 units
                     low = np.tile(self.lower[:nvarnames], num_walkers)
                     high = np.tile(self.upper[:nvarnames], num_walkers)
-                    #import pdb; pdb.set_trace()
-                    #print('lower and upper uniform bounds:', low, high, file=sys.stderr)
                     rstart[:,:nvarnames] = npr.uniform(low, high).reshape(
                             num_walkers, -1)
                 else:
                     low = np.tile(10**self.lower[:nvarnames], num_walkers)
                     high = np.tile(10**self.upper[:nvarnames], num_walkers)
-                    rstart[:, :nvarnames] = np.log10(npr.uniform(low,high)).reshape(
-                            num_walkers,-1)
+                    rstart[:, :nvarnames] = np.log10(
+                        npr.uniform(low,high)).reshape(num_walkers,-1)
+                import pdb; pdb.set_trace()
                 init_pos = rstart
                 logl_val = np.array([logl(p) for p in init_pos])
                 logp_val = np.array([logp(p) for p in init_pos])
-                if np.all(np.isfinite(logl_val)) and np.all(np.isfinite(logp_val)):
+                if (np.all(np.isfinite(logl_val)) and
+                        np.all(np.isfinite(logp_val))):
                     break  # successfully found starting position within bounds
                 else:
                     if not np.all(np.isfinite(logl_val)):
-                        print('# warning: attempted start at initial position where log-likelihood is not finite')
-                        print('# bad init position (logl)', file = sys.stderr)
-                        print(init_pos, file = sys.stderr)
+                        print(
+                            '# warning: attempted start at initial position where log-likelihood is not finite')
+                        print('# bad init position (logl)', file=sys.stderr)
+                        print(init_pos, file=sys.stderr)
                     if not np.all(np.isfinite(logp_val)):
-                        print('# warning: attempted start at initial position where prior is not finite')
-                        print('# bad init position (logprior)', file = sys.stderr)
-                        print(init_pos, file = sys.stderr)
+                        print(
+                            '# warning: attempted start at initial position where prior is not finite')
+                        print('# bad init position (logprior)', file=sys.stderr)
+                        print(init_pos, file=sys.stderr)
 
         return init_pos
 
 
     def run_mcmc(
-            self, num_iter, num_walkers, num_processes = 1, mpi = False,
-            prev_chain = None, start_from = 'initguess', init_norm_sd = 0.2,
-            chain_alpha = 2.0, init_pos = None, pool = None):
+            self, num_iter, num_walkers, num_processes=1, mpi=False,
+            prev_chain=None, start_from='initguess', init_norm_sd=0.2,
+            chain_alpha=2.0, init_pos=None, pool=None):
         global inf_data
         inf_data = self
 
@@ -992,7 +1070,7 @@ class Inference(object):
         # print calling command
         print("# " + " ".join(sys.argv))
 
-        ndim = 2*len(self.varnames) + 2
+        ndim = self.ndim
 
         if pool is None and (num_processes > 1 or mpi):
             pool = self._get_pool(num_processes, mpi)
@@ -1010,9 +1088,9 @@ class Inference(object):
         ##############################################################
         print(self.header)
         sampler = emcee.EnsembleSampler(num_walkers, ndim, post_clone,
-                pool = pool, a = chain_alpha)
-        for ps, lnprobs, cur_seed in sampler.sample(init_pos,
-                iterations = num_iter, storechain = False):
+                                        pool=pool, a=chain_alpha)
+        for ps, lnprobs, cur_seed in sampler.sample(
+                init_pos, iterations = num_iter, storechain = False):
             _util.print_csv_lines(ps, lnprobs)
             self.transition_data.clear_cache()
         if mpi:
