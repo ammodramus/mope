@@ -9,19 +9,16 @@ from builtins import object
 import argparse
 import sys
 import os 
+from functools import partial
+import multiprocessing as mp
+import warnings
+from itertools import izip
+
 import numpy as np
 import scipy.optimize as opt
 import pandas as pd
-from . import likelihoods as lis
-from . import transition_data_2d as td2d
-from . import transition_data_bottleneck as tdb
-from . import params as par
-from functools import partial
-import multiprocessing as mp
 import numpy.random as npr
 import emcee
-import warnings
-from itertools import izip
 from scipy.special import gammaln
 
 from mope import newick
@@ -33,6 +30,10 @@ from mope.pso import pso
 from mope.simulate import get_parameters
 from mope import ascertainment as asc
 from mope.dfe import CygnusDistribution
+from mope import likelihoods as li
+from mope import transition_data_2d as td2d
+from mope import transition_data_bottleneck as tdb
+from mope import params as par
 
 inf_data = None
 
@@ -185,11 +186,6 @@ def _get_likelihood_limits(inf):
         max_mean = 0.5*max_mutsel_rate
         upper_alpha_neg = min(-1, np.log10(max_mean))
 
-        lower_log10_alpha_ratio = -5
-        upper_log10_alpha_ratio = -1*lower_log10_alpha_ratio    # assure symm.
-
-        lower_log10_prob_negative = -5
-        upper_log10_prob_negative = -1*lower_log10_prob_negative     # """
 
         # For the selection model, lower_sel and upper_sel here contain the
         # lower and upper limits for the parameters of the DFEs, not the alpha
@@ -207,11 +203,9 @@ def _get_likelihood_limits(inf):
         #      inf.selection_focal_varname. For other processes, have to
         #      multiply the value by meanalpha(i)/meanalpha(focalprocess)
         lower_sel = np.array(([lower_alpha_neg]*num_varnames
-                              + [lower_log10_alpha_ratio,
-                                 lower_log10_prob_negative]))
-        upper_sel = np.array(([upper_alpha_neg]*num_varnames
-                              + [upper_log10_alpha_ratio,
-                                 upper_log10_prob_negative]))
+                              + list(inf.dfe.lower_limits)))
+        upper_sel = np.array([upper_alpha_neg]*num_varnames
+                              + list(inf.dfe.upper_limits))
 
         # For the selection coefficients, the values between -5 and -3 will be
         # translated to 0 (neutral).
@@ -669,29 +663,48 @@ class Inference(object):
         ll = 0.0
         if self.selection_model:
             varparams = orig_params[:-self.num_unique_positions]
-            selparams = orig_params[-self.num_unique_positions:]
+            sel_params = orig_params[-self.num_unique_positions:]
             dfe_start = 2*self.num_varnames        # start of the DFE params
             dfe_params = varparams[dfe_start:dfe_start+self.dfe.nparams]
-            import pdb; pdb.set_trace()
+
+            nvn = self.num_varnames
+            mutsel_rates_varpar = varparams[nvn:2*nvn]
+            relative_alphas = (mutsel_rates_varpar 
+                               / mutsel_rates_varpar[self.focal_branch_idx])
+            # The shape of locus_alpha_values is
+            # (self.num_varnames, self.num_unique_positions), so
+            # locus_alpha_values[i,j] gives the selection rate for varname i
+            # and unique locus j.
+            locus_alpha_values = sel_params * relative_alphas[:, np.newaxis]
         else:
             varparams = orig_params
         alphabeta, polyprob = 10**varparams[-2:]
 
-        stat_dist = lis.get_stationary_distribution_double_beta(self.freqs,
+        stat_dist = li.get_stationary_distribution_double_beta(self.freqs,
                 self.breaks, self.transition_N, alphabeta, polyprob)
 
         for i in range(len(self.data)):
             trans_idxs = self.translate_indices[i]
+            trans_idxs_len = trans_idxs[:self.num_branches[i]]
             params = varparams[trans_idxs]
             num_branches = self.num_branches[i]
             branch_lengths = 10**params[:num_branches]
             mutsel_rates = 10**params[num_branches:]
             asc_ages = self.asc_ages[i]
 
+            locus_alpha_values_p = locus_alpha_values[trans_idxs_len, :]
+
             if self.selection_model:
-                pass
+                tll = li.get_log_likelihood_selection(
+                    branch_lengths,
+                    locus_alpha_values,
+                    dfe_params,
+                    stat_dist,
+                    self,
+                    i,
+                )
             else:
-                tll = lis.get_log_likelihood_somatic_newick(
+                tll = li.get_log_likelihood_somatic_newick(
                     branch_lengths,
                     mutsel_rates,
                     stat_dist,
@@ -699,7 +712,7 @@ class Inference(object):
                     i)
 
             log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
-                    mutation_rates, stat_dist, self, self.min_freq, i)
+                    mutsel_rates, stat_dist, self, self.min_freq, i)
             log_asc_prob = (log_asc_probs *
                     asc_ages['count'].values).sum()
             tll -= log_asc_prob
@@ -727,7 +740,7 @@ class Inference(object):
         ll = 0.0
         alphabeta, polyprob = 10**varparams[-2:]
 
-        stat_dist = lis.get_stationary_distribution_double_beta(self.freqs,
+        stat_dist = li.get_stationary_distribution_double_beta(self.freqs,
                 self.breaks, self.transition_N, alphabeta, polyprob)
 
         comps = []
@@ -739,7 +752,7 @@ class Inference(object):
             mutation_rates = 10**params[num_branches:]
             asc_ages = self.asc_ages[i]
 
-            tll = lis.get_log_likelihood_somatic_newick(
+            tll = li.get_log_likelihood_somatic_newick(
                 branch_lengths,
                 mutation_rates,
                 stat_dist,
@@ -782,10 +795,10 @@ class Inference(object):
         alphabeta = 10**params[2*num_branches]
         polyprob = 10**params[2*num_branches+1]
 
-        stat_dist = lis.get_stationary_distribution_double_beta(self.freqs,
+        stat_dist = li.get_stationary_distribution_double_beta(self.freqs,
                 self.breaks, self.transition_N, alphabeta, polyprob)
 
-        lls = lis.get_locus_log_likelihoods_newick(
+        lls = li.get_locus_log_likelihoods_newick(
             branch_lengths,
             mutation_rates,
             stat_dist,

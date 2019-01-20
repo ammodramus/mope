@@ -400,6 +400,77 @@ def get_log_likelihood_somatic_newick(
     return loglike
 
 
+
+
+def get_log_likelihood_selection(
+        branch_lengths,
+        locus_alpha_values,
+        dfe_params,
+        stat_dist,
+        inf,
+        tree_idx):
+    ''' Calc. loglikes of allele freqs in a model of drift and selection '''
+    mrca = inf.trees[tree_idx]
+    leaf_likelihoods = inf.leaf_likes[tree_idx]
+    leaf_indices = inf.leaf_indices[tree_idx]
+    branch_indices = inf.branch_indices[tree_idx]
+    multiplier_dict = inf.multiplierdict[tree_idx]
+    data = inf.data[tree_idx]
+    num_loci = inf.num_loci[tree_idx]
+    transitions = inf.transition_data
+
+
+    # Each base-pair position has its own selection coefficient (alpha), and
+    # each family may have its own branch length, for branches that vary with
+    # age.
+
+    for node in mrca.walk(mode = 'postorder'):
+        _likes.reset_likes_ones(node.cond_probs)
+
+    for node in mrca.walk(mode = 'postorder'):
+        if node == mrca:
+            break
+        name = node.name
+        branch_index = branch_indices[name]
+        multipliername = node.multipliername
+
+        ancestor = node.ancestor
+        mut_rate = mutation_rates[branch_index]
+        ancestor_likes = ancestor.cond_probs
+
+
+        if node.is_leaf:
+            node_likes = leaf_likelihoods[name].copy()
+        else:
+            node_likes = node.cond_probs
+
+        if multipliername is not None:
+            node_lengths = (data[multipliername].values *
+                    branch_lengths[branch_index])
+            _likes.compute_leaf_transition_likelihood(
+                    node_likes,
+                    ancestor_likes,
+                    node_lengths,
+                    mut_rate,
+                    transitions)
+
+        else:  # multipliername is None
+            node_length = branch_lengths[branch_index]
+            _likes.compute_branch_transition_likelihood(
+                    node_likes,
+                    ancestor_likes,
+                    node_length,
+                    mut_rate,
+                    transitions)
+
+    loglike = _likes.compute_root_log_like(
+            mrca.cond_probs,
+            stationary_distribution)
+
+    return loglike
+
+
+
 # adding function for debugging individual likelihoods
 def get_locus_log_likelihoods_newick(
         branch_lengths,
