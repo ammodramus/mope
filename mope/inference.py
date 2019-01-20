@@ -142,9 +142,8 @@ def _get_likelihood_limits(inf):
     ndim = 2*num_varnames + 2
     # TODO here, have to figure out how to parameterize alphas for each unique
     # bp position
-    import pdb; pdb.set_trace()
     if inf.selection_model:
-        ndim += inf.dfe.nparams
+        ndim += inf.dfe.nparams + inf.num_unique_positions
 
     # (this multiplied by 0.1 for pointmass at zero)
     # this gives the log10-uniform an additional order of magnitude for
@@ -176,21 +175,56 @@ def _get_likelihood_limits(inf):
     upper_len = np.log10(upper_len)
 
     if inf.selection_model:
-        lower_alpha_neg = -15
-        upper_alpha_neg = min(-1,
-                          np.log10(inf.transition_data.get_max_mutsel_rate()))
+        # This is the lower limit of the log10-mean of the exponential
+        # distribution of selection coefficients for the negative selection
+        # coefficients.
+        lower_alpha_neg = -3
+        # Don't let the mean of the (untruncated) exponential distribution
+        # exceed half of the maximum value
+        max_mutsel_rate = inf.transition_data.get_max_mutsel_rate()
+        max_mean = 0.5*max_mutsel_rate
+        upper_alpha_neg = min(-1, np.log10(max_mean))
+
         lower_log10_alpha_ratio = -5
-        upper_log10_alpha_ratio = 5
+        upper_log10_alpha_ratio = -1*lower_log10_alpha_ratio    # assure symm.
+
         lower_log10_prob_negative = -5
-        upper_log10_prob_negative = 5
+        upper_log10_prob_negative = -1*lower_log10_prob_negative     # """
+
+        # For the selection model, lower_sel and upper_sel here contain the
+        # lower and upper limits for the parameters of the DFEs, not the alpha
+        # (2Ns) values for individual base-pair positions. The general order of
+        # the parameters is:
+        #   1. length parameters  (num_varnames)
+        #   2. mean alphas for negative selection coefficient distributions
+        #      (num_varnames)
+        #   3. other DFE parameters (here, for this DFE, log10 pos/neg alpha
+        #      ratio, log10 prob that a site has a negative vs. positive
+        #      selection coefficient)
+        #   4. root distribution parameters (2)
+        #   5. selection coefficients for individual base-pair positions. These
+        #      correspond to the values for the ontogenetic process
+        #      inf.selection_focal_varname. For other processes, have to
+        #      multiply the value by meanalpha(i)/meanalpha(focalprocess)
         lower_sel = np.array(([lower_alpha_neg]*num_varnames
                               + [lower_log10_alpha_ratio,
                                  lower_log10_prob_negative]))
         upper_sel = np.array(([upper_alpha_neg]*num_varnames
                               + [upper_log10_alpha_ratio,
                                  upper_log10_prob_negative]))
-        lower = np.concatenate((lower_len, lower_sel, (min_ab,min_polyprob)))
-        upper = np.concatenate((upper_len, upper_sel, (max_ab,max_polyprob)))
+
+        # For the selection coefficients, the values between -5 and -3 will be
+        # translated to 0 (neutral).
+        # the upper and lower limits for the selection coefficients themselves
+        log10_alpha_min = -5
+        log10_alpha_max = np.log10(max_mutsel_rate)
+        lower_alpha = np.repeat(log10_alpha_min, inf.num_unique_positions)
+        upper_alpha = np.repeat(log10_alpha_max, inf.num_unique_positions)
+
+        lower = np.concatenate((lower_len, lower_sel, (min_ab,min_polyprob),
+                                lower_alpha))
+        upper = np.concatenate((upper_len, upper_sel, (max_ab,max_polyprob),
+                                upper_alpha))
     else:
         min_mut = max(-8,
                 np.log10(inf.transition_data.get_min_mutsel_rate()))
@@ -406,7 +440,6 @@ class Inference(object):
         #####################################################
         # rounding down frequencies below min_freq
         #####################################################
-
         if self.data_are_freqs:
             for datp, tln in izip(self.data, self.leaf_names):
                 for ln in tln:
@@ -520,10 +553,17 @@ class Inference(object):
                 self.get_min_max_mults())
 
         #####################################################
-        # if selection, get DFE
+        # if selection, get DFE, set focal branch
+        #
         #####################################################
         if self.selection_model:
             self.dfe = CygnusDistribution()
+            # The focal branch is the branch that the selection coefficients
+            # correspond to. The values for other branches are taken from the
+            # ratios of mean-alpha parameters. We will arbitrarily choose the
+            # first varname as the focal process.
+            self.focal_branch = self.varnames[0]
+            self.focal_branch_idx = 0
 
 
         #####################################################
@@ -536,7 +576,24 @@ class Inference(object):
         # making bounds for likelihood functions
         #####################################################
         self.num_varnames = len(self.varnames)
+
+        # For the selection model, the order of the parameters is:
+        #   1. length parameters  (num_varnames)
+        #   2. mean alphas for negative selection coefficient distributions
+        #      (num_varnames)
+        #   3. other DFE parameters (here, for this DFE, log10 pos/neg alpha
+        #      ratio, log10 prob that a site has a negative vs. positive
+        #      selection coefficient)
+        #   4. selection coefficients for individual base-pair positions. These
+        #      correspond to the values for the ontogenetic process
+        #      inf.selection_focal_varname. For other processes, have to
+        #      multiply the value by meanalpha(i)/meanalpha(focalprocess)
+
+        # ndim contains the total number of variables in the chain, so it
+        # includes the selection coefficients as well, for the selection model.
         lower, upper, ndim = _get_likelihood_limits(self)
+        if self.selection_model:
+            self.num_nonsel_params = ndim - self.num_unique_positions
 
         # self.lower and .upper give the bounds for prior distributions
         self.lower = lower
@@ -607,9 +664,17 @@ class Inference(object):
         return -self.loglike(varparams)
     
 
-    def loglike(self, varparams):
+    def loglike(self, orig_params):
 
         ll = 0.0
+        if self.selection_model:
+            varparams = orig_params[:-self.num_unique_positions]
+            selparams = orig_params[-self.num_unique_positions:]
+            dfe_start = 2*self.num_varnames        # start of the DFE params
+            dfe_params = varparams[dfe_start:dfe_start+self.dfe.nparams]
+            import pdb; pdb.set_trace()
+        else:
+            varparams = orig_params
         alphabeta, polyprob = 10**varparams[-2:]
 
         stat_dist = lis.get_stationary_distribution_double_beta(self.freqs,
@@ -1037,7 +1102,6 @@ class Inference(object):
                     high = np.tile(10**self.upper[:nvarnames], num_walkers)
                     rstart[:, :nvarnames] = np.log10(
                         npr.uniform(low,high)).reshape(num_walkers,-1)
-                import pdb; pdb.set_trace()
                 init_pos = rstart
                 logl_val = np.array([logl(p) for p in init_pos])
                 logp_val = np.array([logp(p) for p in init_pos])
