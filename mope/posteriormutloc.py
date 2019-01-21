@@ -112,7 +112,7 @@ def fill_cond_probs(
                         bottlenecks)
             else:  # not a bottleneck
                 node_length = branch_lengths[branch_index]
-                _likes.compute_branch_transition_likelihood(
+                _likes.compute_length_transition_likelihood(
                         node_likes,
                         ancestor_likes,
                         node_length,
@@ -240,14 +240,14 @@ def fill_cond_probs_mutation(
             else:  # not a bottleneck
                 node_length = branch_lengths[branch_index]
                 if is_descendant:
-                    _likes.compute_branch_transition_likelihood_zero_descendant(
+                    _likes.compute_length_transition_likelihood_zero_descendant(
                             node_likes,
                             ancestor_likes,
                             node_length,
                             mut_rate,
                             transitions)
                 elif node.name != focalnode.name:  # non-descendant
-                    _likes.compute_branch_transition_likelihood_zero(
+                    _likes.compute_length_transition_likelihood_zero(
                             node_likes,
                             ancestor_likes,
                             node_length,
@@ -255,7 +255,7 @@ def fill_cond_probs_mutation(
                             transitions)
                 else:
                     assert node == focalnode
-                    _likes.compute_branch_transition_likelihood_zero_focalnode(
+                    _likes.compute_length_transition_likelihood_zero_focalnode(
                             node_likes,
                             ancestor_likes,
                             node_length,

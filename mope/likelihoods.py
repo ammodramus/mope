@@ -386,7 +386,7 @@ def get_log_likelihood_somatic_newick(
                         bottlenecks)
             else:  # not a bottleneck
                 node_length = branch_lengths[branch_index]
-                _likes.compute_branch_transition_likelihood(
+                _likes.compute_length_transition_likelihood(
                         node_likes,
                         ancestor_likes,
                         node_length,
@@ -461,7 +461,7 @@ def get_log_likelihood_selection(
 
         else:  # multipliername is None
             node_length = branch_lengths[branch_index]
-            _likes.compute_branch_transition_likelihood(
+            _likes.compute_length_transition_likelihood(
                     node_likes,
                     ancestor_likes,
                     node_length,
@@ -559,7 +559,7 @@ def get_locus_log_likelihoods_newick(
                         bottlenecks)
             else:  # not a bottleneck
                 node_length = branch_lengths[branch_index]
-                _likes.compute_branch_transition_likelihood(
+                _likes.compute_length_transition_likelihood(
                         node_likes,
                         ancestor_likes,
                         node_length,

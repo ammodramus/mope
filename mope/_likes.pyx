@@ -131,7 +131,7 @@ def compute_leaf_zero_transition_likelihood_descendant(
         ancestor_likes[i,:] *= np.dot(Pzero, leaf_likes[i,:])
 
 
-def compute_branch_transition_likelihood(
+def compute_length_transition_likelihood(
             np.ndarray[np.float64_t,ndim=2] node_likes,
             np.ndarray[np.float64_t,ndim=2] ancestor_likes,
             double node_length,
@@ -147,7 +147,7 @@ def compute_branch_transition_likelihood(
         ancestor_likes[i] *= np.dot(P, node_likes[i])
 
 
-def compute_branch_transition_likelihood_zero(
+def compute_length_transition_likelihood_zero(
             np.ndarray[np.float64_t,ndim=2] node_likes,
             np.ndarray[np.float64_t,ndim=2] ancestor_likes,
             double node_length,
@@ -165,7 +165,7 @@ def compute_branch_transition_likelihood_zero(
         ancestor_likes[i] *= np.dot(Pzero, node_likes[i])
 
 
-def compute_branch_transition_likelihood_zero_focalnode(
+def compute_length_transition_likelihood_zero_focalnode(
             np.ndarray[np.float64_t,ndim=2] node_likes,
             np.ndarray[np.float64_t,ndim=2] ancestor_likes,
             double node_length,
@@ -183,7 +183,7 @@ def compute_branch_transition_likelihood_zero_focalnode(
         ancestor_likes[i] *= np.dot(Pzero, node_likes[i])
 
 
-def compute_branch_transition_likelihood_zero_descendant(
+def compute_length_transition_likelihood_zero_descendant(
             np.ndarray[np.float64_t,ndim=2] node_likes,
             np.ndarray[np.float64_t,ndim=2] ancestor_likes,
             double node_length,

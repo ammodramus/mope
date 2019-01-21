@@ -115,7 +115,7 @@ def get_ascertainment_prob_somatic_newick_min_freq(
                         bottlenecks)
             else:  # not a bottleneck
                 node_length = branch_lengths[branch_index]
-                _likes.compute_branch_transition_likelihood(
+                _likes.compute_length_transition_likelihood(
                         node_likes,
                         ancestor_likes,
                         node_length,
@@ -221,7 +221,7 @@ def get_locus_asc_probs(
                         bottlenecks)
             else:  # not a bottleneck
                 node_length = branch_lengths[branch_index]
-                _likes.compute_branch_transition_likelihood(
+                _likes.compute_length_transition_likelihood(
                         node_likes,
                         ancestor_likes,
                         node_length,
@@ -290,7 +290,7 @@ def get_family_asc_probs(
                     transitions)
         else:
             node_length = branch_lengths[branch_index]
-            _likes.compute_branch_transition_likelihood(
+            _likes.compute_length_transition_likelihood(
                     node_likes,
                     ancestor_likes,
                     node_length,
