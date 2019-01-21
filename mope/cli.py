@@ -300,7 +300,7 @@ def main():
     parser_gendrift.add_argument('N', help='haploid population size',
             type = ut.positive_int)
     parser_gendrift.add_argument('s',
-            help='selection coefficient', type = ut.probability)
+            help='selection coefficient', type = float)
     parser_gendrift.add_argument('u', help='mutation probability away from '
             'the focal allele', type = ut.probability)
     parser_gendrift.add_argument('v', help='mutation probability towards from '
