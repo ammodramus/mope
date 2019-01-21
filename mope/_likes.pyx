@@ -39,7 +39,7 @@ def reset_likes_zeros(np.ndarray[np.float64_t, ndim=2] likes):
 # newick functions
 #####################
 
-def compute_leaf_transition_likelihood(
+def compute_rate_transition_likelihood(
         np.ndarray[np.float64_t,ndim=2] leaf_likes,
         np.ndarray[np.float64_t,ndim=2] ancestor_likes,
         np.ndarray[np.float64_t,ndim=1] leaf_lengths,
@@ -56,7 +56,7 @@ def compute_leaf_transition_likelihood(
         ancestor_likes[i,:] *= np.dot(P, leaf_likes[i,:])
 
 
-def compute_leaf_transition_likelihood_selection(
+def compute_rate_transition_likelihood_selection(
         np.ndarray[np.float64_t,ndim=2] leaf_likes,
         np.ndarray[np.float64_t,ndim=2] ancestor_likes,
         np.ndarray[np.float64_t,ndim=1] leaf_lengths,

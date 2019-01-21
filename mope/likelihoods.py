@@ -366,7 +366,7 @@ def get_log_likelihood_somatic_newick(
         if multipliername is not None:
             node_lengths = (data[multipliername].values *
                     branch_lengths[branch_index])
-            _likes.compute_leaf_transition_likelihood(
+            _likes.compute_rate_transition_likelihood(
                     node_likes,
                     ancestor_likes,
                     node_lengths,
@@ -452,7 +452,7 @@ def get_log_likelihood_selection(
         if multipliername is not None:
             node_lengths = (data[multipliername].values *
                     branch_lengths[branch_index])
-            _likes.compute_leaf_transition_likelihood_selection(
+            _likes.compute_rate_transition_likelihood_selection(
                 node_likes,
                 ancestor_likes,
                 node_lengths,
@@ -540,7 +540,7 @@ def get_locus_log_likelihoods_newick(
         if multipliername is not None:
             node_lengths = (data[multipliername].values *
                     branch_lengths[branch_index])
-            _likes.compute_leaf_transition_likelihood(
+            _likes.compute_rate_transition_likelihood(
                     node_likes,
                     ancestor_likes,
                     node_lengths,

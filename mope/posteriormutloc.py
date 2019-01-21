@@ -92,7 +92,7 @@ def fill_cond_probs(
         if multipliername is not None:
             node_lengths = (data[multipliername].values *
                     branch_lengths[branch_index])
-            _likes.compute_leaf_transition_likelihood(
+            _likes.compute_rate_transition_likelihood(
                     node_likes,
                     ancestor_likes,
                     node_lengths,

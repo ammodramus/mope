@@ -96,7 +96,7 @@ def get_ascertainment_prob_somatic_newick_min_freq(
             node_lengths = np.repeat((asc_ages[multipliername].values *
                     branch_lengths[branch_index]), 2)
             assert node_lengths.shape[0] == 2*inf.num_asc_combs
-            _likes.compute_leaf_transition_likelihood(
+            _likes.compute_rate_transition_likelihood(
                     node_likes,
                     ancestor_likes,
                     node_lengths,
@@ -202,7 +202,7 @@ def get_locus_asc_probs(
             node_lengths = np.repeat((asc_ages[multipliername].values *
                     branch_lengths[branch_index]), 2)
             assert node_lengths.shape[0] == 2*num_asc_combs
-            _likes.compute_leaf_transition_likelihood(
+            _likes.compute_rate_transition_likelihood(
                     node_likes,
                     ancestor_likes,
                     node_lengths,
@@ -282,7 +282,7 @@ def get_family_asc_probs(
             node_lengths = np.repeat((asc_ages[multipliername] *
                     branch_lengths[branch_index]), 2)
             assert node_lengths.shape[0] == 2*inf.num_asc_combs
-            _likes.compute_leaf_transition_likelihood(
+            _likes.compute_rate_transition_likelihood(
                     node_likes,
                     ancestor_likes,
                     node_lengths,
