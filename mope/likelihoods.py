@@ -418,6 +418,7 @@ def get_log_likelihood_selection(
     data = inf.data[tree_idx]
     num_loci = inf.num_loci[tree_idx]
     transitions = inf.transition_data
+    position_idxs = inf.data[tree_idx]['position_idx']
 
 
     # Each base-pair position has its own selection coefficient (alpha), and
@@ -431,11 +432,14 @@ def get_log_likelihood_selection(
         if node == mrca:
             break
         name = node.name
+        # Note: branch_indices are in reference to the branch order, not
+        # varname order.
         branch_index = branch_indices[name]
+        branch_locus_alphas = locus_alpha_values[branch_index, :]
+        branch_locus_alphas = branch_locus_alphas[position_idxs]
         multipliername = node.multipliername
 
         ancestor = node.ancestor
-        mut_rate = mutation_rates[branch_index]
         ancestor_likes = ancestor.cond_probs
 
 
@@ -443,16 +447,17 @@ def get_log_likelihood_selection(
             node_likes = leaf_likelihoods[name].copy()
         else:
             node_likes = node.cond_probs
+        import pdb; pdb.set_trace()
 
         if multipliername is not None:
             node_lengths = (data[multipliername].values *
                     branch_lengths[branch_index])
-            _likes.compute_leaf_transition_likelihood(
-                    node_likes,
-                    ancestor_likes,
-                    node_lengths,
-                    mut_rate,
-                    transitions)
+            _likes.compute_leaf_transition_likelihood_selection(
+                node_likes,
+                ancestor_likes,
+                node_lengths,
+                branch_locus_alphas,
+                transitions)
 
         else:  # multipliername is None
             node_length = branch_lengths[branch_index]

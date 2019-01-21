@@ -697,7 +697,7 @@ class Inference(object):
             if self.selection_model:
                 tll = li.get_log_likelihood_selection(
                     branch_lengths,
-                    locus_alpha_values,
+                    locus_alpha_values_p,
                     dfe_params,
                     stat_dist,
                     self,

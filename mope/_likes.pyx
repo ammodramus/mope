@@ -56,6 +56,24 @@ def compute_leaf_transition_likelihood(
         ancestor_likes[i,:] *= np.dot(P, leaf_likes[i,:])
 
 
+def compute_leaf_transition_likelihood_selection(
+        np.ndarray[np.float64_t,ndim=2] leaf_likes,
+        np.ndarray[np.float64_t,ndim=2] ancestor_likes,
+        np.ndarray[np.float64_t,ndim=1] leaf_lengths,
+        np.ndarray[np.float64_t,ndim=1] leaf_locus_alphas,
+        transitions):
+
+    cdef int num_loci = leaf_likes.shape[0]
+    cdef int i
+    cdef double time, alpha
+    for i in range(num_loci):
+        time = leaf_lengths[i]
+        alpha = leaf_locus_alphas[i]
+        P = transitions.get_transition_probabilities_2d(
+                time, alpha)
+        ancestor_likes[i,:] *= np.dot(P, leaf_likes[i,:])
+
+
 def compute_leaf_zero_transition_likelihood(
         np.ndarray[np.float64_t,ndim=2] leaf_likes,
         np.ndarray[np.float64_t,ndim=2] ancestor_likes,
