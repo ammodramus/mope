@@ -9,7 +9,7 @@ import numpy as np
 from scipy.stats import binom
 from scipy.stats import beta as betarv
 from scipy.misc import logsumexp
-from . import transition_data_mut as tdm
+from . import transition_data_2d as tdm
 import argparse
 import pandas as pd
 import sys
@@ -402,13 +402,13 @@ def get_log_likelihood_somatic_newick(
 
 
 
-def get_log_likelihood_selection(
+def get_log_l_and_asc_prob_selection(
         branch_lengths,
         locus_alpha_values,
-        dfe_params,
-        stat_dist,
+        stationary_distribution,
         inf,
-        tree_idx):
+        tree_idx,
+        min_freq):
     ''' Calc. loglikes of allele freqs in a model of drift and selection '''
     mrca = inf.trees[tree_idx]
     leaf_likelihoods = inf.leaf_likes[tree_idx]
@@ -419,6 +419,18 @@ def get_log_likelihood_selection(
     num_loci = inf.num_loci[tree_idx]
     transitions = inf.transition_data
     position_idxs = inf.data[tree_idx]['position_idx']
+
+    freqs = inf.freqs
+
+    nfreqs = stationary_distribution.shape[0]
+    e0 = np.zeros(nfreqs)
+    low_filt = freqs < min_freq
+    e0[low_filt] = 1.0
+    eN = np.zeros(nfreqs)
+    high_filt = freqs > 1-min_freq
+    eN[high_filt] = 1.0
+    # First the real loci, then the 0 loci, then the 1 loci.
+    eboth = np.vstack((e0,)*num_loci + (eN,)*num_loci)
 
 
     # Each base-pair position has its own selection coefficient (alpha), and
@@ -436,7 +448,7 @@ def get_log_likelihood_selection(
         # varname order.
         branch_index = branch_indices[name]
         branch_locus_alphas = locus_alpha_values[branch_index, :]
-        branch_locus_alphas = branch_locus_alphas[position_idxs]
+        branch_locus_alphas = np.tile(branch_locus_alphas[position_idxs], 3)
         multipliername = node.multipliername
 
         ancestor = node.ancestor
@@ -444,14 +456,13 @@ def get_log_likelihood_selection(
 
 
         if node.is_leaf:
-            node_likes = leaf_likelihoods[name].copy()
+            node_likes = np.concatenate((leaf_likelihoods[name].copy(), eboth))
         else:
             node_likes = node.cond_probs
-        import pdb; pdb.set_trace()
 
         if multipliername is not None:
-            node_lengths = (data[multipliername].values *
-                    branch_lengths[branch_index])
+            node_lengths = np.tile((data[multipliername].values *
+                    branch_lengths[branch_index]), 3)
             _likes.compute_rate_transition_likelihood_selection(
                 node_likes,
                 ancestor_likes,
@@ -461,16 +472,25 @@ def get_log_likelihood_selection(
 
         else:  # multipliername is None
             node_length = branch_lengths[branch_index]
-            _likes.compute_length_transition_likelihood(
+            _likes.compute_length_transition_likelihood_selection(
                     node_likes,
                     ancestor_likes,
                     node_length,
-                    mut_rate,
+                    branch_locus_alphas,
                     transitions)
 
     loglike = _likes.compute_root_log_like(
-            mrca.cond_probs,
-            stationary_distribution)
+        mrca.cond_probs[:num_loci], stationary_distribution)
+    left = mrca.descendants[0]
+    right = mrca.descendants[1]
+    left_zero = left.cond_probs[num_loci:2*num_loci]
+    left_one = left.cond_probs[2*num_loci:]
+    left_poly = 1-left_zero-left_one
+    right_zero = right.cond_probs[num_loci:2*num_loci]
+    right_one = right.cond_probs[2*num_loci:]
+    right_poly = 1-right_zero-right_one
+    logascprob = _likes.compute_log_asc_prob_both_children(
+        left_zero, left_one, right_zero, right_one, stationary_distribution)
 
     return loglike
 
@@ -583,7 +603,7 @@ def get_locus_log_likelihoods_newick(
 
 
 if __name__ == '__main__':
-    from . import transition_data_mut as tdm
+    from . import transition_data_2d as tdm
     from . import params as par
     import sys
     import time

@@ -147,6 +147,24 @@ def compute_length_transition_likelihood(
         ancestor_likes[i] *= np.dot(P, node_likes[i])
 
 
+def compute_length_transition_likelihood_selection(
+            np.ndarray[np.float64_t,ndim=2] node_likes,
+            np.ndarray[np.float64_t,ndim=2] ancestor_likes,
+            double node_length,
+            np.ndarray[np.float64_t,ndim=1] leaf_locus_alphas,
+            transitions):
+
+    cdef int num_loci = node_likes.shape[0]
+    cdef int i
+    cdef double alpha
+    for i in range(num_loci):
+        alpha = leaf_locus_alphas[i]
+        P = transitions.get_transition_probabilities_2d(
+                node_length,
+                alpha)
+        ancestor_likes[i] *= np.dot(P, node_likes[i])
+
+
 def compute_length_transition_likelihood_zero(
             np.ndarray[np.float64_t,ndim=2] node_likes,
             np.ndarray[np.float64_t,ndim=2] ancestor_likes,
@@ -409,5 +427,27 @@ def get_individual_locus_asc_logprobs(
         ppoly -= np.dot(stationary_distribution, root_non_poly_probs[2*i])
         ppoly -= np.dot(stationary_distribution, root_non_poly_probs[2*i+1])
         logprobs[i] = log(ppoly)
+
+    return logprobs_np
+
+
+@cython.wraparound(False)
+@cython.boundscheck(False)
+@cython.cdivision(True)
+def compute_log_asc_prob_both_children(
+        np.ndarray[np.float64_t,ndim=2] left_poly_probs,
+        np.ndarray[np.float64_t,ndim=2] right_poly_probs,
+        np.ndarray[np.float64_t,ndim=1] stationary_distribution):
+    cdef int i, num_loci = left_poly_probs.shape[0]
+    cdef double ppoly
+    cdef np.ndarray[np.float64_t,ndim=1] probs_np = np.ones(num_loci)
+    cdef double [:] probs = probs_np
+
+    for i in range(num_loci):
+        ppoly = 1.0
+        ppoly *= np.dot(stationary_distribution, left_poly_probs[i])
+        ppoly *= np.dot(stationary_distribution, right_poly_probs[i])
+        ppoly -= np.dot(stationary_distribution, root_non_poly_probs[2*i+1])
+        probs[i] = log(ppoly)
 
     return logprobs_np

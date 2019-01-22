@@ -307,7 +307,7 @@ if __name__ == '__main__':
     import pandas as pd
     import numpy as np
     from . import newick
-    from . import transition_data_mut as tdm
+    from . import transition_data_2d as tdm
     from . import params as par
     import sys
     import time

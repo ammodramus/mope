@@ -26,7 +26,7 @@ from mope._util import print_csv_line, print_csv_lines
 from mope._util import print_parallel_csv_lines
 from mope import ascertainment as asc
 from mope import likelihoods as lis
-from mope import transition_data_mut as tdm
+from mope import transition_data_2d as tdm
 from mope import params as par
 
 

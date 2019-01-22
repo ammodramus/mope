@@ -15,7 +15,7 @@ from collections import defaultdict
 
 
 from . import likelihoods as lis
-from . import transition_data_mut as tdm
+from . import transition_data_2d as tdm
 from . import params as par
 from functools import partial
 import multiprocessing as mp

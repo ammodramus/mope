@@ -141,8 +141,6 @@ def _get_header(inf):
 def _get_likelihood_limits(inf):
     num_varnames = inf.num_varnames
     ndim = 2*num_varnames + 2
-    # TODO here, have to figure out how to parameterize alphas for each unique
-    # bp position
     if inf.selection_model:
         ndim += inf.dfe.nparams + inf.num_unique_positions
 
@@ -194,9 +192,9 @@ def _get_likelihood_limits(inf):
         #   1. length parameters  (num_varnames)
         #   2. mean alphas for negative selection coefficient distributions
         #      (num_varnames)
-        #   3. other DFE parameters (here, for this DFE, log10 pos/neg alpha
-        #      ratio, log10 prob that a site has a negative vs. positive
-        #      selection coefficient)
+        #   3. other DFE parameters (here, for this DFE, log10 pos/neg
+        #      meanalpha ratio, log10 prob that a site has a negative vs.
+        #      positive selection coefficient)
         #   4. root distribution parameters (2)
         #   5. selection coefficients for individual base-pair positions. These
         #      correspond to the values for the ontogenetic process
@@ -508,8 +506,21 @@ class Inference(object):
                     look_for_multiplier = True)[0]
             self.asc_trees.append(asc_tree)
         self.num_loci = [d.shape[0] for d in self.data]
+
+
+
+        #####################################################
+        # tree structures
+        #####################################################
         self.trees = []
         for tree_str, n_loc in izip(self.tree_strings, self.num_loci):
+            if self.selection_model:
+                # In the selection model, we are going to calculate three
+                # probabilities simultaneously: (1) the usual allele frequency
+                # likelihoods, (2) the probabilities that the frequencies are
+                # 0 in all leaves, and (3) the probabilities that the
+                # frequencies are all 1 in all leaves.
+                n_loc *= 3
             self.trees.append(newick.loads(tree_str,
                     num_freqs = self.num_freqs,
                     num_loci = n_loc,
@@ -588,6 +599,7 @@ class Inference(object):
         lower, upper, ndim = _get_likelihood_limits(self)
         if self.selection_model:
             self.num_nonsel_params = ndim - self.num_unique_positions
+            self.max_alpha = self.transition_data.get_max_mutsel_rate()
 
         # self.lower and .upper give the bounds for prior distributions
         self.lower = lower
@@ -661,21 +673,27 @@ class Inference(object):
     def loglike(self, orig_params):
 
         ll = 0.0
+        bad_input = False
         if self.selection_model:
             varparams = orig_params[:-self.num_unique_positions]
-            sel_params = orig_params[-self.num_unique_positions:]
+            sel_params = 10**orig_params[-self.num_unique_positions:]
             dfe_start = 2*self.num_varnames        # start of the DFE params
             dfe_params = varparams[dfe_start:dfe_start+self.dfe.nparams]
 
             nvn = self.num_varnames
             mutsel_rates_varpar = varparams[nvn:2*nvn]
-            relative_alphas = (mutsel_rates_varpar 
-                               / mutsel_rates_varpar[self.focal_branch_idx])
+            focal_alpha_neg = mutsel_rates_varpar[self.focal_branch_idx]
+            relative_alphas = mutsel_rates_varpar / focal_alpha_neg
             # The shape of locus_alpha_values is
             # (self.num_varnames, self.num_unique_positions), so
             # locus_alpha_values[i,j] gives the selection rate for varname i
             # and unique locus j.
             locus_alpha_values = sel_params * relative_alphas[:, np.newaxis]
+            if np.any(locus_alpha_values > self.max_alpha):
+                ll = -np.inf
+                print('@@ {:15}'.format(str(ll)), end=' ')
+                _util.print_csv_line(varparams)
+                return ll
         else:
             varparams = orig_params
         alphabeta, polyprob = 10**varparams[-2:]
@@ -695,27 +713,29 @@ class Inference(object):
             locus_alpha_values_p = locus_alpha_values[trans_idxs_len, :]
 
             if self.selection_model:
-                tll = li.get_log_likelihood_selection(
+                ped_ll, ped_log_asc_prob = li.get_log_l_and_asc_prob_selection(
                     branch_lengths,
                     locus_alpha_values_p,
-                    dfe_params,
                     stat_dist,
                     self,
                     i,
+                    self.min_freq
                 )
             else:
-                tll = li.get_log_likelihood_somatic_newick(
+                ped_ll = li.get_log_likelihood_somatic_newick(
                     branch_lengths,
                     mutsel_rates,
                     stat_dist,
                     self,
                     i)
 
-            log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
-                    mutsel_rates, stat_dist, self, self.min_freq, i)
-            log_asc_prob = (log_asc_probs *
-                    asc_ages['count'].values).sum()
-            tll -= log_asc_prob
+            if not self.selection_model:
+                log_asc_probs = asc.get_locus_asc_probs(
+                    branch_lengths, locus_alpha_values_p, dfe_params,
+                    stat_dist, self, self.min_freq, i)
+                ped_log_asc_prob = (log_asc_probs *
+                        asc_ages['count'].values).sum()
+            ped_ll -= ped_log_asc_prob
 
             if self.poisson_like_penalty > 0 and not self.selection_model:
                 logmeanascprob, logpoissonlike = self.poisson_log_like(
@@ -725,12 +745,17 @@ class Inference(object):
             ll += tll
 
         if self.selection_model:
-            # add component for 
-            pass
+            dfe_ll = self.dfe.get_loglike(dfe_params, focal_alpha_neg,
+                                          sel_params)
+            ll += dfe_ll
 
         if self.print_debug:
-            print('@@ {:15}'.format(str(ll)), logmeanascprob, ' ', end=' ')
-            _util.print_csv_line(varparams)
+            if self.selection_model:
+                print('@@ {:15}'.format(str(ll)), end=' ')
+                _util.print_csv_line(varparams)
+            else:
+                print('@@ {:15}'.format(str(ll)), logmeanascprob, ' ', end=' ')
+                _util.print_csv_line(varparams)
 
         return ll
 
