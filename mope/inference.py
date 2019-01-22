@@ -12,7 +12,10 @@ import os
 from functools import partial
 import multiprocessing as mp
 import warnings
-from itertools import izip
+try:
+    from itertools import izip
+except ImportError:  # py3
+    izip = zip
 
 import numpy as np
 import scipy.optimize as opt
