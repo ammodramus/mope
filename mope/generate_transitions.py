@@ -59,6 +59,7 @@ def get_wright_fisher_transition_matrix(N, s, u, v):
         p = i / N
         pmut = (1 - u) * p + v * (1 - p)  # first mutation, then selection
         pstar = pmut * (1 + s) / (pmut * (1 + s) + 1 - pmut)
+        pstar = min(pstar, 1.0)
         P[i, :] = np.exp(st.binom.logpmf(js, N, pstar))
     return P
 
