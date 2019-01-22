@@ -447,7 +447,6 @@ def compute_log_asc_prob_both_children(
         ppoly = 1.0
         ppoly *= np.dot(stationary_distribution, left_poly_probs[i])
         ppoly *= np.dot(stationary_distribution, right_poly_probs[i])
-        ppoly -= np.dot(stationary_distribution, root_non_poly_probs[2*i+1])
         probs[i] = log(ppoly)
 
-    return logprobs_np
+    return probs_np
