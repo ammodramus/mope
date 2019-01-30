@@ -6,15 +6,15 @@ Mitochondrial Ontogenetic Phylogeny Estimation
 
 Mope is a program for making inferences about the dynamics of mitochondrial
 heteroplasmy during different life stages, using approaches from population
-genetics and phylogenetics. See the preprint
-[here](https://www.biorxiv.org/content/early/2017/10/17/204479).
+genetics and phylogenetics. See the [preprint](https://www.biorxiv.org/content/early/2017/10/17/204479)
+or the [paper](https://www.genetics.org/content/208/3/1261).
 
 
 Requirements
 --------------
 
 Mope is written in Python and requires Python 2.7+ or Python 3.1+. The
-following python module are required:
+following python modules are required:
  - [Numpy](http://numpy.org)
  - [Scipy](http://scipy.org)
  - [Pandas](http://pandas.pydata.org)
