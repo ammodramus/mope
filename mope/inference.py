@@ -312,7 +312,8 @@ class Inference(object):
             for col in datp.columns:
                 if col not in ['family', 'position']:
                     datp[col] = datp[col].astype(np.float64)
-            datp.sort_values(['family', 'position'], inplace = True)
+            if self.selection_model:
+                datp.sort_values(['family', 'position'], inplace = True)
             self.data.append(datp)
 
             with open(tree_fn) as fin:
@@ -594,7 +595,7 @@ class Inference(object):
         #      selection coefficient)
         #   4. selection coefficients for individual base-pair positions. These
         #      correspond to the values for the ontogenetic process
-        #      inf.selection_focal_varname. For other processes, have to
+        #      inf.focal_branch. For other processes, have to
         #      multiply the value by meanalpha(i)/meanalpha(focalprocess)
 
         # ndim contains the total number of variables in the chain, so it
@@ -603,6 +604,11 @@ class Inference(object):
         if self.selection_model:
             self.num_nonsel_params = ndim - self.num_unique_positions
             self.max_alpha = self.transition_data.get_max_mutsel_rate()
+            # set range of alphas that are intepreted as zero
+
+            #lower = np.concatenate((lower_len, lower_sel, (min_ab,min_polyprob),
+            #                        lower_alpha))
+
 
         # self.lower and .upper give the bounds for prior distributions
         self.lower = lower
@@ -679,7 +685,13 @@ class Inference(object):
         bad_input = False
         if self.selection_model:
             varparams = orig_params[:-self.num_unique_positions]
-            sel_params = 10**orig_params[-self.num_unique_positions:]
+
+            # Any input log10 selection parameter 
+            log10_sel_params = orig_params[-self.num_unique_positions:]
+            zero_filt = log10_sel_params < self.min_log10_sel_param
+            log10_sel_params[zero_filt] = -np.inf
+            sel_params = 10**log10_sel_params
+
             dfe_start = 2*self.num_varnames        # start of the DFE params
             dfe_params = varparams[dfe_start:dfe_start+self.dfe.nparams]
 
@@ -713,9 +725,12 @@ class Inference(object):
             mutsel_rates = 10**params[num_branches:]
             asc_ages = self.asc_ages[i]
 
-            locus_alpha_values_p = locus_alpha_values[trans_idxs_len, :]
 
             if self.selection_model:
+                # get alpha values for individual loci
+                locus_alpha_values_p = locus_alpha_values[trans_idxs_len, :]
+                import pdb; pdb.set_trace()
+                # calculate log-likelihood and asc prob
                 ped_ll, ped_log_asc_prob = li.get_log_l_and_asc_prob_selection(
                     branch_lengths,
                     locus_alpha_values_p,
@@ -731,21 +746,25 @@ class Inference(object):
                     stat_dist,
                     self,
                     i)
-
-            if not self.selection_model:
-                log_asc_probs = asc.get_locus_asc_probs(
-                    branch_lengths, locus_alpha_values_p, dfe_params,
-                    stat_dist, self, self.min_freq, i)
+                log_asc_probs = asc.get_locus_asc_probs(branch_lengths,
+                                                        mutsel_rates,
+                                                        stat_dist, self,
+                                                        self.min_freq, i)
                 ped_log_asc_prob = (log_asc_probs *
                         asc_ages['count'].values).sum()
+
+            # because everything is in log space, rather than add and subtract
+            # each locus_ll and locus_log_asc_prob, we can add them all
+            # (ped_ll) and subtract them all (leg_log_asc_prob) all at once.
             ped_ll -= ped_log_asc_prob
+            ped_ll = ped_ll.sum()
 
             if self.poisson_like_penalty > 0 and not self.selection_model:
                 logmeanascprob, logpoissonlike = self.poisson_log_like(
                         log_asc_probs, i)
-                tll += logpoissonlike * self.poisson_like_penalty
+                ped_ll += logpoissonlike * self.poisson_like_penalty
 
-            ll += tll
+            ll += ped_ll
 
         if self.selection_model:
             dfe_ll = self.dfe.get_loglike(dfe_params, focal_alpha_neg,
