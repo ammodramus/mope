@@ -8,25 +8,35 @@ from builtins import range
 from builtins import object
 
 import numpy as np
-
+from scipy.special import logit, expit
 
 class CygnusDistribution(object):
     '''
-    The distribution looks a little like the constellation Cygnus
+    This distribution looks a little like the constellation Cygnus.
+
+    The three parameters are:
+        - logitprobzero:       The logit-probability that the selection
+                               coefficient is zero
+        - logitprobpos         The logit-probability that a non-zero selection
+                               coefficient is positive.
+        - log10ratiopostoneg   The log10 ratio of positive to negative mean
+                               selection coefficients
+
+    Additionally, the loglike function must be specified a mean value of the
+    scaled selection coefficient alpha for the negative part of the selection
+    coefficient distribution.
     '''
     def __init__(self):
-        self.lower_limits = np.array([-5, -5, -3])
-        #self.upper_limits = -self.lower_limits
-        self.upper_limits = np.array((0, 0, -self.lower_limits[-1]))
+        self.lower_limits = np.array([-6, -6, -4])
+        self.upper_limits = -self.lower_limits
         self.param_names = [
-            'log10probzero',
-            'log10probpos',
+            'logitprobzero',
+            'logitprobpos',
             'log10ratiopostoneg',
         ]
         self.nparams = self.lower_limits.shape[0]
         assert self.nparams == self.upper_limits.shape[0]
         assert len(self.param_names) == self.nparams
-        self.zero_limit = 0.2
 
     def logprior(params):
         if params.shape[0] != self.nparams:
@@ -41,27 +51,91 @@ class CygnusDistribution(object):
         else:
             return np.sum(np.log(self.upper_limits-self.lower_limits))
 
-    def get_loglike(self, dfe_params, focal_alpha_neg, alphas):
+    def get_loglike(self, dfe_params, focal_mean_alpha_neg, alphas):
         '''
-        dfe_params         distribution parameters (log10probzero,
-                           log10probpos)
-        focal_alpha_neg    mean alpha for the distribution of alphas
-        alphas             population-scaled selection coefficient(s)
+        dfe_params              distribution parameters
+            The three parameters are:
+                - logitprobzero:       The logit-probability that the selection
+                                       coefficient is zero
+                - logitprobpos         The logit-probability that a non-zero
+                                       selection coefficient is positive.
+                - log10ratiopostoneg   The log10 ratio of positive to negative
+                                       mean selection coefficients
+        focal_mean_alpha_neg    mean alpha for the distribution of alphas
+        alphas                  population-scaled selection coefficient(s)
         '''
-        log10probzero = dfe_params[0]
-        log10probnonzero = np.log(1.0-np.exp(log10probzero))
-        log10probpos = dfe_params[1]
+        logitprobzero = dfe_params[0]
+        logitprobpos = dfe_params[1]
         log10ratiopostoneg = dfe_params[2]
-        focal_alpha_pos = 10**log10ratiopostoneg * 10**focal_alpha_neg
+
+        prob_zero = expit(logitprobzero)
+        prob_nonzero = 1-prob_zero
+        log_prob_zero = np.log(prob_zero)
+        log_prob_nonzero = np.log(prob_nonzero)
+
+        log_prob_pos = np.log(expit(logitprobpos))
+        log_prob_neg = np.log(1-np.exp(log_prob_pos))
+
+        focal_mean_alpha_pos = 10**log10ratiopostoneg * focal_mean_alpha_neg
+
+
         logprobs = np.zeros_like(alphas)
-        boundary_filt = np.abs(alphas) < self.zero_limit
-        logprobs[boundary_filt] = log10probzero
-        pos_filt = (~boundary_filt) & (alphas > 0)
-        logprobs[pos_filt] = (log10probnonzero + np.log(focal_alpha_pos)
-                              - focal_alpha_pos*alphas[pos_filt])
-        neg_filt = (~boundary_filt) & (alphas < 0)
-        logprobs[neg_filt] = (log10probnonzero + np.log(focal_alpha_neg)
-                              - focal_alpha_neg*alphas[neg_filt])
+        is_zero = alphas == 0.0
+        logprobs[is_zero] = log_prob_zero
+        pos_filt = alphas > 0
+        # This is where the exponential part of the "Cygnus" distribution comes
+        # in. The log(alpha) + mean_alpha*alpha is the log-probability under
+        # the exponential distribution.
+        logprobs[pos_filt] = (log_prob_nonzero + log_prob_pos
+                              + np.log(focal_mean_alpha_pos)
+                              - focal_mean_alpha_pos*alphas[pos_filt])
+        neg_filt = alphas < 0
+        logprobs[neg_filt] = (log_prob_nonzero + log_prob_neg
+                              + np.log(focal_mean_alpha_neg)
+                              - focal_mean_alpha_neg*alphas[neg_filt])
         val = np.sum(logprobs)
-        import pdb; pdb.set_trace()
         return val
+
+
+if __name__ == '__main__':
+    # Some simple tests
+    import numpy.random as npr
+
+    dfe = CygnusDistribution()
+    logit_prob_zero = npr.uniform(-3, 3)
+    logit_prob_pos = npr.uniform(-3, 3)
+    log10_pos_to_neg = 0.5
+    dfe_params = np.array([logit_prob_zero, logit_prob_pos, log10_pos_to_neg])
+
+
+    num_loci = 10
+
+    nreps = 1000
+    for i in range(nreps):
+
+        alphas = np.zeros(num_loci)
+        focal_mean_alpha_neg = npr.uniform(0.001, 0.999)
+        dfe_val_1 = dfe.get_loglike(dfe_params, focal_mean_alpha_neg, alphas)
+        expected_dfe_val_1 = num_loci * np.log(expit(logit_prob_zero))
+        assert np.isclose(dfe_val_1, expected_dfe_val_1)
+
+
+        alpha = npr.uniform(0.1, 1.0)
+        alphas = np.ones(num_loci) * alpha
+        focal_mean_alpha_neg = npr.uniform(0.001, 0.999)
+        focal_mean_alpha_pos = 10**log10_pos_to_neg * focal_mean_alpha_neg
+        expected_dfe_val_2 = num_loci * (
+            np.log(1-expit(logit_prob_zero)) + np.log(expit(logit_prob_pos))
+            + np.log(focal_mean_alpha_pos) - focal_mean_alpha_pos * alpha)
+        dfe_val_2 = dfe.get_loglike(dfe_params, focal_mean_alpha_neg, alphas)
+        assert np.isclose(dfe_val_2, expected_dfe_val_2)
+
+
+        alpha = npr.uniform(-1.0, -0.1)
+        alphas = np.ones(num_loci) * alpha
+        focal_mean_alpha_neg = npr.uniform(0.001, 0.999)
+        expected_dfe_val_3 = num_loci * (
+            np.log(1-expit(logit_prob_zero)) + np.log(1.0-expit(logit_prob_pos))
+            + np.log(focal_mean_alpha_neg) - focal_mean_alpha_neg * alpha)
+        dfe_val_3 = dfe.get_loglike(dfe_params, focal_mean_alpha_neg, alphas)
+        assert np.isclose(dfe_val_3, expected_dfe_val_3)
