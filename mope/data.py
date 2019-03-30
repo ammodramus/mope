@@ -218,7 +218,7 @@ def is_fixed(data, data_columns, data_are_counts):
     if data_are_counts:
         n_columns = [el + '_n' for el in data_columns]
         ns = data.loc[:,n_columns]
-        ps = ps.as_matrix() / ns.as_matrix()
+        ps = ps.values / ns.values
     freqsums = np.nansum(ps, axis = 1).astype(np.float64)
     ncols = ps.shape[1]
     fixed = np.isclose(freqsums, ncols) | (freqsums == 0.0)
