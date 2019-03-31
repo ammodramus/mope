@@ -66,12 +66,17 @@ def compute_rate_transition_likelihood_selection(
     cdef int num_loci = leaf_likes.shape[0]
     cdef int i
     cdef double time, alpha
+    cdef np.ndarray[np.double_t, ndim=2] ret = np.zeros_like(ancestor_likes)
+    cdef np.ndarray[np.double_t, ndim=1] tmp
     for i in range(num_loci):
         time = leaf_lengths[i]
         alpha = leaf_locus_alphas[i]
         P = transitions.get_transition_probabilities_2d(
                 time, alpha)
-        ancestor_likes[i,:] *= np.dot(P, leaf_likes[i,:])
+        tmp = np.dot(P, leaf_likes[i,:])
+        ancestor_likes[i,:] *= tmp
+        ret[i,:] = tmp
+    return ret
 
 
 def compute_leaf_zero_transition_likelihood(
@@ -157,12 +162,17 @@ def compute_length_transition_likelihood_selection(
     cdef int num_loci = node_likes.shape[0]
     cdef int i
     cdef double alpha
+    cdef np.ndarray[np.double_t, ndim=2] ret = np.zeros_like(ancestor_likes)
+    cdef np.ndarray[np.double_t, ndim=1] tmp
     for i in range(num_loci):
         alpha = leaf_locus_alphas[i]
         P = transitions.get_transition_probabilities_2d(
                 node_length,
                 alpha)
-        ancestor_likes[i] *= np.dot(P, node_likes[i])
+        tmp = np.dot(P, node_likes[i])
+        ancestor_likes[i] *= tmp
+        ret[i] = tmp
+    return ret
 
 
 def compute_length_transition_likelihood_zero(
@@ -318,12 +328,13 @@ def compute_root_locus_log_likes(
             np.ndarray[np.float64_t,ndim=1] stationary_distribution):
     cdef int i, num_loci = root_cond_probs.shape[0]
     cdef double locus_loglike, loglike
-    cdef list loglikes = []
+    cdef np.ndarray[np.float64_t, ndim=1] loglikes_np = np.zeros(num_loci)
+    cdef double [:] loglikes = loglikes_np
     for i in range(num_loci):
         locus_loglike = (
                 log(np.dot(root_cond_probs[i], stationary_distribution)))
-        loglikes.append(locus_loglike)
-    return loglikes
+        loglikes[i] = locus_loglike
+    return loglikes_np
 
 
 
