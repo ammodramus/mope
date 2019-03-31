@@ -374,3 +374,5 @@ if __name__ == '__main__':
     test_one_locus()
     test_one_locus_twice()
     test_two_loci_two_families()
+
+    print('\nTESTING PASSED\n')
