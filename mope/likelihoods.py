@@ -424,10 +424,10 @@ def get_log_l_and_asc_prob_selection(
 
     nfreqs = stationary_distribution.shape[0]
     e0 = np.zeros(nfreqs)
-    low_filt = freqs < min_freq
+    low_filt = freqs <= min_freq
     e0[low_filt] = 1.0
     eN = np.zeros(nfreqs)
-    high_filt = freqs > 1-min_freq
+    high_filt = freqs >= 1-min_freq
     eN[high_filt] = 1.0
     # First the real loci, then the 0 loci, then the 1 loci.
     eboth = np.vstack((e0,)*num_loci + (eN,)*num_loci)
@@ -436,11 +436,12 @@ def get_log_l_and_asc_prob_selection(
     # Each base-pair position has its own selection coefficient (alpha), and
     # each family may have its own branch length, for branches that vary with
     # age.
-
-    for node in mrca.walk(mode = 'postorder'):
+    for node in mrca.walk(mode='postorder'):
         _likes.reset_likes_ones(node.cond_probs)
 
-    for node in mrca.walk(mode = 'postorder'):
+    asc_probs_by_freq = np.ones((num_loci, stationary_distribution.shape[0]))
+
+    for node in mrca.walk(mode='postorder'):
         if node == mrca:
             break
         name = node.name
@@ -448,6 +449,13 @@ def get_log_l_and_asc_prob_selection(
         # varname order.
         branch_index = branch_indices[name]
         branch_locus_alphas = locus_alpha_values[branch_index, :]
+
+
+        # branch_locus_alphas is repeated because we are calculating three
+        # (log-)probabilities: 1) the log-likelihood, 2) the log-probability of
+        # frequency zero, and 3) the log-probability of frequency one. Each of
+        # these probabilities, conditional on all the data below the node,
+        # needs to be calculated for each node and each locus.
         branch_locus_alphas = np.tile(branch_locus_alphas[position_idxs], 3)
         multipliername = node.multipliername
 
@@ -456,43 +464,64 @@ def get_log_l_and_asc_prob_selection(
 
 
         if node.is_leaf:
-            node_likes = np.concatenate((leaf_likelihoods[name].copy(), eboth))
+            # When creating the probabilities for the leaves, need to
+            # interleave the actual leaf likelihoods and the fixation ones.
+            node_likes = np.concatenate((leaf_likelihoods[name], eboth))
+            node.cond_probs = node_likes
         else:
             node_likes = node.cond_probs
 
+        do_asc = True if ancestor == mrca else False
+
         if multipliername is not None:
+            # Just like the values of alpha, the lengths also need to be tiled
+            # so that the fixation and loss probabilities are calculated.
             node_lengths = np.tile((data[multipliername].values *
                     branch_lengths[branch_index]), 3)
-            _likes.compute_rate_transition_likelihood_selection(
+            trans_probs = _likes.compute_rate_transition_likelihood_selection(
+            #trans_probs = compute_rate_transition_likelihood_selection(
                 node_likes,
                 ancestor_likes,
                 node_lengths,
                 branch_locus_alphas,
                 transitions)
+            if do_asc:
+                # We use the likelihoods that are *always* returned from
+                # _likes.compute_rate_transition_likelihood_selection only if
+                # this is one away from the MRCA.
+                zero_probs = trans_probs[num_loci:2*num_loci,:]
+                one_probs = trans_probs[2*num_loci:,:]
+                poly_probs = 1.0-zero_probs-one_probs
+                asc_probs_by_freq *= poly_probs
+
+
 
         else:  # multipliername is None
             node_length = branch_lengths[branch_index]
-            _likes.compute_length_transition_likelihood_selection(
+            trans_probs = _likes.compute_length_transition_likelihood_selection(
+            #trans_probs = compute_length_transition_likelihood_selection(
                     node_likes,
                     ancestor_likes,
                     node_length,
                     branch_locus_alphas,
                     transitions)
+            if do_asc:
+                zero_probs = trans_probs[num_loci:2*num_loci,:]
+                one_probs = trans_probs[2*num_loci:,:]
+                poly_probs = 1.0-zero_probs-one_probs
+                asc_probs_by_freq *= poly_probs
 
-    loglike = _likes.compute_root_log_like(
+
+
+    loglikes = _likes.compute_root_locus_log_likes(
         mrca.cond_probs[:num_loci], stationary_distribution)
-    left = mrca.descendants[0]
-    right = mrca.descendants[1]
-    left_zero = left.cond_probs[num_loci:2*num_loci]
-    left_one = left.cond_probs[2*num_loci:]
-    left_poly = 1-left_zero-left_one
-    right_zero = right.cond_probs[num_loci:2*num_loci]
-    right_one = right.cond_probs[2*num_loci:]
-    right_poly = 1-right_zero-right_one
-    logascprob = _likes.compute_log_asc_prob_both_children(
-        left_zero, left_one, right_zero, right_one, stationary_distribution)
 
-    return loglike
+    log_asc_probs = np.log(np.dot(asc_probs_by_freq, stationary_distribution))
+
+    # Calculate ascertainment probability for each frequency.
+    loglike = (loglikes - log_asc_probs).sum()
+
+    return loglikes, log_asc_probs
 
 
 
