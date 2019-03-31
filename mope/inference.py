@@ -184,6 +184,7 @@ def _get_likelihood_limits(inf):
         # Don't let the mean of the (untruncated) exponential distribution
         # exceed half of the maximum value
         max_mutsel_rate = inf.transition_data.get_max_mutsel_rate()
+        min_mutsel_rate = inf.transition_data.get_min_mutsel_rate()
         max_mean = 0.5*max_mutsel_rate
         upper_alpha_neg = min(-1, np.log10(max_mean))
 
@@ -192,29 +193,40 @@ def _get_likelihood_limits(inf):
         # lower and upper limits for the parameters of the DFEs, not the alpha
         # (2Ns) values for individual base-pair positions. The general order of
         # the parameters is:
-        #   1. length parameters  (num_varnames)
+        #   1. length parameters (num_varnames, log10-scaled)
         #   2. mean alphas for negative selection coefficient distributions
-        #      (num_varnames)
+        #      (num_varnames, log10-scaled)
         #   3. other DFE parameters (here, for this DFE, log10 pos/neg
         #      meanalpha ratio, log10 prob that a site has a negative vs.
         #      positive selection coefficient)
         #   4. root distribution parameters (2)
         #   5. selection coefficients for individual base-pair positions. These
         #      correspond to the values for the ontogenetic process
-        #      inf.selection_focal_varname. For other processes, have to
-        #      multiply the value by meanalpha(i)/meanalpha(focalprocess)
+        #      inf.selection_focal_varname, indexed i. For other processes,
+        #      we have to multiply the value by
+        #      meanalpha(i)/meanalpha(focalprocess).
         lower_sel = np.array(([lower_alpha_neg]*num_varnames
                               + list(inf.dfe.lower_limits)))
         upper_sel = np.array([upper_alpha_neg]*num_varnames
                               + list(inf.dfe.upper_limits))
 
-        # For the selection coefficients, the values between -5 and -3 will be
-        # translated to 0 (neutral).
-        # the upper and lower limits for the selection coefficients themselves
-        log10_alpha_min = -5
-        log10_alpha_max = np.log10(max_mutsel_rate)
-        lower_alpha = np.repeat(log10_alpha_min, inf.num_unique_positions)
-        upper_alpha = np.repeat(log10_alpha_max, inf.num_unique_positions)
+        # The selection coefficients must be in linear space because both
+        # positive and negative values must be represented. The upper limit is
+        # s=10. The lower limit is s=-10. However, the interval
+        # (-self.abs_sel_zero_value, self.abs_sel_zero_value) will be interpreted
+        # as zero. So the upper and lower limits must be self.abs_sel_zero_value
+        # above and below 10 and -10, respectively.
+
+
+        min_alpha_value = min_mutsel_rate
+        min_sel_param = min_alpha_value - inf.abs_sel_zero_value
+
+        max_alpha_value = max_mutsel_rate
+        max_sel_param = max_alpha_value + inf.abs_sel_zero_value
+
+        #log10_alpha_max = np.log10(max_mutsel_rate)
+        lower_alpha = np.repeat(min_sel_param, inf.num_unique_positions)
+        upper_alpha = np.repeat(max_sel_param, inf.num_unique_positions)
 
         lower = np.concatenate((lower_len, lower_sel, (min_ab,min_polyprob),
                                 lower_alpha))
@@ -302,6 +314,7 @@ class Inference(object):
         self.plain_trees = []
         self.trees = []
         self.ages = []
+        # For each pedigree structure, there is a seperate data file and tree (newick file).
         for dat_fn, tree_fn in zip(self.data_files, self.tree_files):
             datp = pd.read_csv(dat_fn, sep = '\t', comment = '#',
                 na_values = ['NA'], header = 0)
@@ -562,17 +575,25 @@ class Inference(object):
                 self.get_min_max_mults())
 
         #####################################################
-        # if selection, get DFE, set focal branch
+        # if selection, get DFE, set focal branch, set
+        # minimum selection coefficient that is not
+        # translated to zero
         #
         #####################################################
         if self.selection_model:
-            self.dfe = CygnusDistribution()
             # The focal branch is the branch that the selection coefficients
             # correspond to. The values for other branches are taken from the
             # ratios of mean-alpha parameters. We will arbitrarily choose the
             # first varname as the focal process.
             self.focal_branch = self.varnames[0]
             self.focal_branch_idx = 0
+
+            # TODO comment this.
+            # This is the minimum absolute-value scaled selecti
+            self.abs_sel_zero_value = 10
+
+            # Set up the distribution of fitness effects (DFE).
+            self.dfe = CygnusDistribution()
 
 
         #####################################################
@@ -614,13 +635,6 @@ class Inference(object):
         self.lower = lower
         self.upper = upper
         self.ndim = ndim
-
-        print('# self.lower:')
-        for el in self.lower:
-            print('# ', el)
-        print('# self.upper:')
-        for el in self.upper:
-            print('# ', el)
 
         #####################################################
         # true parameters, if specified (for sim. data)
@@ -684,26 +698,45 @@ class Inference(object):
         ll = 0.0
         bad_input = False
         if self.selection_model:
+            # translating the variables for the selection model
+
+            # The last self.num_unique_positions params pertain to the
+            # selection coefficients for each unique position; up until then
+            # it's the drift, alpha distn, and stationary distribution
+            # parameters.
             varparams = orig_params[:-self.num_unique_positions]
 
-            # Any input log10 selection parameter 
-            log10_sel_params = orig_params[-self.num_unique_positions:]
-            zero_filt = log10_sel_params < self.min_log10_sel_param
-            log10_sel_params[zero_filt] = -np.inf
-            sel_params = 10**log10_sel_params
+            # The selection coefficents are in linear space.
+            sel_params = orig_params[-self.num_unique_positions:].copy()
+            zero_filt = np.abs(sel_params) < self.abs_sel_zero_value
+            sel_params[zero_filt] = 0
+
+            # Scaled selection coefficients that are negative but not zero need
+            # to be adjusted by self.abs_sel_zero_value.
+            neg_filt = sel_params < 0
+            sel_params[(~zero_filt) & neg_filt] += self.abs_sel_zero_value
+
+            # Scaled selection coefficients that are positive but not zero need
+            # to be adjusted by self.abs_sel_zero_value.
+            pos_filt = sel_params >= 0
+            sel_params[(~zero_filt) & pos_filt] -= self.abs_sel_zero_value
 
             dfe_start = 2*self.num_varnames        # start of the DFE params
             dfe_params = varparams[dfe_start:dfe_start+self.dfe.nparams]
 
             nvn = self.num_varnames
             mutsel_rates_varpar = varparams[nvn:2*nvn]
-            focal_alpha_neg = mutsel_rates_varpar[self.focal_branch_idx]
-            relative_alphas = mutsel_rates_varpar / focal_alpha_neg
+            focal_alpha_neg_mean = 10**mutsel_rates_varpar[self.focal_branch_idx]
+            relative_alpha_means = 10**mutsel_rates_varpar / focal_alpha_neg_mean
+            print('ll focal_alpha_neg_mean:', focal_alpha_neg_mean)
+            print('ll relative alphas:', relative_alpha_means)
             # The shape of locus_alpha_values is
             # (self.num_varnames, self.num_unique_positions), so
             # locus_alpha_values[i,j] gives the selection rate for varname i
             # and unique locus j.
-            locus_alpha_values = sel_params * relative_alphas[:, np.newaxis]
+            locus_alpha_values = sel_params * relative_alpha_means[:, np.newaxis]
+            print('locus_alpha_values:')
+            print(locus_alpha_values)
             if np.any(locus_alpha_values > self.max_alpha):
                 ll = -np.inf
                 print('@@ {:15}'.format(str(ll)), end=' ')
@@ -711,26 +744,44 @@ class Inference(object):
                 return ll
         else:
             varparams = orig_params
+
+        # These are the root parameters (in linear rather than log10 space).
         alphabeta, polyprob = 10**varparams[-2:]
 
+        # stationary distribution
         stat_dist = li.get_stationary_distribution_double_beta(self.freqs,
                 self.breaks, self.transition_N, alphabeta, polyprob)
 
+        # self.data[i] contains the frequency (actually, allele count) data for
+        # the i'th pedigree structure.
         for i in range(len(self.data)):
+            # There is a certain order of branches for each pedigree. Each
+            # branch in the pedigree corresponds one of the unique ontogenetic
+            # processes. The parameters for the ontogenetic processes are
+            # contained in varparams, while trans_idxs here translates those
+            # unique parameters into parameters as ordered for the i'th
+            # pedigree.
             trans_idxs = self.translate_indices[i]
-            trans_idxs_len = trans_idxs[:self.num_branches[i]]
             params = varparams[trans_idxs]
+            # num_branches is the number of branches for the i'th pedigree.
             num_branches = self.num_branches[i]
+            # Note that the drift parameters and mutation/selection parameters
+            # are both internally stored in log10-space, so they are
+            # back-transformed into linear space here.
             branch_lengths = 10**params[:num_branches]
             mutsel_rates = 10**params[num_branches:]
+            # Get the age data for the i'th pedigree. The age data is useful
+            # for 
             asc_ages = self.asc_ages[i]
 
 
             if self.selection_model:
-                # get alpha values for individual loci
+                # trans_idxs_len are the indices of the varparams corresponding
+                # to each genetic drift (i.e., length) parameter in the
+                # pedigree.
+                trans_idxs_len = trans_idxs[:self.num_branches[i]]
                 locus_alpha_values_p = locus_alpha_values[trans_idxs_len, :]
-                import pdb; pdb.set_trace()
-                # calculate log-likelihood and asc prob
+                # Calculate log-likelihood and log ascertainment probbilities.
                 ped_ll, ped_log_asc_prob = li.get_log_l_and_asc_prob_selection(
                     branch_lengths,
                     locus_alpha_values_p,
@@ -739,6 +790,9 @@ class Inference(object):
                     i,
                     self.min_freq
                 )
+                # Uncomment this for testing selection likelihood.
+                #print('ll ped_ll:', ped_ll)
+                #print('ll ped_log_asc_prob:', ped_log_asc_prob)
             else:
                 ped_ll = li.get_log_likelihood_somatic_newick(
                     branch_lengths,
@@ -767,7 +821,7 @@ class Inference(object):
             ll += ped_ll
 
         if self.selection_model:
-            dfe_ll = self.dfe.get_loglike(dfe_params, focal_alpha_neg,
+            dfe_ll = self.dfe.get_loglike(dfe_params, focal_alpha_neg_mean,
                                           sel_params)
             ll += dfe_ll
 
@@ -1002,14 +1056,13 @@ class Inference(object):
 
         x      parameters in varnames space
         '''
-        # wrapping parameters as their absolute values
         num_varnames = self.num_varnames
         # make x variables a copy to avoid changing state
         x = x.copy()
         # make the mutation rates negative
         x[num_varnames:2*num_varnames] = (
                 -1.0*np.abs(x[num_varnames:2*num_varnames]))
-        # make the last two non-positive
+        # make the root frequency distribution parameters non-positive
         x[-2:] = -np.abs(x[-2:])
         pr = self.logprior(x)
         if not self.post_is_prior:
