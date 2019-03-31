@@ -479,7 +479,6 @@ def get_log_l_and_asc_prob_selection(
             node_lengths = np.tile((data[multipliername].values *
                     branch_lengths[branch_index]), 3)
             trans_probs = _likes.compute_rate_transition_likelihood_selection(
-            #trans_probs = compute_rate_transition_likelihood_selection(
                 node_likes,
                 ancestor_likes,
                 node_lengths,
@@ -499,7 +498,6 @@ def get_log_l_and_asc_prob_selection(
         else:  # multipliername is None
             node_length = branch_lengths[branch_index]
             trans_probs = _likes.compute_length_transition_likelihood_selection(
-            #trans_probs = compute_length_transition_likelihood_selection(
                     node_likes,
                     ancestor_likes,
                     node_length,

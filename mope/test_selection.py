@@ -183,6 +183,8 @@ def test_one_locus_twice():
     # ll ped_ll: [-20.24688293 -20.24688293]
     # ll ped_log_asc_prob: [-16.40931194 -16.40931194]
 
+    # Test inf_data.lower and inf_data.upper.
+
 def test_two_loci_two_families():
 
     # Now testing data with two positions, two families, and a rate parameter.

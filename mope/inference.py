@@ -186,7 +186,7 @@ def _get_likelihood_limits(inf):
         max_mutsel_rate = inf.transition_data.get_max_mutsel_rate()
         min_mutsel_rate = inf.transition_data.get_min_mutsel_rate()
         max_mean = 0.5*max_mutsel_rate
-        upper_alpha_neg = min(-1, np.log10(max_mean))
+        upper_alpha_neg = min(1, np.log10(max_mean))
 
 
         # For the selection model, lower_sel and upper_sel here contain the
@@ -728,15 +728,15 @@ class Inference(object):
             mutsel_rates_varpar = varparams[nvn:2*nvn]
             focal_alpha_neg_mean = 10**mutsel_rates_varpar[self.focal_branch_idx]
             relative_alpha_means = 10**mutsel_rates_varpar / focal_alpha_neg_mean
-            print('ll focal_alpha_neg_mean:', focal_alpha_neg_mean)
-            print('ll relative alphas:', relative_alpha_means)
+            #print('ll focal_alpha_neg_mean:', focal_alpha_neg_mean)
+            #print('ll relative alphas:', relative_alpha_means)
             # The shape of locus_alpha_values is
             # (self.num_varnames, self.num_unique_positions), so
             # locus_alpha_values[i,j] gives the selection rate for varname i
             # and unique locus j.
             locus_alpha_values = sel_params * relative_alpha_means[:, np.newaxis]
-            print('locus_alpha_values:')
-            print(locus_alpha_values)
+            #print('locus_alpha_values:')
+            #print(locus_alpha_values)
             if np.any(locus_alpha_values > self.max_alpha):
                 ll = -np.inf
                 print('@@ {:15}'.format(str(ll)), end=' ')
@@ -975,21 +975,14 @@ class Inference(object):
             return -np.inf
         if np.any(x > self.upper):
             return -np.inf
-        # for log-scale mutation parameterization
+        # For log-scale mutation parameterization
         if self.log_unif_drift:
-            # first num_varnames are drift parameters
-            # rather than specify drift in actual log units, just calculate
-            # prior this way.
-            #logp = -1.0*np.sum(np.log(x[:num_varnames])
-            # this from natural-scale drift params
-            # note that specifying the bottleneck size as log-uniform is the
-            # same as specifying the drift as log-uniform, since
-            # log D = log 2 - log B, and log B is uniform.
-            # drift now in log-units
-
-            # everything is uniform on the scale of self.upper and self.lower
+            # mutsel paramters (i.e., drift parameters and mutation rates /
+            # negative alpha means) are in log10 scale already, so just need to
+            # return a uniform prior in this parameterization.
             return np.sum(np.log(1.0/(self.upper-self.lower)))
         else:
+            # This is old: uniform (vs. log10-uniform) prior distribution.
             u = self.upper
             l = self.lower
             drift_x = x[:num_varnames]
