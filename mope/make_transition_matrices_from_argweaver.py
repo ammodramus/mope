@@ -30,6 +30,7 @@ def get_log_wright_fisher_transition_matrix(N, s, u, v):
         p = i/N
         pmut = (1-u)*p + v*(1-p) # first mutation, then selection
         pstar = pmut*(1+s) / (pmut*(1+s) + 1-pmut)
+        pstar = np.min([np.max([pstar,0]),1])
         lP[i,:] = st.binom.logpmf(js, N, pstar)
     return lP
 
@@ -158,20 +159,34 @@ def get_breaks_symmetric(N, uniform_weight, min_bin_size):
     breaks = np.array(breaks, dtype = np.int)
     return breaks
 
-def bin_matrix(P, breaks):
+def bin_matrix(P, breaks, log_space):
     assert 3/2 == 1.5  # checks for from __future__ import division
     breaks = np.array(breaks)
-    P_binned = np.zeros((breaks.shape[0], breaks.shape[0]))
-    P_colsummed = np.add.reduceat(P, breaks, axis = 1)
     bin_lengths = np.concatenate((np.diff(breaks), [P.shape[1]-breaks[-1]]))
     break_is_even = (bin_lengths % 2 == 0)
     break_is_odd = np.logical_not(break_is_even)
     middles = ((bin_lengths-1)/2).astype(np.int)
+
+    if log_space:
+        P_binned = np.zeros((breaks.shape[0], breaks.shape[0]))*(-np.inf)
+        P_colsummed = np.logaddexp.reduceat(P, breaks, axis=1)
+    else:
+        P_binned = np.zeros((breaks.shape[0], breaks.shape[0]))
+        P_colsummed = np.add.reduceat(P, breaks, axis=1)
+
     P_binned[break_is_odd,:] = P_colsummed[(breaks+middles)[break_is_odd],:]
+
     left_middles = np.floor((bin_lengths-1)/2).astype(np.int)
     right_middles = np.ceil((bin_lengths-1)/2).astype(np.int)
-    P_binned[break_is_even,:] = (P_colsummed[breaks+left_middles,:][break_is_even,:] +
-                           P_colsummed[breaks+right_middles,:][break_is_even,:]) / 2
+
+    if log_space:
+        P_binned[break_is_even,:] = (
+            np.logaddexp(P_colsummed[breaks+left_middles,:][break_is_even,:],
+                         P_colsummed[breaks+right_middles,:][break_is_even,:])
+            - np.log(2))
+    else:
+        P_binned[break_is_even,:] = (P_colsummed[breaks+left_middles,:][break_is_even,:] +
+                               P_colsummed[breaks+right_middles,:][break_is_even,:]) / 2
     return P_binned
 
 
@@ -200,7 +215,7 @@ def get_identity_matrix(N, u, breaks):
         P = bin_matrix(P, breaks)
     return P
 
-def add_matrix(h5file, P, N, s, u, v, gen, idx, breaks = None):
+def add_matrix(h5file, P, N, s, u, v, gen, idx, log_space, breaks=None):
     '''
     add a transition matrix to an HDF5 file
 
@@ -215,7 +230,7 @@ def add_matrix(h5file, P, N, s, u, v, gen, idx, breaks = None):
     breaks   tuple of uniform_weight and min_bin_size (see get_breaks())
     '''
     if breaks is not None:
-        P = bin_matrix(P, breaks)
+        P = bin_matrix(P, breaks, log_space)
     group_name = "P" + str(idx)
     dset = h5file.create_dataset(group_name,
             data = np.array(P, dtype = np.float64))
@@ -347,7 +362,7 @@ def _run_make_transition_matrices(args):
                 # terms used to calculate the transitions, which do not reflect the 
                 # input except after being translated through the input population sizes
                 add_matrix(h5file, lPt, args.N, mat_s, 0, mat_uv,
-                        gen_time, dataset_idx, breaks)  # this function does the binning
+                        gen_time, dataset_idx, args.log_space, breaks)  # this function does the binning
             else:
                 P = get_wright_fisher_transition_matrix(N, mat_s, 0, mat_uv)
                 pdebug('working on matrix multiplication for g = {}, s = {}, uv = {}, {} of {}'.format(gen_time, mat_s, mat_uv, dataset_idx, len(gen_times)))
@@ -356,7 +371,7 @@ def _run_make_transition_matrices(args):
                 # terms used to calculate the transitions, which do not reflect the 
                 # input except after being translated through the input population sizes
                 add_matrix(h5file, Pt, args.N, mat_s, 0, mat_uv,
-                        gen_time, dataset_idx, breaks)  # this function does the binning
+                        gen_time, dataset_idx, args.log_space, breaks)  # this function does the binning
             dataset_idx += 1
 
 
