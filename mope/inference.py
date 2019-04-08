@@ -793,7 +793,7 @@ class Inference(object):
                     i,
                     self.min_freq
                 )
-                # Uncomment this for testing selection likelihood.
+                # SELTEST Uncomment this for testing selection likelihood.
                 #print('ll ped_ll:', ped_ll)
                 #print('ll ped_log_asc_prob:', ped_log_asc_prob)
             else:
