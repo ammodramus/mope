@@ -1264,7 +1264,9 @@ class Inference(object):
                                         pool=pool, a=chain_alpha)
         for ps, lnprobs, cur_seed in sampler.sample(
                 init_pos, iterations = num_iter, storechain = False):
-            _util.print_csv_lines(ps, lnprobs)
+            tps = _util.translate_positions(
+                ps, self.lower, self.num_varnames)
+            _util.print_csv_lines(tps, lnprobs)
             self.transition_data.clear_cache()
         if mpi:
             pool.close()
@@ -1353,6 +1355,9 @@ class Inference(object):
                     else:
                         # first chain is chain with temperature 1
                         _util.print_csv_lines(p[0], lnprob[0])
+                        tps = _util.translate_positions(
+                            p[0], self.lower, self.num_branches)
+                        _util.print_csv_lines(tps, lnprob[0])
                 num_completed += to_do
                 for fburnin in [0.1, 0.25, 0.4, 0.5, 0.75]:
                     evidence = sampler.log_evidence_estimate(
