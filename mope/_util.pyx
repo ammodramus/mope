@@ -21,6 +21,63 @@ def print_csv_lines(np.ndarray[np.float64_t, ndim = 2] arr,
             print(arr[i,j], "\t", sep = '', end='') 
         print(arr[i,ncols-1])
 
+
+def translate_positions(
+        np.ndarray[np.float64_t,ndim=2] pos,
+        np.ndarray[np.float64_t,ndim=1] lower,
+        int num_varnames):
+    cdef:
+        int i, j
+        int num_walkers = pos.shape[0]
+        np.ndarray[np.float64_t,ndim=2] ret = pos.copy()
+
+    for i in range(num_walkers):
+        # The first num_varnames parameters are genetic
+        # drift parameters, which are zero when these
+        # values are less than lower+1.
+        for j in range(num_varnames):
+            if pos[i,j] <= lower[j]+1:
+                ret[i,j] = 0
+            else:
+                ret[i,j] = 10**pos[i,j]
+        # The next num_varnames parameters are mutation
+        # rates, which are also in log10-space.
+        for j in range(num_varnames, 2*num_varnames):
+            ret[i,j] = 10**pos[i,j]
+        # We leave the other parameters (root parameters,
+        # DFE params, selection parameters) in their
+        # original space.
+    return ret
+
+
+def translate_positions_parallel(
+        np.ndarray[np.float64_t,ndim=2] pos,
+        np.ndarray[np.float64_t,ndim=1] lower,
+        int num_branches):
+    cdef:
+        int i, j
+        int num_walkers = pos.shape[0]
+        np.ndarray[np.float64_t,ndim=2] ret = pos.copy()
+
+    for i in range(num_walkers):
+        # The first num_branches parameters are genetic
+        # drift parameters, which are zero when these
+        # values are less than lower+1.
+        for j in range(num_branches):
+            if pos[i,j] <= lower[j]+1:
+                ret[i,j] = 0
+            else:
+                ret[i,j] = 10**pos[i,j]
+        # The next num_branches parameters are mutation
+        # rates, which are also in log10-space.
+        for j in range(num_branches, 2*num_branches):
+            ret[i,j] = 10**pos[i,j]
+        # We leave the other parameters (root parameters,
+        # DFE params, selection parameters) in their
+        # original space.
+    return ret
+
+
 def print_parallel_csv_lines(np.ndarray[np.float64_t,ndim=3] pos_np,
         np.ndarray[np.float64_t,ndim=2] lnprobs_np,
         np.ndarray[np.float64_t,ndim=2] lnlikes_np):

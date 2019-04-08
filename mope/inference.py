@@ -37,6 +37,9 @@ from . import ascertainment as asc
 
 inf_data = None
 
+# The following several global aliases for these functions are necessary for
+# parallel computations with multiprocessing and MPI.
+
 def logl(x):
     global inf_data
     return -1.0*inf_data.inf_bound_like_obj(x)
@@ -1002,7 +1005,7 @@ class Inference(object):
 
         if init_pos is None:
             init_pos = self._get_initial_mcmc_position(num_walkers, prev_chain,
-                    start_from, init_norm_sd, pool)
+                    start_from, init_norm_sd, pool, logp, logl)
 
         ##############################################################
         # running normal MCMC   
@@ -1012,7 +1015,12 @@ class Inference(object):
                 pool = pool, a = chain_alpha)
         for ps, lnprobs, cur_seed in sampler.sample(init_pos,
                 iterations = num_iter, storechain = False):
-            _util.print_csv_lines(ps, lnprobs)
+            # Translate the positions from log10-space to
+            # linear space, and convert the lower values
+            # (i.e., any below lower+1) to zero.
+            import pdb; pdb.set_trace()
+            tps = _util.translate_positions(ps, self.lower, self.num_varnames)
+            _util.print_csv_lines(tps, lnprobs)
             self.transition_data.clear_cache()
         if mpi:
             pool.close()
@@ -1084,7 +1092,9 @@ class Inference(object):
                     _util.print_parallel_csv_lines(p, lnprob, lnlike)
                 else:
                     # first chain is chain with temperature 1
-                    _util.print_csv_lines(p[0], lnprob[0])
+                    tps = _util.translate_positions(
+                        p[0], self.lower, self.num_branches)
+                    _util.print_csv_lines(tps, lnprob[0])
 
         else:
             evidence_every = 2000
