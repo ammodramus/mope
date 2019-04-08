@@ -66,10 +66,11 @@ def test_one_locus():
         selection_model=True
     )
     
-    npr.seed(0)
     n_branches = 1
 
-    x0 = npr.uniform(inf_data.lower, inf_data.upper)
+    x0 = np.array([-1.54289540e+00, -1.39242535e-01,  1.23316051e+00,
+                   5.38598196e-01, -6.10761605e-01, -3.18695298e+00,
+                   -5.06171510e+00,  2.42899260e+02])
     blood_length = 10**x0[0]
     blood_neg_alpha_mean = 10**x0[1]
     dfe_params = x0[2*n_branches:(2*n_branches+inf_data.dfe.nparams)]
@@ -172,18 +173,17 @@ def test_one_locus_twice():
         selection_model=True
     )
 
-    npr.seed(0)
+    x0 = np.array([-1.54289540e+00, -1.39242535e-01,  1.23316051e+00,  5.38598196e-01,
+                   -6.10761605e-01, -3.18695298e+00, -5.06171510e+00,  2.42899260e+02])
     n_branches = 1
-
-    x0 = npr.uniform(inf_data.lower, inf_data.upper)
     ll = inf_data.loglike(x0)
 
-    # After uncommenting inference.py line matching SELTEST
-
+    # After uncommenting inference.py line matching SELTEST, you should see
     # ll ped_ll: [-20.24688293 -20.24688293]
     # ll ped_log_asc_prob: [-16.40931194 -16.40931194]
 
-    # Test inf_data.lower and inf_data.upper.
+    # The rest is not tested.
+
 
 def test_two_loci_two_families():
 
@@ -215,10 +215,11 @@ def test_two_loci_two_families():
         selection_model=True
     )
 
-    npr.seed(0)
     n_branches = 2
 
-    x0 = npr.uniform(inf_data.lower, inf_data.upper)
+    x0 = np.array([ -1.5428954,  -1.81236204,  -0.5889465,  -0.82046727,
+                -0.91614241,   1.75072936,  -0.49930231,  -0.97404299,
+                -0.32703516, -72.26625833, 180.86952361])
     blood_length = 10**x0[0]
     blood_rate = 10**x0[1]
 
@@ -328,14 +329,12 @@ def test_two_loci_two_families():
     prob_right_poly_loc1_fam0 = 1.0 - np.dot(transition_mat_rate_fam_0_loc1, eboth).sum(1)
     prob_both_poly_loc1_fam0 = prob_left_poly_loc1 * prob_right_poly_loc1_fam0
     log_prob_asc_loc1_fam0 = np.log(np.dot(stat_dist, prob_both_poly_loc1_fam0))
-    #assert np.isclose(log_prob_asc_loc1_fam0, -4.41170451)
     assert np.isclose(log_prob_asc_loc1_fam0, -4.04565476)
 
     # family 1, locus 1
     prob_right_poly_loc1_fam1 = 1.0 - np.dot(transition_mat_rate_fam_1_loc1, eboth).sum(1)
     prob_both_poly_loc1_fam1 = prob_left_poly_loc1 * prob_right_poly_loc1_fam1
     log_prob_asc_loc1_fam1 = np.log(np.dot(stat_dist, prob_both_poly_loc1_fam1))
-    #assert np.isclose(log_prob_asc_loc1_fam1, -2.67053206)
     assert np.isclose(log_prob_asc_loc1_fam1, -2.39888754)
 
     log_prob_asc = np.sum(
