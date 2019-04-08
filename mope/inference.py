@@ -40,6 +40,9 @@ from mope import params as par
 
 inf_data = None
 
+# The following several global aliases for these functions are necessary for
+# parallel computations with multiprocessing and MPI.
+
 def logl(x):
     global inf_data
     return -1.0*inf_data.inf_bound_like_obj(x)
@@ -1333,7 +1336,9 @@ class Inference(object):
                     _util.print_parallel_csv_lines(p, lnprob, lnlike)
                 else:
                     # first chain is chain with temperature 1
-                    _util.print_csv_lines(p[0], lnprob[0])
+                    tps = _util.translate_positions(
+                        p[0], self.lower, self.num_branches)
+                    _util.print_csv_lines(tps, lnprob[0])
 
         else:
             evidence_every = 2000
