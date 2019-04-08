@@ -51,30 +51,29 @@ def translate_positions(
 
 
 def translate_positions_parallel(
-        np.ndarray[np.float64_t,ndim=2] pos,
+        np.ndarray[np.float64_t,ndim=3] pos,
         np.ndarray[np.float64_t,ndim=1] lower,
         int num_branches):
     cdef:
-        int i, j
-        int num_walkers = pos.shape[0]
-        np.ndarray[np.float64_t,ndim=2] ret = pos.copy()
+        int i, j, k, nchains, nwalkers
+        np.ndarray[np.float64_t,ndim=3] ret = pos.copy()
 
-    for i in range(num_walkers):
-        # The first num_branches parameters are genetic
-        # drift parameters, which are zero when these
-        # values are less than lower+1.
-        for j in range(num_branches):
-            if pos[i,j] <= lower[j]+1:
-                ret[i,j] = 0
-            else:
-                ret[i,j] = 10**pos[i,j]
-        # The next num_branches parameters are mutation
-        # rates, which are also in log10-space.
-        for j in range(num_branches, 2*num_branches):
-            ret[i,j] = 10**pos[i,j]
-        # We leave the other parameters (root parameters,
-        # DFE params, selection parameters) in their
-        # original space.
+    nchains = pos.shape[0]
+    nwalkers = pos.shape[1]
+    for i in range(nchains):
+        for j in range(nwalkers):
+            for k in range(num_branches):
+                if pos[i,j,k] <= lower[k]+1:
+                    ret[i,j,k] = 0
+                else:
+                    ret[i,j,k] = 10**pos[i,j,k]
+            # The next num_branches parameters are mutation
+            # rates, which are also in log10-space.
+            for k in range(num_branches, 2*num_branches):
+                ret[i,j,k] = 10**pos[i,j,k]
+            # We leave the other parameters (root parameters,
+            # DFE params, selection parameters) in their
+            # original space.
     return ret
 
 
