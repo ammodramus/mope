@@ -178,7 +178,7 @@ def test_one_locus_twice():
     x0 = npr.uniform(inf_data.lower, inf_data.upper)
     ll = inf_data.loglike(x0)
 
-    # After uncommenting at inference.py:769, expect to see this:
+    # After uncommenting inference.py line matching SELTEST
 
     # ll ped_ll: [-20.24688293 -20.24688293]
     # ll ped_log_asc_prob: [-16.40931194 -16.40931194]
@@ -302,8 +302,10 @@ def test_two_loci_two_families():
     allele_frequency_loglikes = np.log(np.dot(root_freq_likes, stat_dist))
     print('test ped_ll:', allele_frequency_loglikes)
     allele_frequency_loglike = np.sum(allele_frequency_loglikes)
-    assert np.all(np.isclose(allele_frequency_loglikes, np.array([-14.76720745, -23.1917792,  -19.16966547])))
-    assert np.isclose(allele_frequency_loglike, -57.12865211928926)
+    #assert np.all(np.isclose(allele_frequency_loglikes, np.array([-14.76720745, -23.1917792,  -19.16966547])))
+    assert np.all(np.isclose(allele_frequency_loglikes, np.array([-13.97914171, -22.82499637, -18.80418358])))
+    print(np.sum(allele_frequency_loglikes), np.sum(np.array([-13.97914171, -22.82499637, -18.80418358])))
+    assert np.isclose(allele_frequency_loglike, -55.60832166)
 
     # For each locus/family combination (family 0: loci 0, 1; family 1: locus
     # 1), need to calculate the ascertainment probability
@@ -319,20 +321,22 @@ def test_two_loci_two_families():
     prob_right_poly_loc0_fam0 = 1.0 - np.dot(transition_mat_rate_fam_0_loc0, eboth).sum(1)
     prob_both_poly_loc0_fam0 = prob_left_poly_loc0 * prob_right_poly_loc0_fam0
     log_prob_asc_loc0_fam0 = np.log(np.dot(stat_dist, prob_both_poly_loc0_fam0))
-    assert np.isclose(log_prob_asc_loc0_fam0, -2.56011662)
+    assert np.isclose(log_prob_asc_loc0_fam0, -2.40282664)
 
     # family 0, locus 1
     prob_left_poly_loc1 = 1.0 - np.dot(transition_mat_length_loc1, eboth).sum(1)
     prob_right_poly_loc1_fam0 = 1.0 - np.dot(transition_mat_rate_fam_0_loc1, eboth).sum(1)
     prob_both_poly_loc1_fam0 = prob_left_poly_loc1 * prob_right_poly_loc1_fam0
     log_prob_asc_loc1_fam0 = np.log(np.dot(stat_dist, prob_both_poly_loc1_fam0))
-    assert np.isclose(log_prob_asc_loc1_fam0, -4.41170451)
+    #assert np.isclose(log_prob_asc_loc1_fam0, -4.41170451)
+    assert np.isclose(log_prob_asc_loc1_fam0, -4.04565476)
 
     # family 1, locus 1
     prob_right_poly_loc1_fam1 = 1.0 - np.dot(transition_mat_rate_fam_1_loc1, eboth).sum(1)
     prob_both_poly_loc1_fam1 = prob_left_poly_loc1 * prob_right_poly_loc1_fam1
     log_prob_asc_loc1_fam1 = np.log(np.dot(stat_dist, prob_both_poly_loc1_fam1))
-    assert np.isclose(log_prob_asc_loc1_fam1, -2.67053206)
+    #assert np.isclose(log_prob_asc_loc1_fam1, -2.67053206)
+    assert np.isclose(log_prob_asc_loc1_fam1, -2.39888754)
 
     log_prob_asc = np.sum(
         [log_prob_asc_loc0_fam0, log_prob_asc_loc1_fam0,
