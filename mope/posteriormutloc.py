@@ -299,58 +299,59 @@ def run_posterior_mut_loc(args):
             upper_drift_limit = upper_dr,
             min_phred_score = args.min_phred_score)
 
-    # load in posterior data, too
+    # Load in the posterior data.
     posterior_data = pd.read_csv(args.posteriorsamples, header = 0, comment = '#', sep = '\t').iloc[:,1:]
     posterior_data = posterior_data.iloc[int(args.burnin_frac*posterior_data.shape[0]+0.5):,:]
 
+    # Here we convert the parameters from linear scale back
+    # to log10-scale.
+    with np.errstate(all='ignore'):   # ignore warnings about log10(0.0)
+        colfilt = posterior_data.columns.str.endswith('_l')
+        posterior_data.loc[:,colfilt] = np.log10(posterior_data[:,colfilt])
 
-    # TODO (?) rewrite this to remove redundancy
-    if not args.overall_mutation:
-        has_header = False
-        log_probs = defaultdict(lambda: defaultdict(list))
-        log_probs_all_nodes = {}
-        rep_idx = 0
-        for tree_idx in range(len(inf_data.trees)):
-            tree_leaf_likes = inf_data.leaf_likes[tree_idx]
-            for idx, sampled_varpars in posterior_data.sample(args.numposteriorsamples, axis = 0).iterrows():
-                sampled_varpars = sampled_varpars.values
-                log_overall_probs = fill_cond_probs(inf_data, tree_idx, sampled_varpars)
-                for node in inf_data.trees[tree_idx].walk('postorder'):
-                    if node == inf_data.trees[tree_idx]:   # the MRCA
-                        continue
-                    log_mut_probs = fill_cond_probs_mutation(node, inf_data, tree_idx, sampled_varpars)
-                    log_p_this_node = log_mut_probs - log_overall_probs
-                    datp = pd.DataFrame(log_p_this_node)
-                    datp.columns = ['logprob']
-                    datp['family'] = inf_data.data[tree_idx]['family']
-                    datp['position'] = inf_data.data[tree_idx]['position'].astype(np.int32)
-                    datp['nodename'] = node.name
-                    datp['rep'] = rep_idx
-                    if not has_header:
-                        datp.to_csv(sys.stdout, index = False, sep = str('\t'))
-                        has_header = True
-                    else:
-                        datp.to_csv(sys.stdout, index = False, header = False, sep = str('\t'))
-                    rep_idx += 1
+    # The drift values self.lower through self.lower+1 are
+    # considered to be zero internally. Here we revert to
+    # that from the output, which was zero and then
+    # converted into -inf by the np.log10() call above.
+    for i, col in enumerate(posterior_data.columns[posterior_data.columns.str.endswith('_l')]):
+        posterior_data.loc[~np.isfinite(posterior_data[col]),col] = inf_data.lower[i] + 0.5
+
+    # The mutation rates where the branch-length (i.e.,
+    # drift) is zero are reported as NaN by mope. Here we
+    # give them an arbitrary value, which won't influence
+    # anything since the branch lengths are zero and
+    # mutation doesn't enter into consideration.
+    for i, mcol in enumerate(posterior_data.columns[posterior_data.columns.str.endswith('_m')]):
+        lcol = mcol.replace('_m', '_l')  # corresponding length column
+        filt = posterior_data[lcol] < self.lower[i]+1
+        mut_bounds_idx = self.num_varnames + i
+        # Set the mutation value to the middle of its allowed range.
+        posterior_data.loc[filt, mcol] = (self.lower[i] + self.upper[i])/2.0
 
 
-
-    else:
-        log_probs = defaultdict(list)
-        log_probs_all_nodes = {}
-        for tree_idx in range(len(inf_data.trees)):
-            tree_leaf_likes = inf_data.leaf_likes[tree_idx]
-            for idx, sampled_varpars in posterior_data.sample(args.numposteriorsamples, axis = 0).iterrows():
-                sampled_varpars = sampled_varpars.values
-                log_overall_probs, log_mut_only_probs = fill_cond_probs(inf_data, tree_idx, sampled_varpars, True)
-                log_p_this_node = log_mut_only_probs - log_overall_probs
-                log_probs[tree_idx].append(log_p_this_node)
-
-        for tree_idx in range(len(inf_data.trees)):
-            log_cond_probs = np.array(log_probs[tree_idx]).T
-            log_mut_probs = pd.DataFrame(log_cond_probs)
-            log_mut_probs['family'] = inf_data.data[tree_idx]['family']
-            log_mut_probs['position'] = inf_data.data[tree_idx]['position'].astype(np.int32)
-            log_probs[tree_idx] = pd.melt(log_mut_probs, id_vars = ['family', 'position'], var_name = 'rep', value_name = 'logprob')
-        all_log_probs = pd.concat(log_probs.values(), ignore_index = True)
-        all_log_probs.to_csv(sys.stdout, index = False, sep = str('\t'))
+    has_header = False
+    log_probs = defaultdict(lambda: defaultdict(list))
+    log_probs_all_nodes = {}
+    rep_idx = 0
+    for tree_idx in range(len(inf_data.trees)):
+        tree_leaf_likes = inf_data.leaf_likes[tree_idx]
+        for idx, sampled_varpars in posterior_data.sample(args.numposteriorsamples, axis = 0).iterrows():
+            sampled_varpars = sampled_varpars.values
+            log_overall_probs = fill_cond_probs(inf_data, tree_idx, sampled_varpars)
+            for node in inf_data.trees[tree_idx].walk('postorder'):
+                if node == inf_data.trees[tree_idx]:   # the MRCA
+                    continue
+                log_mut_probs = fill_cond_probs_mutation(node, inf_data, tree_idx, sampled_varpars)
+                log_p_this_node = log_mut_probs - log_overall_probs
+                datp = pd.DataFrame(log_p_this_node)
+                datp.columns = ['logprob']
+                datp['family'] = inf_data.data[tree_idx]['family']
+                datp['position'] = inf_data.data[tree_idx]['position'].astype(np.int32)
+                datp['nodename'] = node.name
+                datp['rep'] = rep_idx
+                if not has_header:
+                    datp.to_csv(sys.stdout, index = False, sep = str('\t'))
+                    has_header = True
+                else:
+                    datp.to_csv(sys.stdout, index = False, header = False, sep = str('\t'))
+                rep_idx += 1
