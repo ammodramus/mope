@@ -3,6 +3,9 @@ cimport numpy as np
 cimport cython
 from libc.stdio cimport printf
 
+
+cdef double NAN = np.nan
+
 def print_csv_line(np.ndarray[np.float64_t, ndim = 1] arr):
     cdef int i
     cdef int arrlen = arr.shape[0]
@@ -34,19 +37,18 @@ def translate_positions(
     for i in range(num_walkers):
         # The first num_varnames parameters are genetic
         # drift parameters, which are zero when these
-        # values are less than lower+1.
+        # values are less than lower+1. We set the mutation
+        # rate to NaN when the drift parameter is 0.
         for j in range(num_varnames):
             if pos[i,j] <= lower[j]+1:
                 ret[i,j] = 0
+                ret[i,j+num_varnames] = NAN
             else:
                 ret[i,j] = 10**pos[i,j]
-        # The next num_varnames parameters are mutation
-        # rates, which are also in log10-space.
-        for j in range(num_varnames, 2*num_varnames):
-            ret[i,j] = 10**pos[i,j]
+                ret[i,j+num_varnames] = 10**pos[i,j+num_varnames]
         # We leave the other parameters (root parameters,
         # DFE params, selection parameters) in their
-        # original space.
+        # original scaling.
     return ret
 
 
@@ -65,15 +67,13 @@ def translate_positions_parallel(
             for k in range(num_branches):
                 if pos[i,j,k] <= lower[k]+1:
                     ret[i,j,k] = 0
+                    ret[i,j,k+num_branches] = NAN
                 else:
                     ret[i,j,k] = 10**pos[i,j,k]
-            # The next num_branches parameters are mutation
-            # rates, which are also in log10-space.
-            for k in range(num_branches, 2*num_branches):
-                ret[i,j,k] = 10**pos[i,j,k]
+                    ret[i,j,k+num_branches] = 10**ret[i,j,k+num_branches]
             # We leave the other parameters (root parameters,
             # DFE params, selection parameters) in their
-            # original space.
+            # original scaling.
     return ret
 
 
