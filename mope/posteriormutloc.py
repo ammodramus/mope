@@ -307,7 +307,7 @@ def run_posterior_mut_loc(args):
     # to log10-scale.
     with np.errstate(all='ignore'):   # ignore warnings about log10(0.0)
         colfilt = posterior_data.columns.str.endswith('_l')
-        posterior_data.loc[:,colfilt] = np.log10(posterior_data[:,colfilt])
+        posterior_data.loc[:,colfilt] = np.log10(posterior_data.loc[:,colfilt])
 
     # The drift values self.lower through self.lower+1 are
     # considered to be zero internally. Here we revert to
