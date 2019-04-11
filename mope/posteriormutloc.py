@@ -308,11 +308,14 @@ def run_posterior_mut_loc(args):
     with np.errstate(all='ignore'):   # ignore warnings about log10(0.0)
         colfilt = posterior_data.columns.str.endswith('_l')
         posterior_data.loc[:,colfilt] = np.log10(posterior_data.loc[:,colfilt])
+        colfilt = posterior_data.columns.str.endswith('_m')
+        posterior_data.loc[:,colfilt] = np.log10(posterior_data.loc[:,colfilt])
 
-    # The drift values self.lower through self.lower+1 are
-    # considered to be zero internally. Here we revert to
-    # that from the output, which was zero and then
-    # converted into -inf by the np.log10() call above.
+    # The drift values inf_data.lower through
+    # inf_data.lower+1 are considered to be zero
+    # internally. Here we revert to that from the output,
+    # which was zero and then converted into -inf by the
+    # np.log10() call above.
     for i, col in enumerate(posterior_data.columns[posterior_data.columns.str.endswith('_l')]):
         posterior_data.loc[~np.isfinite(posterior_data[col]),col] = inf_data.lower[i] + 0.5
 
@@ -323,10 +326,10 @@ def run_posterior_mut_loc(args):
     # mutation doesn't enter into consideration.
     for i, mcol in enumerate(posterior_data.columns[posterior_data.columns.str.endswith('_m')]):
         lcol = mcol.replace('_m', '_l')  # corresponding length column
-        filt = posterior_data[lcol] < self.lower[i]+1
-        mut_bounds_idx = self.num_varnames + i
+        filt = posterior_data[lcol] < inf_data.lower[i]+1
+        mut_bounds_idx = inf_data.num_varnames + i
         # Set the mutation value to the middle of its allowed range.
-        posterior_data.loc[filt, mcol] = (self.lower[i] + self.upper[i])/2.0
+        posterior_data.loc[filt, mcol] = (inf_data.lower[mut_bounds_idx] + inf_data.upper[mut_bounds_idx])/2.0
 
 
     has_header = False
