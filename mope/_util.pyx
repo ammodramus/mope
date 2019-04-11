@@ -1,5 +1,6 @@
 from __future__ import print_function
 cimport numpy as np
+import numpy as np
 cimport cython
 from libc.stdio cimport printf
 
