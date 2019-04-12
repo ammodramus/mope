@@ -302,6 +302,7 @@ def run_posterior_mut_loc(args):
     # Load in the posterior data.
     posterior_data = pd.read_csv(args.posteriorsamples, header = 0, comment = '#', sep = '\t').iloc[:,1:]
     posterior_data = posterior_data.iloc[int(args.burnin_frac*posterior_data.shape[0]+0.5):,:]
+    posterior_data = posterior_data.sample(args.num_samples)
 
     # Here we convert the parameters from linear scale back
     # to log10-scale.
