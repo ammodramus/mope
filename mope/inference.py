@@ -133,7 +133,10 @@ def _get_valid_start_from(sf_str):
 def _get_header(inf):
     length_names = [el+'_l' for el in inf.varnames]
     if inf.selection_model:
-        mutsel_names = ['el_a' for el in inf.varnames] + inf.dfe.param_names
+        dfe_names = []
+        for i in range(inf.num_dfes):
+            dfe_names.extend([el + '_{}'.format(i) for el in inf.dfes[i].param_names])
+        mutsel_names = [el+'_a' for el in inf.varnames] + dfe_names
     else:
         mutsel_names = [el+'_m' for el in inf.varnames]
     header_list = (['ll'] + length_names + mutsel_names +
@@ -148,7 +151,8 @@ def _get_likelihood_limits(inf):
     num_varnames = inf.num_varnames
     ndim = 2*num_varnames + 2
     if inf.selection_model:
-        ndim += inf.dfe.nparams + inf.num_unique_positions
+        num_dfe_params = sum([dfe.nparams for dfe in inf.dfes])
+        ndim += num_dfe_params + inf.num_unique_positions
 
     # (this multiplied by 0.1 for pointmass at zero)
     # this gives the log10-uniform an additional order of magnitude for
@@ -208,10 +212,18 @@ def _get_likelihood_limits(inf):
         #      inf.selection_focal_varname, indexed i. For other processes,
         #      we have to multiply the value by
         #      meanalpha(i)/meanalpha(focalprocess).
-        lower_sel = np.array(([lower_alpha_neg]*num_varnames
-                              + list(inf.dfe.lower_limits)))
+
+        dfe_lowers = []
+        for dfe in inf.dfes:
+            dfe_lowers.extend(list(dfe.lower_limits))
+        dfe_uppers = []
+        for dfe in inf.dfes:
+            dfe_uppers.extend(list(dfe.lower_limits))
+
+        lower_sel = np.array([lower_alpha_neg]*num_varnames
+                              + dfe_lowers)
         upper_sel = np.array([upper_alpha_neg]*num_varnames
-                              + list(inf.dfe.upper_limits))
+                              + dfe_uppers)
 
         # The selection coefficients must be in linear space because both
         # positive and negative values must be represented. The upper limit is
@@ -461,15 +473,16 @@ class Inference(object):
                         datp.loc[needs_rounding0, ln] = 0.0
                         datp.loc[needs_rounding1, ln] = 1.0
 
-        else:   # self.data_are_freqs == False
-            for datp, tln, tcn in izip(self.data, self.leaf_names, self.coverage_names):
-                for ln, nn in zip(tln, tcn):
-                    freqs = datp[ln].astype(np.float64)/datp[nn]
-                    needs_rounding0 = (freqs < self.min_freq)
-                    needs_rounding1 = (freqs > 1-self.min_freq)
-                    datp.loc[needs_rounding0, ln] = 0
-                    datp.loc[needs_rounding1, ln] = (
-                            datp.loc[needs_rounding1, nn])
+        # Previously we were rounding down counts to zero.
+        #else:   # self.data_are_freqs == False
+        #    for datp, tln, tcn in izip(self.data, self.leaf_names, self.coverage_names):
+        #        for ln, nn in zip(tln, tcn):
+        #            freqs = datp[ln].astype(np.float64)/datp[nn]
+        #            needs_rounding0 = (freqs < self.min_freq)
+        #            needs_rounding1 = (freqs > 1-self.min_freq)
+        #            datp.loc[needs_rounding0, ln] = 0
+        #            datp.loc[needs_rounding1, ln] = (
+        #                    datp.loc[needs_rounding1, nn])
 
         #####################################################
         # get unique positions if selection model
@@ -480,7 +493,7 @@ class Inference(object):
                 unique_positions.update(
                     set(datp['position'].tolist()))
             unique_positions = sorted(unique_positions)
-            self.unique_positions = unique_positions
+            self.unique_positions = np.array(unique_positions)
             self.num_unique_positions = len(unique_positions)
 
             for datp in self.data:
@@ -591,12 +604,66 @@ class Inference(object):
             self.focal_branch = self.varnames[0]
             self.focal_branch_idx = 0
 
-            # TODO comment this.
-            # This is the minimum absolute-value scaled selecti
             self.abs_sel_zero_value = 10
 
-            # Set up the distribution of fitness effects (DFE).
-            self.dfe = CygnusDistribution()
+            # Set up the distributions of fitness effects (DFEj.
+            distinct_dfes = set([])
+            dfe_found = False
+            for dat in self.data:
+                if 'dfe' in dat.columns:
+                    dfe_found = True
+                    if not all(['dfe' in datp.columns for datp in self.data]):
+                        raise ValueError(
+                            'dfe must be specified in all dataframes if it is '
+                            'specified in any.')
+                    distinct_dfes.update(set(dat['dfe']))
+
+            if len(distinct_dfes) == 0:
+                distinct_dfes.update(set([0]))
+
+            self.num_dfes = len(distinct_dfes)
+
+            dfe_translate = {el: i for i, el in enumerate(
+                sorted(distinct_dfes))}
+            self.dfe_translation = dfe_translate
+
+            from collections import defaultdict
+            if dfe_found:
+                # For each position, determine whether each
+                # occurrence of that position (in different
+                # families and/or pedigrees) has the same
+                # DFE. It should.
+                pos_dfes_set = defaultdict(set)
+                for dat in self.data:
+                    for pos, dfe in dat[['position', 'dfe']].itertuples(
+                            index=False):
+                        pos_dfes_set[pos].add(dfe)
+                        if len(pos_dfes_set[pos]) > 1:
+                            raise ValueError('each position must correspond '
+                                             'to just a single DFE')
+
+                # Set the position DFEs dictionary.
+                self.pos_dfes = {pos: list(dfe_set)[0] for pos, dfe_set in 
+                            pos_dfes_set.items()}
+
+            else:   # no 'dfe' column specified
+                self.pos_dfes = defaultdict(lambda: 0)
+
+            # Note: If down the road we want to have
+            # different DFEs with different properties,
+            # this is where they would be specified as
+            # being different.
+            self.dfes = []
+            for i in range(self.num_dfes):
+                self.dfes.append(CygnusDistribution())
+
+            self.total_num_dfe_params = sum([dfe.nparams for dfe in self.dfes])
+
+            # An array of DFE indices corresponding to
+            # self.unique_positions
+            self.dfe_indices = np.array(
+                [self.pos_dfes[pos] for pos in self.unique_positions])
+
 
 
         #####################################################
@@ -725,7 +792,8 @@ class Inference(object):
             sel_params[(~zero_filt) & pos_filt] -= self.abs_sel_zero_value
 
             dfe_start = 2*self.num_varnames        # start of the DFE params
-            dfe_params = varparams[dfe_start:dfe_start+self.dfe.nparams]
+            dfe_params = varparams[
+                dfe_start:dfe_start+self.total_num_dfe_params]
 
             nvn = self.num_varnames
             mutsel_rates_varpar = varparams[nvn:2*nvn]
@@ -733,13 +801,13 @@ class Inference(object):
             relative_alpha_means = 10**mutsel_rates_varpar / focal_alpha_neg_mean
             #print('ll focal_alpha_neg_mean:', focal_alpha_neg_mean)
             #print('ll relative alphas:', relative_alpha_means)
+
             # The shape of locus_alpha_values is
-            # (self.num_varnames, self.num_unique_positions), so
-            # locus_alpha_values[i,j] gives the selection rate for varname i
-            # and unique locus j.
+            # (self.num_varnames,
+            # self.num_unique_positions), so
+            # locus_alpha_values[i,j] gives the selection
+            # rate for varname i and unique locus j.
             locus_alpha_values = sel_params * relative_alpha_means[:, np.newaxis]
-            #print('locus_alpha_values:')
-            #print(locus_alpha_values)
             if np.any(locus_alpha_values > self.max_alpha):
                 ll = -np.inf
                 print('@@ {:15}'.format(str(ll)), end=' ')
@@ -824,8 +892,10 @@ class Inference(object):
             ll += ped_ll
 
         if self.selection_model:
-            dfe_ll = self.dfe.get_loglike(dfe_params, focal_alpha_neg_mean,
-                                          sel_params)
+            #dfe_ll = self.dfe.get_loglike(dfe_params, focal_alpha_neg_mean,
+            #                              sel_params)
+            dfe_ll = self.get_dfe_loglikes(dfe_params, focal_alpha_neg_mean,
+                                           sel_params)
             ll += dfe_ll
 
         if self.print_debug:
@@ -837,6 +907,21 @@ class Inference(object):
                 _util.print_csv_line(varparams)
 
         return ll
+
+
+
+    def get_dfe_loglikes(self, all_dfe_params, all_focal_alpha_neg_means,
+                         all_sel_params):
+        total_dfe_ll = 0.0
+        cur_idx = 0
+        for i, dfe in enumerate(self.dfes):
+            #focal_alpha_neg_mean = all_focal_alpha_neg_means[i]
+            focal_alpha_neg_mean = all_focal_alpha_neg_means  # intentional bug
+            dfe_params = all_dfe_params[cur_idx:cur_idx+dfe.nparams]
+            dfe_sel_params = all_sel_params[self.dfe_indices == i]
+            total_dfe_ll += dfe.get_loglike(dfe_params, focal_alpha_neg_mean,
+                                            dfe_sel_params)
+        return total_dfe_ll
 
 
     def debug_loglike_components(self, varparams):

@@ -73,8 +73,8 @@ def test_one_locus():
                    -5.06171510e+00,  2.42899260e+02])
     blood_length = 10**x0[0]
     blood_neg_alpha_mean = 10**x0[1]
-    dfe_params = x0[2*n_branches:(2*n_branches+inf_data.dfe.nparams)]
-    root_start = 2*n_branches+inf_data.dfe.nparams
+    dfe_params = x0[2*n_branches:(2*n_branches+inf_data.dfes[0].nparams)]
+    root_start = 2*n_branches+inf_data.dfes[0].nparams
     alpha_start = root_start + 2
     root_params = x0[root_start:alpha_start]
     log10ab, log10polyprob = root_params
@@ -133,7 +133,7 @@ def test_one_locus():
     prob_pos = expit(dfe_params[1])
     log10ratiopostoneg = dfe_params[2]
 
-    prog_dfe_ll = inf_data.dfe.get_loglike(
+    prog_dfe_ll = inf_data.dfes[0].get_loglike(
         dfe_params, blood_neg_alpha_mean, alpha_arr)
     test_dfe_ll = (
         np.log(1-prob_zero) + np.log(prob_pos)
@@ -229,9 +229,9 @@ def test_two_loci_two_families():
 
     relative_alpha_means = np.array((blood_length_neg_alpha_mean, blood_rate_neg_alpha_mean))/blood_length_neg_alpha_mean
 
-    dfe_params = x0[2*n_branches:(2*n_branches+inf_data.dfe.nparams)]
+    dfe_params = x0[2*n_branches:(2*n_branches+inf_data.dfes[0].nparams)]
 
-    root_start = 2*n_branches+inf_data.dfe.nparams
+    root_start = 2*n_branches+inf_data.dfes[0].nparams
     alpha_start = root_start + 2
     root_params = x0[root_start:alpha_start]
 
@@ -357,7 +357,7 @@ def test_two_loci_two_families():
     prob_neg = 1.0 - prob_pos
     log10ratiopostoneg = dfe_params[2]
 
-    prog_dfe_ll = inf_data.dfe.get_loglike(
+    prog_dfe_ll = inf_data.dfes[0].get_loglike(
         dfe_params, blood_length_neg_alpha_mean, focal_alpha_arr)
     
     # DFE for each position
