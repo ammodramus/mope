@@ -15,24 +15,28 @@ class CygnusDistribution(object):
     This distribution looks a little like the constellation Cygnus.
 
     The three parameters are:
-        - logitprobzero:       The logit-probability that the selection
-                               coefficient is zero
-        - logitprobpos         The logit-probability that a non-zero selection
-                               coefficient is positive.
-        - log10ratiopostoneg   The log10 ratio of positive to negative mean
-                               selection coefficients
+        - logitprobzero:              logit-probability that the selection
+                                      is zero
+        - logitprobpos                logit-probability that a non-zero selection
+                                      coefficient is positive.
+        - log10ratiopostoneg          log10 ratio of positive to negative mean
+                                      selection coefficients
+        - log10focalmeanalphaneg      log10 mean of the negative part of the DFE
+                                      for the focal branch (which has relative size 1)
 
     Additionally, the loglike function must be specified a mean value of the
     scaled selection coefficient alpha for the negative part of the selection
     coefficient distribution.
     '''
     def __init__(self):
-        self.lower_limits = np.array([-6, -6, -4])
+        self.lower_limits = np.array([-6, -6, -4, -6])
         self.upper_limits = -self.lower_limits
+        self.upper_limits[-1] = 0
         self.param_names = [
             'logitprobzero',
             'logitprobpos',
             'log10ratiopostoneg',
+            'log10focalmeanalphaneg',
         ]
         self.nparams = self.lower_limits.shape[0]
         assert self.nparams == self.upper_limits.shape[0]
@@ -51,27 +55,32 @@ class CygnusDistribution(object):
         else:
             return np.sum(np.log(self.upper_limits-self.lower_limits))
 
-    def get_loglike(self, dfe_params, focal_mean_alpha_neg, alphas):
+    def get_loglike(self, dfe_params, alphas):
         '''
         dfe_params              distribution parameters
             The three parameters are:
-                - logitprobzero:       The logit-probability that the selection
-                                       coefficient is zero
-                - logitprobpos         The logit-probability that a non-zero
-                                       selection coefficient is positive.
-                - log10ratiopostoneg   The log10 ratio of positive to negative
-                                       mean selection coefficients
-        focal_mean_alpha_neg    mean alpha for the distribution of alphas
+                - logitprobzero:           The logit-probability that the selection
+                                           coefficient is zero
+                - logitprobpos             The logit-probability that a non-zero
+                                           selection coefficient is positive.
+                - log10ratiopostoneg       The log10 ratio of positive to negative
+                                           mean selection coefficients
+                - log10focalmeanalphaneg   log10 mean of the negative part of the DFE
+                                           for the focal branch (which has
+                                           relative size 1)
         alphas                  population-scaled selection coefficient(s)
         '''
         logitprobzero = dfe_params[0]
         logitprobpos = dfe_params[1]
         log10ratiopostoneg = dfe_params[2]
+        log10focalmeanalphaneg = dfe_params[3]
 
         prob_zero = expit(logitprobzero)
         prob_nonzero = 1-prob_zero
         log_prob_zero = np.log(prob_zero)
         log_prob_nonzero = np.log(prob_nonzero)
+        
+        focal_mean_alpha_neg = 10**log10focalmeanalphaneg
 
         log_prob_pos = np.log(expit(logitprobpos))
         log_prob_neg = np.log(1-np.exp(log_prob_pos))

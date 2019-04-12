@@ -184,18 +184,6 @@ def _get_likelihood_limits(inf):
     upper_len = np.log10(upper_len)
 
     if inf.selection_model:
-        # This is the lower limit of the log10-mean of the exponential
-        # distribution of selection coefficients for the negative selection
-        # coefficients.
-        lower_alpha_neg = -3
-        # Don't let the mean of the (untruncated) exponential distribution
-        # exceed half of the maximum value
-        max_mutsel_rate = inf.transition_data.get_max_mutsel_rate()
-        min_mutsel_rate = inf.transition_data.get_min_mutsel_rate()
-        max_mean = 0.5*max_mutsel_rate
-        upper_alpha_neg = min(1, np.log10(max_mean))
-
-
         # For the selection model, lower_sel and upper_sel here contain the
         # lower and upper limits for the parameters of the DFEs, not the alpha
         # (2Ns) values for individual base-pair positions. The general order of
@@ -210,36 +198,42 @@ def _get_likelihood_limits(inf):
         #   5. selection coefficients for individual base-pair positions. These
         #      correspond to the values for the ontogenetic process
         #      inf.selection_focal_varname, indexed i. For other processes,
-        #      we have to multiply the value by
-        #      meanalpha(i)/meanalpha(focalprocess).
+        #      we have to multiply the effective population size.
 
         dfe_lowers = []
         for dfe in inf.dfes:
             dfe_lowers.extend(list(dfe.lower_limits))
         dfe_uppers = []
         for dfe in inf.dfes:
-            dfe_uppers.extend(list(dfe.lower_limits))
+            dfe_uppers.extend(list(dfe.upper_limits))
 
-        lower_sel = np.array([lower_alpha_neg]*num_varnames
+
+        lower_rel_pop_size = -2
+        upper_rel_pop_size = 2
+
+        lower_sel = np.array([lower_rel_pop_size]*num_varnames
                               + dfe_lowers)
-        upper_sel = np.array([upper_alpha_neg]*num_varnames
+        upper_sel = np.array([upper_rel_pop_size]*num_varnames
                               + dfe_uppers)
 
         # The selection coefficients must be in linear space because both
         # positive and negative values must be represented. The upper limit is
         # s=10. The lower limit is s=-10. However, the interval
-        # (-self.abs_sel_zero_value, self.abs_sel_zero_value) will be interpreted
-        # as zero. So the upper and lower limits must be self.abs_sel_zero_value
-        # above and below 10 and -10, respectively.
+        # (-self.abs_sel_zero_value, self.abs_sel_zero_value) will be
+        # interpreted as zero. So the upper and lower limits must be
+        # self.abs_sel_zero_value above and below 10 and -10, respectively.
 
+        # Here we multiply by 10**-upper_rel_pop_size because we need them to
+        # remain within our pre-calculated intervals even after adjustment with
+        # effective population size.
+        min_mutsel_rate = (10**-upper_rel_pop_size
+                           * inf.transition_data.get_min_mutsel_rate())
+        max_mutsel_rate = (10**-upper_rel_pop_size
+                           * inf.transition_data.get_max_mutsel_rate())
 
-        min_alpha_value = min_mutsel_rate
-        min_sel_param = min_alpha_value - inf.abs_sel_zero_value
+        min_sel_param = min_mutsel_rate - inf.abs_sel_zero_value
+        max_sel_param = min_mutsel_rate + inf.abs_sel_zero_value
 
-        max_alpha_value = max_mutsel_rate
-        max_sel_param = max_alpha_value + inf.abs_sel_zero_value
-
-        #log10_alpha_max = np.log10(max_mutsel_rate)
         lower_alpha = np.repeat(min_sel_param, inf.num_unique_positions)
         upper_alpha = np.repeat(max_sel_param, inf.num_unique_positions)
 
@@ -590,6 +584,8 @@ class Inference(object):
         self.min_mults, self.max_mults = (
                 self.get_min_max_mults())
 
+        self.num_varnames = len(self.varnames)
+
         #####################################################
         # if selection, get DFE, set focal branch, set
         # minimum selection coefficient that is not
@@ -603,6 +599,8 @@ class Inference(object):
             # first varname as the focal process.
             self.focal_branch = self.varnames[0]
             self.focal_branch_idx = 0
+            #self.focal_branch_varpar_idx = 2*self.num_varnames-1
+            self.focal_branch_varpar_idx = self.num_varnames
 
             self.abs_sel_zero_value = 10
 
@@ -675,15 +673,17 @@ class Inference(object):
         #####################################################
         # making bounds for likelihood functions
         #####################################################
-        self.num_varnames = len(self.varnames)
 
         # For the selection model, the order of the parameters is:
         #   1. length parameters  (num_varnames)
-        #   2. mean alphas for negative selection coefficient distributions
-        #      (num_varnames)
-        #   3. other DFE parameters (here, for this DFE, log10 pos/neg alpha
+        #   2. relative population sizes. The first (= the
+        #      focal branch) is 1.0. (previously: mean
+        #      alphas for negative selection coefficient
+        #      distributions) (num_varnames)
+        #   3. DFE parameters (here, for this DFE, log10 pos/neg alpha
         #      ratio, log10 prob that a site has a negative vs. positive
-        #      selection coefficient)
+        #      selection coefficient, and log10-mean of negative part of the
+        #      DFE)
         #   4. selection coefficients for individual base-pair positions. These
         #      correspond to the values for the ontogenetic process
         #      inf.focal_branch. For other processes, have to
@@ -768,7 +768,8 @@ class Inference(object):
         ll = 0.0
         bad_input = False
         if self.selection_model:
-            # translating the variables for the selection model
+            # Always set the focal branch's popsize to log10(1.0) == 0.0.
+            orig_params[self.focal_branch_varpar_idx] = 0.0
 
             # The last self.num_unique_positions params pertain to the
             # selection coefficients for each unique position; up until then
@@ -796,18 +797,21 @@ class Inference(object):
                 dfe_start:dfe_start+self.total_num_dfe_params]
 
             nvn = self.num_varnames
-            mutsel_rates_varpar = varparams[nvn:2*nvn]
-            focal_alpha_neg_mean = 10**mutsel_rates_varpar[self.focal_branch_idx]
-            relative_alpha_means = 10**mutsel_rates_varpar / focal_alpha_neg_mean
-            #print('ll focal_alpha_neg_mean:', focal_alpha_neg_mean)
-            #print('ll relative alphas:', relative_alpha_means)
+            popsizes_varpar = varparams[nvn:2*nvn]
+            print('HI self.focal_branch_idx:', self.focal_branch_idx)
+            popsizes_varpar[self.focal_branch_idx] = 0.0
+            focal_eff_pop_size = 1.0
+            relative_eff_pop_sizes = 10**popsizes_varpar / focal_eff_pop_size
+            #print('ll focal_popsize:', focal_eff_pop_size)
+            #print('ll relative popsizes:', relative_eff_pop_sizes)
 
             # The shape of locus_alpha_values is
             # (self.num_varnames,
             # self.num_unique_positions), so
             # locus_alpha_values[i,j] gives the selection
             # rate for varname i and unique locus j.
-            locus_alpha_values = sel_params * relative_alpha_means[:, np.newaxis]
+            locus_alpha_values = sel_params * relative_eff_pop_sizes[:, np.newaxis]
+            print('locus_alpha_values:', locus_alpha_values)
             if np.any(locus_alpha_values > self.max_alpha):
                 ll = -np.inf
                 print('@@ {:15}'.format(str(ll)), end=' ')
@@ -852,6 +856,8 @@ class Inference(object):
                 # pedigree.
                 trans_idxs_len = trans_idxs[:self.num_branches[i]]
                 locus_alpha_values_p = locus_alpha_values[trans_idxs_len, :]
+                print('ll alpha:', locus_alpha_values_p)
+                print('ll branch_lengths:', branch_lengths)
                 # Calculate log-likelihood and log ascertainment probbilities.
                 ped_ll, ped_log_asc_prob = li.get_log_l_and_asc_prob_selection(
                     branch_lengths,
@@ -862,9 +868,10 @@ class Inference(object):
                     self.min_freq
                 )
                 # SELTEST Uncomment this for testing selection likelihood.
-                #print('ll ped_ll:', ped_ll)
-                #print('ll ped_log_asc_prob:', ped_log_asc_prob)
+                print('ll ped_ll:', ped_ll)
+                print('ll ped_log_asc_prob:', ped_log_asc_prob)
             else:
+                print('ll branch_lengths:', branch_lengths)
                 ped_ll = li.get_log_likelihood_somatic_newick(
                     branch_lengths,
                     mutsel_rates,
@@ -894,8 +901,7 @@ class Inference(object):
         if self.selection_model:
             #dfe_ll = self.dfe.get_loglike(dfe_params, focal_alpha_neg_mean,
             #                              sel_params)
-            dfe_ll = self.get_dfe_loglikes(dfe_params, focal_alpha_neg_mean,
-                                           sel_params)
+            dfe_ll = self.get_dfe_loglikes(dfe_params, sel_params)
             ll += dfe_ll
 
         if self.print_debug:
@@ -910,17 +916,13 @@ class Inference(object):
 
 
 
-    def get_dfe_loglikes(self, all_dfe_params, all_focal_alpha_neg_means,
-                         all_sel_params):
+    def get_dfe_loglikes(self, all_dfe_params, all_sel_params):
         total_dfe_ll = 0.0
         cur_idx = 0
         for i, dfe in enumerate(self.dfes):
-            #focal_alpha_neg_mean = all_focal_alpha_neg_means[i]
-            focal_alpha_neg_mean = all_focal_alpha_neg_means  # intentional bug
             dfe_params = all_dfe_params[cur_idx:cur_idx+dfe.nparams]
             dfe_sel_params = all_sel_params[self.dfe_indices == i]
-            total_dfe_ll += dfe.get_loglike(dfe_params, focal_alpha_neg_mean,
-                                            dfe_sel_params)
+            total_dfe_ll += dfe.get_loglike(dfe_params, dfe_sel_params)
         return total_dfe_ll
 
 
