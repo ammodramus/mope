@@ -440,191 +440,216 @@ def test_two_loci_two_families_two_dfes():
 
     n_branches = 2
 
-    npr.seed(0)
-    x0 = npr.uniform(inf_data.lower, inf_data.upper)
-    blood_length = 10**x0[0]
-    blood_rate = 10**x0[1]
+    npr.seed(1)
+    for rep in range(500):
+        print('\rrep {}'.format(rep), end='')
+        x0 = npr.uniform(inf_data.lower, inf_data.upper)
+        blood_length = 10**x0[0]
+        blood_rate = 10**x0[1]
 
-    # Confirmed that length comes before rate.
-    blood_length_rel_pop_size = 1.0
-    blood_rate_rel_pop_size = 10**x0[3]
+        # Confirmed that length comes before rate.
+        blood_length_rel_pop_size = 1.0
+        blood_rate_rel_pop_size = 10**x0[3]
 
-    relative_population_sizes = np.array(
-        (blood_length_rel_pop_size,
-         blood_rate_rel_pop_size))/blood_length_rel_pop_size
-
-
-    dfe0_params = x0[2*n_branches:(2*n_branches+inf_data.dfes[0].nparams)]
-    dfe1_params = x0[(2*n_branches+inf_data.dfes[0].nparams):((2*n_branches+inf_data.dfes[0].nparams)+inf_data.dfes[1].nparams)]
-    all_dfe_params = np.concatenate((dfe0_params, dfe1_params))
-
-    root_start = 2*n_branches+inf_data.dfes[0].nparams
-    alpha_start = root_start + 2   # two root parameters
-    root_params = x0[root_start:alpha_start]
+        relative_population_sizes = np.array(
+            (blood_length_rel_pop_size,
+             blood_rate_rel_pop_size))/blood_length_rel_pop_size
 
 
-    log10ab, log10polyprob = root_params
+        dfe0_params = x0[2*n_branches:(2*n_branches+inf_data.dfes[0].nparams)]
+        dfe1_params = x0[(2*n_branches+inf_data.dfes[0].nparams):((2*n_branches+inf_data.dfes[0].nparams)+inf_data.dfes[1].nparams)]
+        all_dfe_params = np.concatenate((dfe0_params, dfe1_params))
 
-    # Absolute adjustment happens before relative adjustment.
-    orig_alpha_loc0 = x0[alpha_start]
-    if np.abs(orig_alpha_loc0) < inf_data.abs_sel_zero_value:
-        actual_alpha_loc0_l = 0.0
-    else:
-        actual_alpha_loc0_l = (np.sign(orig_alpha_loc0)
-                               * (np.abs(orig_alpha_loc0)
-                                  -inf_data.abs_sel_zero_value))
-    orig_alpha_loc1 = x0[alpha_start+1]
-    if np.abs(orig_alpha_loc1) < inf_data.abs_sel_zero_value:
-        actual_alpha_loc1_l = 0.0
-    else:
-        actual_alpha_loc1_l = (np.sign(orig_alpha_loc1)
-                               * (np.abs(orig_alpha_loc1)
-                                  -inf_data.abs_sel_zero_value))
-
-    actual_alpha_loc0_r = actual_alpha_loc0_l * relative_population_sizes[1]
-    actual_alpha_loc1_r = actual_alpha_loc1_l * relative_population_sizes[1]
-    print('test alpha length', actual_alpha_loc0_l, actual_alpha_loc1_l)
-    print('test alpha rate', actual_alpha_loc0_r, actual_alpha_loc1_r)
-
-    ll = inf_data.loglike(x0)
-
-    # Get the transition matrix for the non-rate blood.
-    transition_mat_length_loc0 = (
-        inf_data.transition_data.get_transition_probabilities_2d(
-            blood_length, actual_alpha_loc0_l))
-
-    transition_mat_length_loc1 = (
-        inf_data.transition_data.get_transition_probabilities_2d(
-            blood_length, actual_alpha_loc1_l))
-
-    transition_mat_rate_fam_0_loc0 = (
-        inf_data.transition_data.get_transition_probabilities_2d(
-            blood_rate*inf_data.data[0]['child_age'].iloc[0], actual_alpha_loc0_r))
-
-    transition_mat_rate_fam_0_loc1 = (
-        inf_data.transition_data.get_transition_probabilities_2d(
-            blood_rate*inf_data.data[0]['child_age'].iloc[0], actual_alpha_loc1_r))
-
-    transition_mat_rate_fam_1_loc1 = (
-        inf_data.transition_data.get_transition_probabilities_2d(
-            blood_rate*inf_data.data[0]['child_age'].iloc[2], actual_alpha_loc1_r))
+        root_start = 2*n_branches+inf_data.total_num_dfe_params
+        alpha_start = root_start + 2   # two root parameters
+        root_params = x0[root_start:alpha_start]
 
 
-    # Get the stationary distribution.
-    freqs = inf_data.transition_data.get_bin_frequencies()
-    breaks = inf_data.transition_data.get_breaks()
-    N = inf_data.transition_data.get_N()
-    stat_dist = li.get_stationary_distribution_double_beta(
-        freqs, breaks, N, 10**log10ab, 10**log10polyprob)
+        log10ab, log10polyprob = root_params
 
-    # Get the allele frequency likelihoods.
-    leaf_likes_mother_blood = inf_data.leaf_likes[0]['mother_blood']
-    leaf_likes_child_blood = inf_data.leaf_likes[0]['child_blood']
+        # Absolute adjustment happens before relative adjustment.
+        orig_alpha_loc0 = x0[alpha_start]
+        if np.abs(orig_alpha_loc0) < inf_data.abs_sel_zero_value:
+            actual_alpha_loc0_l = 0.0
+        else:
+            actual_alpha_loc0_l = (np.sign(orig_alpha_loc0)
+                                   * (np.abs(orig_alpha_loc0)
+                                      -inf_data.abs_sel_zero_value))
+        orig_alpha_loc1 = x0[alpha_start+1]
+        if np.abs(orig_alpha_loc1) < inf_data.abs_sel_zero_value:
+            actual_alpha_loc1_l = 0.0
+        else:
+            actual_alpha_loc1_l = (np.sign(orig_alpha_loc1)
+                                   * (np.abs(orig_alpha_loc1)
+                                      -inf_data.abs_sel_zero_value))
 
-    # Calculate the unconditional likelihoods for locus 0, family 0
-    root_freq_likes_fam_0_loc_0 = (
-        np.dot(transition_mat_length_loc0, leaf_likes_mother_blood[0])
-        * np.dot(transition_mat_rate_fam_0_loc0, leaf_likes_child_blood[0]))
+        actual_alpha_loc0_r = actual_alpha_loc0_l * relative_population_sizes[1]
+        actual_alpha_loc1_r = actual_alpha_loc1_l * relative_population_sizes[1]
+        #print('test alpha length', actual_alpha_loc0_l, actual_alpha_loc1_l)
+        #print('test alpha rate', actual_alpha_loc0_r, actual_alpha_loc1_r)
 
-    root_freq_likes_fam_0_loc_1 = (
-        np.dot(transition_mat_length_loc1, leaf_likes_mother_blood[1])
-        * np.dot(transition_mat_rate_fam_0_loc1, leaf_likes_child_blood[1]))
+        ll = inf_data.loglike(x0)
 
-    root_freq_likes_fam_1_loc_1 = (
-        np.dot(transition_mat_length_loc1, leaf_likes_mother_blood[2])
-        * np.dot(transition_mat_rate_fam_1_loc1, leaf_likes_child_blood[2]))
+        # Get the transition matrix for the non-rate blood.
+        transition_mat_length_loc0 = (
+            inf_data.transition_data.get_transition_probabilities_2d(
+                blood_length, actual_alpha_loc0_l))
 
-    root_freq_likes = np.concatenate(
-        (
-            root_freq_likes_fam_0_loc_0[np.newaxis,:],
-            root_freq_likes_fam_0_loc_1[np.newaxis,:],
-            root_freq_likes_fam_1_loc_1[np.newaxis,:]
-        ))
-    allele_frequency_loglikes = np.log(np.dot(root_freq_likes, stat_dist))
-    print('test ped_ll:', allele_frequency_loglikes)
+        transition_mat_length_loc1 = (
+            inf_data.transition_data.get_transition_probabilities_2d(
+                blood_length, actual_alpha_loc1_l))
 
-    allele_frequency_loglike = np.sum(allele_frequency_loglikes)
+        transition_mat_rate_fam_0_loc0 = (
+            inf_data.transition_data.get_transition_probabilities_2d(
+                blood_rate*inf_data.data[0]['child_age'].iloc[0], actual_alpha_loc0_r))
 
-    # For each locus/family combination (family 0: loci 0, 1; family 1: locus
-    # 1), need to calculate the ascertainment probability
+        transition_mat_rate_fam_0_loc1 = (
+            inf_data.transition_data.get_transition_probabilities_2d(
+                blood_rate*inf_data.data[0]['child_age'].iloc[0], actual_alpha_loc1_r))
 
-    e0 = np.zeros_like(stat_dist)
-    e0[0] = 1.0
-    e1 = np.zeros_like(stat_dist)
-    e1[-1] = 1.0
-    eboth = np.hstack((e0[:,np.newaxis], e1[:,np.newaxis]))
-
-    # family 0, locus 0
-    prob_left_poly_loc0 = 1.0 - np.dot(transition_mat_length_loc0, eboth).sum(1)
-    prob_right_poly_loc0_fam0 = 1.0 - np.dot(transition_mat_rate_fam_0_loc0, eboth).sum(1)
-    prob_both_poly_loc0_fam0 = prob_left_poly_loc0 * prob_right_poly_loc0_fam0
-    log_prob_asc_loc0_fam0 = np.log(np.dot(stat_dist, prob_both_poly_loc0_fam0))
-    #assert np.isclose(log_prob_asc_loc0_fam0, -2.40282664)
-
-    # family 0, locus 1
-    prob_left_poly_loc1 = 1.0 - np.dot(transition_mat_length_loc1, eboth).sum(1)
-    prob_right_poly_loc1_fam0 = 1.0 - np.dot(transition_mat_rate_fam_0_loc1, eboth).sum(1)
-    prob_both_poly_loc1_fam0 = prob_left_poly_loc1 * prob_right_poly_loc1_fam0
-    log_prob_asc_loc1_fam0 = np.log(np.dot(stat_dist, prob_both_poly_loc1_fam0))
-    #assert np.isclose(log_prob_asc_loc1_fam0, -4.04565476)
-
-    # family 1, locus 1
-    prob_right_poly_loc1_fam1 = 1.0 - np.dot(transition_mat_rate_fam_1_loc1, eboth).sum(1)
-    prob_both_poly_loc1_fam1 = prob_left_poly_loc1 * prob_right_poly_loc1_fam1
-    log_prob_asc_loc1_fam1 = np.log(np.dot(stat_dist, prob_both_poly_loc1_fam1))
-    #assert np.isclose(log_prob_asc_loc1_fam1, -2.39888754)
-
-    log_prob_asc = np.sum(
-        [log_prob_asc_loc0_fam0, log_prob_asc_loc1_fam0,
-         log_prob_asc_loc1_fam1])
-
-    ascertained_ll = (allele_frequency_loglike
-                        - log_prob_asc)
+        transition_mat_rate_fam_1_loc1 = (
+            inf_data.transition_data.get_transition_probabilities_2d(
+                blood_rate*inf_data.data[0]['child_age'].iloc[2], actual_alpha_loc1_r))
 
 
-    #---------------
-    # Get the DFE probabilities.
-    from scipy.special import expit
+        # Get the stationary distribution.
+        freqs = inf_data.transition_data.get_bin_frequencies()
+        breaks = inf_data.transition_data.get_breaks()
+        N = inf_data.transition_data.get_N()
+        stat_dist = li.get_stationary_distribution_double_beta(
+            freqs, breaks, N, 10**log10ab, 10**log10polyprob)
 
-    focal_alpha_arr = np.array([actual_alpha_loc0_l, actual_alpha_loc1_l])
-    ratio_pos_to_neg_l0 = 10**dfe0_params[-2]
-    focal_neg_alpha_mean_l0 = 10**dfe0_params[-1]
-    focal_pos_alpha_mean_l0 = ratio_pos_to_neg_l0 * focal_neg_alpha_mean_l0
+        # Get the allele frequency likelihoods.
+        leaf_likes_mother_blood = inf_data.leaf_likes[0]['mother_blood']
+        leaf_likes_child_blood = inf_data.leaf_likes[0]['child_blood']
 
-    prob_zero_l0 = expit(dfe0_params[0])
-    prob_pos_l0 = expit(dfe0_params[1])
-    prob_neg_l0 = 1.0 - prob_pos_l0
-    log10ratiopostoneg_l0 = dfe0_params[2]
+        # Calculate the unconditional likelihoods for locus 0, family 0
+        root_freq_likes_fam_0_loc_0 = (
+            np.dot(transition_mat_length_loc0, leaf_likes_mother_blood[0])
+            * np.dot(transition_mat_rate_fam_0_loc0, leaf_likes_child_blood[0]))
 
-    ratio_pos_to_neg_l1 = 10**dfe1_params[-2]
-    focal_neg_alpha_mean_l1 = 10**dfe1_params[-1]
-    focal_pos_alpha_mean_l1 = ratio_pos_to_neg_l1 * focal_neg_alpha_mean_l1
+        root_freq_likes_fam_0_loc_1 = (
+            np.dot(transition_mat_length_loc1, leaf_likes_mother_blood[1])
+            * np.dot(transition_mat_rate_fam_0_loc1, leaf_likes_child_blood[1]))
 
-    prob_zero_l1 = expit(dfe1_params[0])
-    prob_pos_l1 = expit(dfe1_params[1])
-    prob_neg_l1 = 1.0 - prob_pos_l1
-    log10ratiopostoneg_l1 = dfe1_params[2]
+        root_freq_likes_fam_1_loc_1 = (
+            np.dot(transition_mat_length_loc1, leaf_likes_mother_blood[2])
+            * np.dot(transition_mat_rate_fam_1_loc1, leaf_likes_child_blood[2]))
 
-    prog_dfe_ll = inf_data.get_dfe_loglikes(all_dfe_params, focal_alpha_arr)
-    
-    # DFE for each position
-    dfe_loc0 = (np.log(1-prob_zero_l0) + np.log(prob_neg_l0)
-                + np.log(focal_neg_alpha_mean_l0)
-                - focal_neg_alpha_mean_l0*focal_alpha_arr[0])
+        root_freq_likes = np.concatenate(
+            (
+                root_freq_likes_fam_0_loc_0[np.newaxis,:],
+                root_freq_likes_fam_0_loc_1[np.newaxis,:],
+                root_freq_likes_fam_1_loc_1[np.newaxis,:]
+            ))
+        allele_frequency_loglikes = np.log(np.dot(root_freq_likes, stat_dist))
+        #print('test ped_ll:', allele_frequency_loglikes)
 
-    dfe_loc1 = np.log(prob_zero_l1)
-    test_dfe_ll = dfe_loc0 + dfe_loc1
-    import pdb; pdb.set_trace()
-    assert np.isclose(prog_dfe_ll, test_dfe_ll)
+        allele_frequency_loglike = np.sum(allele_frequency_loglikes)
 
-    final_ll = test_dfe_ll + ascertained_ll
-    assert np.isclose(final_ll, ll)
+        # For each locus/family combination (family 0: loci 0, 1; family 1: locus
+        # 1), need to calculate the ascertainment probability
+
+        e0 = np.zeros_like(stat_dist)
+        e0[0] = 1.0
+        e1 = np.zeros_like(stat_dist)
+        e1[-1] = 1.0
+        eboth = np.hstack((e0[:,np.newaxis], e1[:,np.newaxis]))
+
+        # family 0, locus 0
+        prob_left_poly_loc0 = 1.0 - np.dot(transition_mat_length_loc0, eboth).sum(1)
+        prob_right_poly_loc0_fam0 = 1.0 - np.dot(transition_mat_rate_fam_0_loc0, eboth).sum(1)
+        prob_both_poly_loc0_fam0 = prob_left_poly_loc0 * prob_right_poly_loc0_fam0
+        log_prob_asc_loc0_fam0 = np.log(np.dot(stat_dist, prob_both_poly_loc0_fam0))
+
+        # family 0, locus 1
+        prob_left_poly_loc1 = 1.0 - np.dot(transition_mat_length_loc1, eboth).sum(1)
+        prob_right_poly_loc1_fam0 = 1.0 - np.dot(transition_mat_rate_fam_0_loc1, eboth).sum(1)
+        prob_both_poly_loc1_fam0 = prob_left_poly_loc1 * prob_right_poly_loc1_fam0
+        log_prob_asc_loc1_fam0 = np.log(np.dot(stat_dist, prob_both_poly_loc1_fam0))
+
+        # family 1, locus 1
+        prob_right_poly_loc1_fam1 = 1.0 - np.dot(transition_mat_rate_fam_1_loc1, eboth).sum(1)
+        prob_both_poly_loc1_fam1 = prob_left_poly_loc1 * prob_right_poly_loc1_fam1
+        log_prob_asc_loc1_fam1 = np.log(np.dot(stat_dist, prob_both_poly_loc1_fam1))
+
+        #print('test log_asc_prob:', np.array(
+        #    [log_prob_asc_loc0_fam0, log_prob_asc_loc1_fam0,
+        #     log_prob_asc_loc1_fam1]))
+
+        log_prob_asc = np.sum(
+            [log_prob_asc_loc0_fam0, log_prob_asc_loc1_fam0,
+             log_prob_asc_loc1_fam1])
+
+        ascertained_ll = (allele_frequency_loglike
+                            - log_prob_asc)
+
+
+        #---------------
+        # Get the DFE probabilities.
+        from scipy.special import expit
+
+        #print('test all_dfe_params:', all_dfe_params)
+
+        focal_alpha_arr = np.array([actual_alpha_loc0_l, actual_alpha_loc1_l])
+
+        ratio_pos_to_neg_l0 = 10**dfe0_params[-2]
+        focal_neg_alpha_mean_l0 = 10**dfe0_params[-1]
+        focal_pos_alpha_mean_l0 = ratio_pos_to_neg_l0 * focal_neg_alpha_mean_l0
+        prob_zero_l0 = expit(dfe0_params[0])
+        prob_pos_l0 = expit(dfe0_params[1])
+        prob_neg_l0 = 1.0 - prob_pos_l0
+        log10ratiopostoneg_l0 = dfe0_params[2]
+
+        ratio_pos_to_neg_l1 = 10**dfe1_params[-2]
+        focal_neg_alpha_mean_l1 = 10**dfe1_params[-1]
+        focal_pos_alpha_mean_l1 = ratio_pos_to_neg_l1 * focal_neg_alpha_mean_l1
+        prob_zero_l1 = expit(dfe1_params[0])
+        prob_pos_l1 = expit(dfe1_params[1])
+        prob_neg_l1 = 1.0 - prob_pos_l1
+        log10ratiopostoneg_l1 = dfe1_params[2]
+
+        prog_dfe_ll = inf_data.get_dfe_loglikes(all_dfe_params, focal_alpha_arr)
+        
+        # DFE for each position
+
+        a0 = focal_alpha_arr[0]
+        a1 = focal_alpha_arr[1]
+
+        if a0 == 0.0:
+            dfe_loc0 = np.log(prob_zero_l0)
+        else:
+            dfe_loc0 = np.log(1-prob_zero_l0)
+            if a0 < 0:
+                dfe_loc0 += (np.log(prob_neg_l0) + np.log(focal_neg_alpha_mean_l0)
+                             - focal_neg_alpha_mean_l0*a0)
+            else:
+                dfe_loc0 += (np.log(prob_pos_l0) + np.log(focal_pos_alpha_mean_l0)
+                             - focal_pos_alpha_mean_l0*a0)
+
+        if a1 == 0.0:
+            dfe_loc1 = np.log(prob_zero_l1)
+        else:
+            dfe_loc1 = np.log(1-prob_zero_l1)
+            if a1 < 0:
+                dfe_loc1 += (np.log(prob_neg_l1) + np.log(focal_neg_alpha_mean_l1)
+                             - focal_neg_alpha_mean_l1*a1)
+            else:
+                dfe_loc1 += (np.log(prob_pos_l1) + np.log(focal_pos_alpha_mean_l1)
+                             - focal_pos_alpha_mean_l1*a1)
+                                                          
+        test_dfe_ll = dfe_loc0 + dfe_loc1
+        #print('test_dfe_ll:', test_dfe_ll)
+        #print('prog_dfe_ll:', prog_dfe_ll)
+        assert np.isclose(prog_dfe_ll, test_dfe_ll)
+
+        final_ll = test_dfe_ll + ascertained_ll
+        assert np.isclose(final_ll, ll)
 
 
 if __name__ == '__main__':
     #test_one_locus()
     #test_one_locus_twice()
-    test_two_loci_two_families()
-    #test_two_loci_two_families_two_dfes()
+    test_two_loci_two_families_two_dfes()
 
     print('\nTESTING PASSED\n')
