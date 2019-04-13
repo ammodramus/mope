@@ -798,12 +798,9 @@ class Inference(object):
 
             nvn = self.num_varnames
             popsizes_varpar = varparams[nvn:2*nvn]
-            print('HI self.focal_branch_idx:', self.focal_branch_idx)
             popsizes_varpar[self.focal_branch_idx] = 0.0
             focal_eff_pop_size = 1.0
             relative_eff_pop_sizes = 10**popsizes_varpar / focal_eff_pop_size
-            #print('ll focal_popsize:', focal_eff_pop_size)
-            #print('ll relative popsizes:', relative_eff_pop_sizes)
 
             # The shape of locus_alpha_values is
             # (self.num_varnames,
@@ -811,7 +808,6 @@ class Inference(object):
             # locus_alpha_values[i,j] gives the selection
             # rate for varname i and unique locus j.
             locus_alpha_values = sel_params * relative_eff_pop_sizes[:, np.newaxis]
-            print('locus_alpha_values:', locus_alpha_values)
             if np.any(locus_alpha_values > self.max_alpha):
                 ll = -np.inf
                 print('@@ {:15}'.format(str(ll)), end=' ')
@@ -856,8 +852,6 @@ class Inference(object):
                 # pedigree.
                 trans_idxs_len = trans_idxs[:self.num_branches[i]]
                 locus_alpha_values_p = locus_alpha_values[trans_idxs_len, :]
-                print('ll alpha:', locus_alpha_values_p)
-                print('ll branch_lengths:', branch_lengths)
                 # Calculate log-likelihood and log ascertainment probbilities.
                 ped_ll, ped_log_asc_prob = li.get_log_l_and_asc_prob_selection(
                     branch_lengths,
@@ -868,10 +862,9 @@ class Inference(object):
                     self.min_freq
                 )
                 # SELTEST Uncomment this for testing selection likelihood.
-                print('ll ped_ll:', ped_ll)
-                print('ll ped_log_asc_prob:', ped_log_asc_prob)
+                #print('ll ped_ll:', ped_ll)
+                #print('ll ped_log_asc_prob:', ped_log_asc_prob)
             else:
-                print('ll branch_lengths:', branch_lengths)
                 ped_ll = li.get_log_likelihood_somatic_newick(
                     branch_lengths,
                     mutsel_rates,
@@ -899,8 +892,6 @@ class Inference(object):
             ll += ped_ll
 
         if self.selection_model:
-            #dfe_ll = self.dfe.get_loglike(dfe_params, focal_alpha_neg_mean,
-            #                              sel_params)
             dfe_ll = self.get_dfe_loglikes(dfe_params, sel_params)
             ll += dfe_ll
 
@@ -923,6 +914,7 @@ class Inference(object):
             dfe_params = all_dfe_params[cur_idx:cur_idx+dfe.nparams]
             dfe_sel_params = all_sel_params[self.dfe_indices == i]
             total_dfe_ll += dfe.get_loglike(dfe_params, dfe_sel_params)
+            cur_idx += dfe.nparams
         return total_dfe_ll
 
 
