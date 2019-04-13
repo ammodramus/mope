@@ -11,6 +11,7 @@ import numpy.random as npr
 from . import _interp
 from lru import LRU
 from .generate_transitions import bin_matrix
+from . import _util
 
 def isclose(a,b, rtol = 1e-5):
     return np.abs(a-b) / np.abs(a) <= rtol
@@ -138,6 +139,7 @@ class TransitionData(object):
                     scaled_time,
                     scaled_mutsel)
             self._cache[key] = val
+        _util.check_transition_matrix(val)
         return val
 
     def get_transition_probabilities_2d_not_cached(self,

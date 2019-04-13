@@ -124,3 +124,25 @@ def print_sims(np.ndarray[np.float64_t,ndim=1] ages,
                         end = '')
             print(ages[i])
 
+
+
+def check_transition_matrix(np.ndarray[dtype=np.double_t,ndim=2] P):
+    '''
+    Check a transition matrix for negative values or values
+    > 1, and normalize rows if sum to > 1.
+    '''
+    cdef:
+        int i, j
+        double rowsum
+
+    for i in range(P.shape[0]): 
+        rowsum = 0.0
+        for j in range(P.shape[1]):
+            if P[i,j] > 1:
+                P[i,j] = 1
+            elif P[i,j] < 0:
+                P[i,j] = 0.0
+            rowsum += P[i,j]
+        if rowsum > 1:
+            for j in range(P.shape[1]):
+                P[i,j] /= rowsum
