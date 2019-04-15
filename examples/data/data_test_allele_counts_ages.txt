@@ -1,0 +1,2 @@
+family	mother_birth_age	child_age	mother_age
+0	28.8685	12.2837	41.1522

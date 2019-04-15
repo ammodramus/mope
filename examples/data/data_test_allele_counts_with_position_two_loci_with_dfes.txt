@@ -1,0 +1,4 @@
+mother_blood	mother_cheek	child_blood	child_cheek	mother_birth_age	child_age	mother_age	mother_blood_n	mother_cheek_n	child_blood_n	child_cheek_n	family	position	dfe
+0	0	98	0	28.8685	12.2837	41.1522	1030	1028	971	1043	0	24	0
+325	0	60	0	28.8685	12.2837	41.1522	1030	1028	971	1043	0	28	1
+400	0	250	0	23.4	6.7	38.4	900	876	971	1003	1	28	1
