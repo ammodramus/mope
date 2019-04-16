@@ -282,6 +282,8 @@ def main():
     parser_download.add_argument('--directory', '-d',
             help = 'directory in which to place the downloaded transitions/ '
                    'directory', default = '.')
+    parser_download.add_argument('--selection', action='store_true',
+            help='download selection transition matrix files')
     parser_download.set_defaults(
             func = _run_download)
 

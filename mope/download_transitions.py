@@ -9,8 +9,12 @@ def _run_download(args):
         if exc.errno != errno.EEXIST:
             raise
         pass
-    filepath = args.directory + '/transitions.tar.gz'
-    url = 'https://berkeley.box.com/shared/static/27ghsfp00xa7g8470ndrp5ft49y7a47y.gz'
+    if args.selection:
+        filepath = args.directory + '/transitions_selection.tar.gz'
+        url = 'https://berkeley.box.com/shared/static/jdy5o0o5ok02vqg6vvm5629plynrf26x.md5'
+    else:
+        filepath = args.directory + '/transitions.tar.gz'
+        url = 'https://berkeley.box.com/shared/static/27ghsfp00xa7g8470ndrp5ft49y7a47y.gz'
     urllib.urlretrieve(url, filepath)
 
     try:
