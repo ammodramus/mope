@@ -12,7 +12,7 @@ def _run_download(args):
         pass
     if args.selection:
         filepath = args.directory + '/transitions_selection.tar.gz'
-        url = 'https://berkeley.box.com/shared/static/jdy5o0o5ok02vqg6vvm5629plynrf26x.md5'
+        url = 'https://berkeley.box.com/shared/static/mk7gjd881rn6k710h4aqnx8ywei9hgvl.gz'
     else:
         filepath = args.directory + '/transitions.tar.gz'
         url = 'https://berkeley.box.com/shared/static/27ghsfp00xa7g8470ndrp5ft49y7a47y.gz'
