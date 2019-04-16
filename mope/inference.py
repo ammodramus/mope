@@ -8,7 +8,7 @@ from builtins import range
 from builtins import object
 import argparse
 import sys
-import os 
+import inspect
 from functools import partial
 import multiprocessing as mp
 import warnings
@@ -17,6 +17,10 @@ try:
 except ImportError:  # py3
     izip = zip
 
+import os
+os.environ['OPL_NUM_THREADS'] = "1"
+os.environ['MKL_NUM_THREADS'] = "1"
+os.environ['NUMEXPR_NUM_THREADS'] = "1"
 import numpy as np
 import scipy.optimize as opt
 import pandas as pd
@@ -1291,8 +1295,8 @@ class Inference(object):
                     rstart[:, :nvarnames] = np.log10(
                         npr.uniform(low,high)).reshape(num_walkers,-1)
                 init_pos = rstart
-                logl_val = np.array([logl(p) for p in init_pos])
-                logp_val = np.array([logp(p) for p in init_pos])
+                logl_val = pool.map(logl, [p for p in init_pos])
+                logp_val = pool.map(logp, [p for p in init_pos])
                 if (np.all(np.isfinite(logl_val)) and
                         np.all(np.isfinite(logp_val))):
                     break  # successfully found starting position within bounds
@@ -1332,17 +1336,22 @@ class Inference(object):
         ##########################################################################
 
         if init_pos is None:
+            print('getting initial position...')
             init_pos = self._get_initial_mcmc_position(num_walkers, prev_chain,
                     start_from, init_norm_sd, pool, logp, logl)
+            print('got initial position...')
 
         ##############################################################
         # running normal MCMC   
         ##############################################################
         print(self.header)
+        use_storechain = ('storechain' in
+                          inspect.getargspec(emcee.EnsembleSampler.sample).args)
+        storekeyword = {'storechain' if use_storechain else 'store': False}
         sampler = emcee.EnsembleSampler(num_walkers, ndim, post_clone,
                                         pool=pool, a=chain_alpha)
         for ps, lnprobs, cur_seed in sampler.sample(
-                init_pos, iterations = num_iter, storechain = False):
+                init_pos, iterations=num_iter, **storekeyword):
             tps = _util.translate_positions(
                 ps, self.lower, self.num_varnames)
             _util.print_csv_lines(tps, lnprobs)

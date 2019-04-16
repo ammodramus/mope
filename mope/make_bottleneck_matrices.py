@@ -8,7 +8,9 @@ import sys
 import argparse
 import h5py
 import os
-import os 
+os.environ['OPL_NUM_THREADS'] = "1"
+os.environ['MKL_NUM_THREADS'] = "1"
+os.environ['NUMEXPR_NUM_THREADS'] = "1"
 import numpy as np
 
 from . import _transition as trans

@@ -29,6 +29,10 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 '''
 
+import os
+os.environ['OPL_NUM_THREADS'] = "1"
+os.environ['MKL_NUM_THREADS'] = "1"
+os.environ['NUMEXPR_NUM_THREADS'] = "1"
 import numpy as np
 from numpy.core.numeric import binary_repr, asanyarray
 from numpy.core.numerictypes import issubdtype

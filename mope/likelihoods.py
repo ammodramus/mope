@@ -4,7 +4,10 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 from builtins import zip
 from builtins import range
-import os 
+import os
+os.environ['OPL_NUM_THREADS'] = "1"
+os.environ['MKL_NUM_THREADS'] = "1"
+os.environ['NUMEXPR_NUM_THREADS'] = "1"
 import numpy as np
 from scipy.stats import binom
 from scipy.stats import beta as betarv

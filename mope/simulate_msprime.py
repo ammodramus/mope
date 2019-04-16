@@ -6,7 +6,10 @@ from builtins import range
 import re
 import sys
 import argparse
-import os 
+import os
+os.environ['OPL_NUM_THREADS'] = "1"
+os.environ['MKL_NUM_THREADS'] = "1"
+os.environ['NUMEXPR_NUM_THREADS'] = "1"
 import numpy as np
 import numpy.random as npr
 import scipy.stats as st

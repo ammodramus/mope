@@ -1,5 +1,8 @@
 from __future__ import unicode_literals
-import os 
+import os
+os.environ['OPL_NUM_THREADS'] = "1"
+os.environ['MKL_NUM_THREADS'] = "1"
+os.environ['NUMEXPR_NUM_THREADS'] = "1"
 import numpy as np
 
 def get_branch_lengths(scenario):

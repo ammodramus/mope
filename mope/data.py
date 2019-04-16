@@ -1,7 +1,10 @@
 from __future__ import division
 from __future__ import unicode_literals
 from builtins import str
-import os 
+import os
+os.environ['OPL_NUM_THREADS'] = "1"
+os.environ['MKL_NUM_THREADS'] = "1"
+os.environ['NUMEXPR_NUM_THREADS'] = "1"
 import numpy as np
 import numpy.random as npr
 import pandas as pd

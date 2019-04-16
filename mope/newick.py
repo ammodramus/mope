@@ -21,7 +21,10 @@ from __future__ import absolute_import
 from builtins import object
 import io
 import re
-import os 
+import os
+os.environ['OPL_NUM_THREADS'] = "1"
+os.environ['MKL_NUM_THREADS'] = "1"
+os.environ['NUMEXPR_NUM_THREADS'] = "1"
 import numpy as np
 
 

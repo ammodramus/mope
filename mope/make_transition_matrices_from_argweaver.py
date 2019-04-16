@@ -1,4 +1,8 @@
 from __future__ import division, print_function
+import os
+os.environ['OPL_NUM_THREADS'] = "1"
+os.environ['MKL_NUM_THREADS'] = "1"
+os.environ['NUMEXPR_NUM_THREADS'] = "1"
 import numpy as np
 import numpy.linalg as npl
 from scipy.misc import comb

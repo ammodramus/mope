@@ -1,6 +1,5 @@
 import urllib
 import tarfile
-import os
 import errno
 
 def _run_download(args):
