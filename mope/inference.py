@@ -1295,8 +1295,12 @@ class Inference(object):
                     rstart[:, :nvarnames] = np.log10(
                         npr.uniform(low,high)).reshape(num_walkers,-1)
                 init_pos = rstart
-                logl_val = pool.map(logl, [p for p in init_pos])
-                logp_val = pool.map(logp, [p for p in init_pos])
+                if pool is not None:
+                    logl_val = pool.map(logl, [p for p in init_pos])
+                    logp_val = pool.map(logp, [p for p in init_pos])
+                else:
+                    logl_val = map(logl, [p for p in init_pos])
+                    logp_val = map(logp, [p for p in init_pos])
                 if (np.all(np.isfinite(logl_val)) and
                         np.all(np.isfinite(logp_val))):
                     break  # successfully found starting position within bounds
@@ -1336,10 +1340,8 @@ class Inference(object):
         ##########################################################################
 
         if init_pos is None:
-            print('getting initial position...')
             init_pos = self._get_initial_mcmc_position(num_walkers, prev_chain,
                     start_from, init_norm_sd, pool, logp, logl)
-            print('got initial position...')
 
         ##############################################################
         # running normal MCMC   
