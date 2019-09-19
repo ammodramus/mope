@@ -18,7 +18,7 @@ following python modules are required:
  - [Numpy](http://numpy.org)
  - [Scipy](http://scipy.org)
  - [Pandas](http://pandas.pydata.org)
- - [H5py](http://h5py.org) (for HDF5 data processing)
+ - [H5py](http://h5py.org) for HDF5 data processing
  - [emcee](http://dan.iel.fm/emcee/current/) for Ensemble MCMC machinery
  - [future](http://python-future.org/) for Python 2/3 compatibility
  - [lru-dict](https://pypi.python.org/pypi/lru-dict/) for fast caching
@@ -127,7 +127,7 @@ either as allele frequency data or as allele count data. In each case, the data
 takes the form of a tab-delimited table.
 
 Required columns are the data columns, having the names of the different
-tissues in the ontogenetic phylogeny (and corrosponding to the leaf nodes of
+tissues in the ontogenetic phylogeny (and corresponding to the leaf nodes of
 the phylogeny) and any age columns for ages corresponding to ontogenetic
 phylogeny components that accumulate drift and mutation with time.
 
@@ -148,10 +148,10 @@ requires a unique name, and a length. Only alphanumeric characters and
 underscores are allowed in node names.
 
 Node lengths specify the name of the parameter pair (i.e., the genetic drift
-and mutation parameters) associated with the branch. Optionally, this parameter
-name may be multiplied by an age variable, indicating that this parameter is to
-be interpreted as a branch length that depends on some age. (Note that this age
-name must be a variable in the data file -- see [Data file](#data-file).)
+and mutation/selection parameters) associated with the branch. Optionally, this
+parameter name may be multiplied by an age variable, indicating that this
+parameter is to be interpreted as a branch length that depends on some age.
+(Note that this age name must be a variable in the data file.
 
 It is also possible to specify that the genetic drift for a certain parameter
 is to be modeled as a bottleneck. This done by appending `^` to the parameter
