@@ -45,7 +45,7 @@ be installed with the following command:
 Installation
 ---------------
 
-For install the most up-to-date version of `mope`, clone this repository and
+To install the most up-to-date version of `mope`, clone this repository and
 use Python and distutils:
 
 ```
@@ -151,7 +151,7 @@ Node lengths specify the name of the parameter pair (i.e., the genetic drift
 and mutation/selection parameters) associated with the branch. Optionally, this
 parameter name may be multiplied by an age variable, indicating that this
 parameter is to be interpreted as a branch length that depends on some age.
-(Note that this age name must be a variable in the data file.
+(Note that this age name must be a variable in the data file.)
 
 It is also possible to specify that the genetic drift for a certain parameter
 is to be modeled as a bottleneck. This done by appending `^` to the parameter
